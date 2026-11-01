@@ -1,13 +1,13 @@
 {
-  "name": "mcp-superassistant",
-  "version": "0.6.0",
-  "description": "MCP SuperAssistant",
+  "name": "mcp-interceptor",
+  "version": "0.6.3",
+  "description": "MCP-Interceptor browser extension for connecting MCP tools to AI chat websites",
   "license": "MIT",
   "private": true,
   "sideEffects": false,
   "repository": {
     "type": "git",
-    "url": "https://github.com/srbhptl39/MCP-SuperAssistant.git"
+    "url": "https://github.com/drawdy/MCP-Interceptor.git"
   },
   "type": "module",
   "scripts": {
@@ -40,8 +40,7 @@
   },
   "dependencies": {
     "react": "19.1.0",
-    "react-dom": "19.0.0",
-    "firebase": "^11.9.1"
+    "react-dom": "19.0.0"
   },
   "devDependencies": {
     "@eslint/compat": "^1.2.5",

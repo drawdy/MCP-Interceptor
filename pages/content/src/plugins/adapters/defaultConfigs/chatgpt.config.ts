@@ -2,7 +2,7 @@ import type { AdapterConfig } from './types';
 
 /**
  * Default configuration for ChatGPT Adapter
- * This serves as the fallback when Firebase Remote Config is not available
+ * Bundled selector and behavior defaults for the ChatGPT adapter
  */
 export const CHATGPT_DEFAULT_CONFIG: AdapterConfig = {
   selectors: {
@@ -16,7 +16,7 @@ export const CHATGPT_DEFAULT_CONFIG: AdapterConfig = {
     filePreview: '.file-preview, .attachment-item',
     buttonInsertionContainer: '.composer-buttons, .input-actions',
     fallbackInsertion: '.composer-parent, .input-container',
-    
+
     // Extended selectors
     newChatButton: 'a[href="/"], button[aria-label*="New chat"]',
     conversationHistory: '.conversation-list, .chat-history',
@@ -27,63 +27,55 @@ export const CHATGPT_DEFAULT_CONFIG: AdapterConfig = {
     loadingIndicator: '.loading, .spinner',
     typingIndicator: '.typing-indicator, .thinking',
     errorMessage: '.error-message, .alert-error',
-    retryButton: 'button[aria-label*="Retry"], .retry-button'
+    retryButton: 'button[aria-label*="Retry"], .retry-button',
   },
-  
+
   ui: {
     typing: {
       minDelay: 30,
       maxDelay: 120,
-      characterDelay: 8
+      characterDelay: 8,
     },
     animations: {
       fadeIn: 250,
       slideIn: 200,
-      buttonPress: 100
+      buttonPress: 100,
     },
     retry: {
       maxAttempts: 3,
       baseDelay: 1000,
-      maxDelay: 5000
+      maxDelay: 5000,
     },
     fileUpload: {
       maxSize: 52428800, // 50MB
-      allowedTypes: [
-        'image/jpeg',
-        'image/png', 
-        'image/gif',
-        'image/webp',
-        'text/plain',
-        'text/csv',
-        'application/pdf'
-      ],
-      timeout: 30000
+      allowedTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'text/plain', 'text/csv', 'application/pdf'],
+      timeout: 30000,
     },
     polling: {
       elementWait: 100,
       statusCheck: 1000,
-      configRefresh: 300000
-    }
+      configRefresh: 300000,
+    },
   },
-  
+
   features: {
     // Core features
     textInsertion: true,
     formSubmission: true,
     fileAttachment: true,
-    
+
     // UI features
     enhancedUi: true,
     animations: true,
     lazyLoading: true,
     caching: true,
-    
+
     // Accessibility
     darkModeSupport: true,
     highContrast: true,
     screenReader: true,
     keyboardNavigation: true,
-    
+
     // Advanced features (default off for ChatGPT)
     voiceInput: false,
     smartRetry: false,
@@ -91,12 +83,12 @@ export const CHATGPT_DEFAULT_CONFIG: AdapterConfig = {
     contextAwareness: false,
     multimodalSupport: false,
     preloading: false,
-    customThemes: false
+    customThemes: false,
   },
-  
+
   version: '2.0.0',
   lastUpdated: new Date().toISOString(),
-  schemaVersion: 1
+  schemaVersion: 1,
 };
 
 export default CHATGPT_DEFAULT_CONFIG;

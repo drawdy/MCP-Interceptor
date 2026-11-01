@@ -20,35 +20,11 @@ const packageJson = JSON.parse(readFileSync('./package.json', 'utf8'));
 const manifest = {
   manifest_version: 3,
   default_locale: 'en',
-  name: 'MCP SuperAssistant',
-  browser_specific_settings: {
-    gecko: {
-      id: 'saurabh@mcpsuperassistant.ai',
-    },
-  },
+  name: 'MCP-Interceptor',
   version: packageJson.version,
-  description: 'MCP SuperAssistant',
-  host_permissions: [
-    '*://*.perplexity.ai/*',
-    '*://*.chat.openai.com/*',
-    '*://*.chatgpt.com/*',
-    '*://*.grok.com/*',
-    '*://*.x.com/*',
-    '*://*.twitter.com/*',
-    '*://*.gemini.google.com/*',
-    '*://*.aistudio.google.com/*',
-    '*://*.openrouter.ai/*',
-    '*://*.google-analytics.com/*',
-    '*://*.chat.deepseek.com/*',
-    '*://*.t3.chat/*',
-    '*://*.chat.mistral.ai/*',
-    '*://*.github.com/*',
-    '*://*.copilot.github.com/*',
-    '*://*.kimi.com/*',
-    '*://*.chat.z.ai/*',
-    '*://*.chat.qwen.ai/*',
-
-  ],
+  description: 'Connect MCP tools to supported AI chat websites through a user-configured MCP server.',
+  // The MCP endpoint is user-configured. Ask for access to only that host at runtime.
+  optional_host_permissions: ['http://*/*', 'https://*/*'],
 
   permissions: ['storage', 'clipboardWrite'],
   // permissions: ['storage', 'scripting', 'clipboardWrite'],
@@ -57,10 +33,11 @@ const manifest = {
     service_worker: 'background.js',
     type: 'module',
   },
-  // action: {
-  //   default_popup: 'popup/index.html',
-  //   default_icon: 'icon-34.png',
-  // },
+  action: {
+    default_popup: 'mcp-permissions.html',
+    default_title: 'MCP-Interceptor',
+    default_icon: 'icon-34.png',
+  },
   // chrome_url_overrides: {
   //   newtab: 'new-tab/index.html',
   // },
@@ -94,7 +71,7 @@ const manifest = {
     },
     // Specific content script for x.com and twitter.com tool call parsing (Grok integration)
     {
-      matches: ['*://*.x.com/*', '*://*.twitter.com/*', '*://*.x.com/i/grok*', '*://*.twitter.com/i/grok*'],
+      matches: ['*://*.x.com/i/grok*', '*://*.twitter.com/i/grok*'],
       js: ['content/index.iife.js'],
       run_at: 'document_idle',
     },
@@ -142,7 +119,7 @@ const manifest = {
     },
     // Specific content script for GitHub Copilot tool call parsing
     {
-      matches: ['*://*.github.com/*', '*://*.copilot.github.com/*'],
+      matches: ['*://github.com/copilot/*', '*://copilot.github.com/*'],
       js: ['content/index.iife.js'],
       run_at: 'document_idle',
     },
@@ -163,7 +140,6 @@ const manifest = {
       js: ['content/index.iife.js'],
       run_at: 'document_idle',
     },
-
   ],
   // devtools_page: 'devtools/index.html',
   web_accessible_resources: [

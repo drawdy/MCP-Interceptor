@@ -22,16 +22,18 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
     'text-insertion',
     'form-submission',
     'file-attachment',
-    'dom-manipulation'
+    'dom-manipulation',
   ];
 
   // CSS selectors for DeepSeek's UI elements
   // Updated selectors based on current DeepSeek interface
   private readonly selectors = {
     // Primary chat input selector - DeepSeek uses textarea elements
-    CHAT_INPUT: 'textarea[spellcheck="false"], textarea[data-gramm="false"], textarea[placeholder*="Ask"], textarea[placeholder*="Message DeepSeek"], textarea.chat-input, div[contenteditable="true"]',
+    CHAT_INPUT:
+      'textarea#chat-input, textarea[name="search"], #chat-input, textarea[aria-label="Ask DeepSeek anything"], textarea[placeholder*="Ask" i], textarea[placeholder*="Message" i], textarea[spellcheck="false"], textarea[data-gramm="false"], textarea.chat-input, div[contenteditable="true"][role="textbox"], div[contenteditable="true"]',
     // Submit button selectors (multiple fallbacks)
-    SUBMIT_BUTTON: 'button[aria-label*="Send"], button[data-testid="send-button"], button.send-button, svg.send-icon',
+    SUBMIT_BUTTON:
+      'button[data-testid="send-button"], button[aria-label*="Send" i], [role="button"][aria-label*="Send" i], div[role="button"].ds-button--primary.ds-button--circle:not(.ds-button--floating), div[role="button"]._52c986b:not(.ds-button--floating), .ds-button.ds-button--primary.ds-button--circle:not(.ds-button--floating), div[role="button"].ds-button--circle:not(.ds-button--floating), button.send-button, svg.send-icon',
     // File upload related selectors
     FILE_UPLOAD_BUTTON: 'button[aria-label*="attach"], button[aria-label*="file"], input[type="file"]',
     FILE_INPUT: 'input[type="file"]',
@@ -44,7 +46,7 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
     // Button insertion points (for MCP popover) - DeepSeek specific
     BUTTON_INSERTION_CONTAINER: '.ec4f5d61, .chat-input-actions, .input-actions, .actions-wrapper',
     // Alternative insertion points
-    FALLBACK_INSERTION: '.input-area, .chat-input-container, ._24fad49, .bf38813a, .aaff8b8f'
+    FALLBACK_INSERTION: '.input-area, .chat-input-container, ._24fad49, .bf38813a, .aaff8b8f',
   };
 
   // URL patterns for navigation tracking
@@ -154,12 +156,12 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
       }
     }
   `;
-  
+
   // Setup state tracking
   private storeEventListenersSetup: boolean = false;
   private domObserversSetup: boolean = false;
   private uiIntegrationSetup: boolean = false;
-  
+
   // Instance tracking for debugging
   private static instanceCount = 0;
   private instanceId: number;
@@ -174,7 +176,9 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
   async initialize(context: PluginContext): Promise<void> {
     // Guard against multiple initialization
     if (this.currentStatus === 'initializing' || this.currentStatus === 'active') {
-      this.context?.logger.warn(`DeepSeek adapter instance #${this.instanceId} already initialized or active, skipping re-initialization`);
+      this.context?.logger.warn(
+        `DeepSeek adapter instance #${this.instanceId} already initialized or active, skipping re-initialization`,
+      );
       return;
     }
 
@@ -206,7 +210,7 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
     // Emit activation event for store synchronization
     this.context.eventBus.emit('adapter:activated', {
       pluginName: this.name,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }
 
@@ -232,7 +236,7 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
     // Emit deactivation event
     this.context.eventBus.emit('adapter:deactivated', {
       pluginName: this.name,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }
 
@@ -255,7 +259,7 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
     // Final cleanup
     this.cleanupUIIntegration();
     this.cleanupDOMObservers();
-    
+
     // Reset all setup flags
     this.storeEventListenersSetup = false;
     this.domObserversSetup = false;
@@ -263,60 +267,214 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
   }
 
   /**
-   * Insert text into the DeepSeek chat input field
-   * Enhanced with better selector handling and event integration
+   * Return whether an element is visible and belongs to the DeepSeek page,
+   * rather than an input embedded in the SuperAssistant UI.
    */
-  async insertText(text: string, options?: { targetElement?: HTMLElement }): Promise<boolean> {
-    this.context.logger.debug(`Attempting to insert text into DeepSeek chat input: ${text.substring(0, 50)}${text.length > 50 ? '...' : ''}`);
+  private isUsablePageElement(element: HTMLElement): boolean {
+    if (!element.isConnected || element.getAttribute('aria-hidden') === 'true') {
+      return false;
+    }
 
-    let targetElement: HTMLElement | null = null;
+    if (element.closest('#mcp-popover-container, #mcp-sidebar-container, .mcp-superassistant-sidebar')) {
+      return false;
+    }
 
-    if (options?.targetElement) {
-      targetElement = options.targetElement;
-    } else {
-      // Try multiple selectors for better compatibility
-      const selectors = this.selectors.CHAT_INPUT.split(', ');
-      for (const selector of selectors) {
-        targetElement = document.querySelector(selector.trim()) as HTMLElement;
-        if (targetElement) {
-          this.context.logger.debug(`Found chat input using selector: ${selector.trim()}`);
-          break;
+    const rect = element.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return false;
+    }
+
+    const style = window.getComputedStyle(element);
+    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+  }
+
+  private isDisabledControl(element: HTMLElement): boolean {
+    const control = element as HTMLButtonElement;
+    return (
+      control.disabled === true ||
+      element.getAttribute('aria-disabled') === 'true' ||
+      element.hasAttribute('disabled') ||
+      element.classList.contains('ds-button--disabled')
+    );
+  }
+
+  /**
+   * Locate the actual DeepSeek composer. The name="search" selector is used by
+   * some DeepSeek builds; newer builds use #chat-input.
+   */
+  private findChatInputElement(): HTMLElement | null {
+    const selectors = [
+      'textarea#chat-input',
+      'textarea[name="search"]',
+      '#chat-input',
+      'textarea[aria-label="Ask DeepSeek anything"]',
+      'textarea[placeholder*="Ask" i]',
+      'textarea[placeholder*="Message" i]',
+      'textarea[spellcheck="false"]',
+      'textarea[data-gramm="false"]',
+      'textarea.chat-input',
+      'div[contenteditable="true"][role="textbox"]',
+      'div[contenteditable="true"]',
+      '[role="textbox"]',
+    ];
+
+    for (const selector of selectors) {
+      const candidates = Array.from(document.querySelectorAll<HTMLElement>(selector));
+      for (const candidate of candidates) {
+        const isEditable =
+          candidate instanceof HTMLTextAreaElement ||
+          candidate instanceof HTMLInputElement ||
+          candidate.isContentEditable ||
+          candidate.getAttribute('contenteditable') === 'true' ||
+          candidate.getAttribute('role') === 'textbox';
+
+        if (isEditable && this.isUsablePageElement(candidate) && !this.isDisabledControl(candidate)) {
+          return candidate;
         }
       }
     }
 
-    if (!targetElement) {
-      this.context.logger.error('Could not find DeepSeek chat input element');
+    return null;
+  }
+
+  /**
+   * Find DeepSeek's send control across native buttons and div[role=button].
+   * Floating scroll controls are explicitly excluded.
+   */
+  private findSubmitButton(): HTMLElement | null {
+    const selectors = [
+      'button[data-testid="send-button"]',
+      'button[aria-label*="Send" i]',
+      '[role="button"][aria-label*="Send" i]',
+      '[data-testid*="send" i]',
+      'div[role="button"].ds-button--primary.ds-button--circle:not(.ds-button--floating)',
+      'div[role="button"]._52c986b:not(.ds-button--floating)',
+      '.ds-button.ds-button--primary.ds-button--circle:not(.ds-button--floating)',
+      'div[role="button"].ds-button--circle:not(.ds-button--floating)',
+      'button.send-button',
+      'svg.send-icon',
+    ];
+
+    for (const selector of selectors) {
+      const candidates = Array.from(document.querySelectorAll<HTMLElement>(selector));
+      for (const candidate of candidates) {
+        const closestClickable = candidate.closest('button, [role="button"]') as HTMLElement | null;
+        const clickable = candidate.matches('button, [role="button"]') ? candidate : closestClickable || candidate;
+
+        if (!this.isUsablePageElement(clickable) || this.isDisabledControl(clickable)) {
+          continue;
+        }
+
+        if (clickable.closest('.ds-button--floating') || clickable.classList.contains('ds-button--floating')) {
+          continue;
+        }
+
+        const label = [
+          clickable.getAttribute('aria-label') || '',
+          clickable.getAttribute('title') || '',
+          clickable.innerText || '',
+        ]
+          .join(' ')
+          .toLowerCase();
+
+        if (label.includes('scroll') || label.includes('bottom')) {
+          continue;
+        }
+
+        return clickable;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Insert text into the DeepSeek chat input field.
+   * Use the native value setter and React's value tracker for controlled inputs.
+   */
+  async insertText(text: string, options?: { targetElement?: HTMLElement }): Promise<boolean> {
+    this.context.logger.debug(
+      'Attempting to insert text into DeepSeek chat input: ' + text.substring(0, 50) + (text.length > 50 ? '...' : ''),
+    );
+
+    const targetElement = options?.targetElement || this.findChatInputElement();
+
+    if (!targetElement || !this.isUsablePageElement(targetElement)) {
+      this.context.logger.error('Could not find a visible DeepSeek chat input element');
       this.emitExecutionFailed('insertText', 'Chat input element not found');
       return false;
     }
 
     try {
-      // Focus the input element
       targetElement.focus();
 
-      // Handle different input types
-      if (targetElement.tagName === 'TEXTAREA') {
-        const textarea = targetElement as HTMLTextAreaElement;
-        const currentText = textarea.value;
-        
-        // Append the text to the original value on a new line if there's existing content
-        const newContent = currentText ? currentText + '\n\n' + text : text;
-        textarea.value = newContent;
+      if (targetElement instanceof HTMLTextAreaElement || targetElement instanceof HTMLInputElement) {
+        const currentText = targetElement.value;
+        const separator = currentText ? '\n\n' : '';
+        const newContent = currentText + separator + text;
+        const prototype =
+          targetElement instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+        const nativeValueSetter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
+        const tracker = (
+          targetElement as HTMLElement & {
+            _valueTracker?: { setValue: (value: string) => void };
+          }
+        )._valueTracker;
 
-        // Position cursor at the end
-        textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+        const inputData = separator + text;
+        const setNativeValue = (value: string) => {
+          // Reset React's tracker to the current DOM value before using the
+          // prototype setter. React then observes the subsequent input event.
+          tracker?.setValue(targetElement.value);
+          if (nativeValueSetter) {
+            nativeValueSetter.call(targetElement, value);
+          } else {
+            targetElement.value = value;
+          }
+          targetElement.setSelectionRange(value.length, value.length);
+        };
+        const dispatchInput = () => {
+          targetElement.dispatchEvent(
+            new InputEvent('input', {
+              bubbles: true,
+              composed: true,
+              inputType: 'insertText',
+              data: inputData,
+            }),
+          );
+        };
 
-        // Trigger input event
-        textarea.dispatchEvent(new InputEvent('input', { bubbles: true }));
-        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+        // Notify frameworks of the edit before changing the controlled value.
+        targetElement.dispatchEvent(
+          new InputEvent('beforeinput', {
+            bubbles: true,
+            composed: true,
+            cancelable: true,
+            inputType: 'insertText',
+            data: inputData,
+          }),
+        );
+        setNativeValue(newContent);
+        dispatchInput();
 
-        this.context.logger.debug(`Text inserted into textarea successfully. Original: ${currentText.length}, Added: ${text.length}, Total: ${newContent.length}`);
-      } else if (targetElement.getAttribute('contenteditable') === 'true') {
-        // Handle contenteditable div
+        // Allow the host framework to commit its controlled-input state.
+        await new Promise(resolve => window.setTimeout(resolve, 100));
+        if (targetElement.value !== newContent) {
+          // Some DeepSeek builds reconcile the textarea on the next render.
+          // Re-apply once against the latest tracked value before reporting a
+          // genuine insertion failure.
+          this.context.logger.warn('DeepSeek input state reverted once; retrying text insertion');
+          setNativeValue(newContent);
+          dispatchInput();
+          await new Promise(resolve => window.setTimeout(resolve, 150));
+        }
+
+        if (targetElement.value !== newContent) {
+          throw new Error('DeepSeek did not retain the inserted text after retrying');
+        }
+      } else if (targetElement.isContentEditable || targetElement.getAttribute('contenteditable') === 'true') {
         const currentText = targetElement.textContent || '';
-        
-        // Move cursor to the end
+        const separator = currentText.trim() ? '\n\n' : '';
         const selection = window.getSelection();
         const range = document.createRange();
         range.selectNodeContents(targetElement);
@@ -324,152 +482,126 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
         selection?.removeAllRanges();
         selection?.addRange(range);
 
-        // Insert text with proper formatting
-        if (currentText && currentText.trim() !== '') {
-          document.execCommand('insertText', false, '\n\n');
+        const inserted = document.execCommand('insertText', false, separator + text);
+        if (!inserted && !(targetElement.textContent || '').endsWith(text)) {
+          throw new Error('DeepSeek contenteditable rejected the inserted text');
         }
-        document.execCommand('insertText', false, text);
 
-        // Trigger input event for contenteditable
-        targetElement.dispatchEvent(new InputEvent('input', { bubbles: true }));
-        targetElement.dispatchEvent(new Event('change', { bubbles: true }));
-
-        this.context.logger.debug(`Text inserted into contenteditable successfully`);
+        await new Promise(resolve => window.setTimeout(resolve, 50));
+        if (!(targetElement.textContent || '').includes(text)) {
+          throw new Error('DeepSeek reverted the inserted content');
+        }
       } else {
-        // Fallback for other element types
-        const originalValue = (targetElement as any).value || targetElement.textContent || '';
-        const newContent = originalValue ? originalValue + '\n\n' + text : text;
-        
-        if ('value' in targetElement) {
-          (targetElement as any).value = newContent;
-        } else {
-          targetElement.textContent = newContent;
-        }
-
-        // Dispatch events
-        targetElement.dispatchEvent(new InputEvent('input', { bubbles: true }));
-        targetElement.dispatchEvent(new Event('change', { bubbles: true }));
-
-        this.context.logger.debug(`Text inserted using fallback method`);
+        throw new Error('Unsupported DeepSeek chat input element: ' + targetElement.tagName);
       }
 
-      // Emit success event to the new event system
-      this.emitExecutionCompleted('insertText', { text }, {
-        success: true,
-        targetElementType: targetElement.tagName,
-        insertedLength: text.length
-      });
-
+      this.context.logger.debug('Text inserted into DeepSeek chat input successfully');
+      this.emitExecutionCompleted(
+        'insertText',
+        { insertedLength: text.length },
+        {
+          success: true,
+          targetElementType: targetElement.tagName,
+          insertedLength: text.length,
+        },
+      );
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      this.context.logger.error(`Error inserting text into DeepSeek chat input: ${errorMessage}`);
+      this.context.logger.error('Error inserting text into DeepSeek chat input: ' + errorMessage);
       this.emitExecutionFailed('insertText', errorMessage);
       return false;
     }
   }
 
   /**
-   * Submit the current text in the DeepSeek chat input
-   * Enhanced with multiple selector fallbacks and better error handling
+   * Submit the current text in the DeepSeek chat input.
+   * Wait for React to enable the send control before falling back to Enter.
    */
   async submitForm(options?: { formElement?: HTMLFormElement }): Promise<boolean> {
     this.context.logger.debug('Attempting to submit DeepSeek chat input');
 
-    let submitButton: HTMLButtonElement | null = null;
+    const maxWaitMs = 3000;
+    const pollIntervalMs = 100;
+    const startedAt = Date.now();
+    let submitButton: HTMLElement | null = null;
 
-    // Try multiple selectors for better compatibility
-    const selectors = this.selectors.SUBMIT_BUTTON.split(', ');
-    for (const selector of selectors) {
-      submitButton = document.querySelector(selector.trim()) as HTMLButtonElement;
-      if (submitButton) {
-        this.context.logger.debug(`Found submit button using selector: ${selector.trim()}`);
+    while (Date.now() - startedAt < maxWaitMs) {
+      submitButton = this.findSubmitButton();
+      if (submitButton && !this.isDisabledControl(submitButton)) {
         break;
       }
+      await new Promise(resolve => window.setTimeout(resolve, pollIntervalMs));
     }
 
-    if (!submitButton) {
-      this.context.logger.warn('Could not find DeepSeek submit button, trying Enter key press');
-      return this.tryEnterKeySubmission();
-    }
+    if (submitButton && !this.isDisabledControl(submitButton)) {
+      try {
+        submitButton.scrollIntoView({ block: 'nearest' });
+        submitButton.focus();
+        submitButton.click();
 
-    try {
-      // Check if the button is disabled
-      if (submitButton.disabled) {
-        this.context.logger.warn('DeepSeek submit button is disabled');
-        this.emitExecutionFailed('submitForm', 'Submit button is disabled');
-        return false;
+        this.emitExecutionCompleted(
+          'submitForm',
+          { formElement: options?.formElement?.tagName || 'unknown' },
+          {
+            success: true,
+            method: 'submitButton.click',
+            buttonClass: submitButton.className,
+          },
+        );
+        this.context.logger.debug('DeepSeek chat input submitted using send button');
+        return true;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.context.logger.warn('DeepSeek send button click failed: ' + errorMessage);
       }
-
-      // Check if the button is visible and clickable
-      const rect = submitButton.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) {
-        this.context.logger.warn('DeepSeek submit button is not visible');
-        this.emitExecutionFailed('submitForm', 'Submit button is not visible');
-        return false;
-      }
-
-      // Click the submit button to send the message
-      submitButton.click();
-
-      // Emit success event to the new event system
-      this.emitExecutionCompleted('submitForm', {
-        formElement: options?.formElement?.tagName || 'unknown'
-      }, {
-        success: true,
-        method: 'submitButton.click',
-        buttonSelector: selectors.find(s => document.querySelector(s.trim()) === submitButton)
-      });
-
-      this.context.logger.debug('DeepSeek chat input submitted successfully');
-      return true;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.context.logger.error(`Error submitting DeepSeek chat input: ${errorMessage}`);
-      this.emitExecutionFailed('submitForm', errorMessage);
-      return false;
     }
+
+    this.context.logger.warn('DeepSeek send button unavailable; trying Enter key fallback');
+    return this.tryEnterKeySubmission();
   }
 
   /**
-   * Try to submit using Enter key press as fallback
+   * Try to submit using Enter key events as a fallback.
    */
   private async tryEnterKeySubmission(): Promise<boolean> {
     try {
-      // Find the chat input element
-      const chatInput = document.querySelector(this.selectors.CHAT_INPUT.split(', ')[0].trim()) as HTMLElement;
-      
+      const chatInput = this.findChatInputElement();
       if (!chatInput) {
-        this.context.logger.error('Cannot find chat input for Enter key submission');
+        this.context.logger.error('Cannot find DeepSeek input for Enter key submission');
         this.emitExecutionFailed('submitForm', 'Chat input not found for Enter key submission');
         return false;
       }
 
-      // Create and dispatch Enter key event
-      const enterKeyEvent = new KeyboardEvent('keydown', {
+      chatInput.focus();
+      const keyEventInit: KeyboardEventInit = {
         key: 'Enter',
         code: 'Enter',
         keyCode: 13,
         which: 13,
         bubbles: true,
         cancelable: true,
-      });
+        composed: true,
+      };
 
-      chatInput.focus();
-      chatInput.dispatchEvent(enterKeyEvent);
+      chatInput.dispatchEvent(new KeyboardEvent('keydown', keyEventInit));
+      chatInput.dispatchEvent(new KeyboardEvent('keypress', keyEventInit));
+      chatInput.dispatchEvent(new KeyboardEvent('keyup', keyEventInit));
 
-      // Emit success event
-      this.emitExecutionCompleted('submitForm', {}, {
-        success: true,
-        method: 'enterKey',
-        fallback: true
-      });
-
-      this.context.logger.debug('DeepSeek chat input submitted using Enter key');
+      this.emitExecutionCompleted(
+        'submitForm',
+        {},
+        {
+          success: true,
+          method: 'enterKey',
+          fallback: true,
+        },
+      );
+      this.context.logger.debug('DeepSeek chat input submitted using Enter key fallback');
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      this.context.logger.error(`Error submitting DeepSeek chat input via Enter key: ${errorMessage}`);
+      this.context.logger.error('Error submitting DeepSeek chat input via Enter key: ' + errorMessage);
       this.emitExecutionFailed('submitForm', errorMessage);
       return false;
     }
@@ -497,7 +629,7 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
 
       // Try to find file input element
       let fileInput: HTMLInputElement | null = null;
-      
+
       if (options?.inputElement) {
         fileInput = options.inputElement;
       } else {
@@ -508,15 +640,19 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
         // Direct file input method
         const success = await this.attachFileToInput(file, fileInput);
         if (success) {
-          this.emitExecutionCompleted('attachFile', {
-            fileName: file.name,
-            fileType: file.type,
-            fileSize: file.size,
-            method: 'fileInput'
-          }, {
-            success: true,
-            attachmentMethod: 'direct-input'
-          });
+          this.emitExecutionCompleted(
+            'attachFile',
+            {
+              fileName: file.name,
+              fileType: file.type,
+              fileSize: file.size,
+              method: 'fileInput',
+            },
+            {
+              success: true,
+              attachmentMethod: 'direct-input',
+            },
+          );
           return true;
         }
       }
@@ -524,15 +660,19 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
       // Try drag and drop simulation as fallback
       const dropSuccess = await this.simulateFileDrop(file);
       if (dropSuccess) {
-        this.emitExecutionCompleted('attachFile', {
-          fileName: file.name,
-          fileType: file.type,
-          fileSize: file.size,
-          method: 'dragDrop'
-        }, {
-          success: true,
-          attachmentMethod: 'drag-drop-simulation'
-        });
+        this.emitExecutionCompleted(
+          'attachFile',
+          {
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+            method: 'dragDrop',
+          },
+          {
+            success: true,
+            attachmentMethod: 'drag-drop-simulation',
+          },
+        );
         return true;
       }
 
@@ -592,17 +732,17 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
 
       const dragEnterEvent = new DragEvent('dragenter', {
         bubbles: true,
-        dataTransfer: dataTransfer
+        dataTransfer: dataTransfer,
       });
 
       const dragOverEvent = new DragEvent('dragover', {
         bubbles: true,
-        dataTransfer: dataTransfer
+        dataTransfer: dataTransfer,
       });
 
       const dropEvent = new DragEvent('drop', {
         bubbles: true,
-        dataTransfer: dataTransfer
+        dataTransfer: dataTransfer,
       });
 
       // Dispatch events
@@ -644,8 +784,8 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
 
     // Check if we're on a supported DeepSeek page
     const supportedPatterns = [
-      /^https?:\/\/(?:www\.)?chat\.deepseek\.com\/.*/,  // Chat pages
-      /^https?:\/\/(?:www\.)?chat\.deepseek\.com$/       // Base chat page
+      /^https?:\/\/(?:www\.)?chat\.deepseek\.com\/.*/, // Chat pages
+      /^https?:\/\/(?:www\.)?chat\.deepseek\.com$/, // Base chat page
     ];
 
     const isSupported = supportedPatterns.some(pattern => pattern.test(currentUrl));
@@ -728,14 +868,14 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
     this.context.logger.debug(`Setting up store event listeners for DeepSeek adapter instance #${this.instanceId}`);
 
     // Listen for tool execution events from the store
-    this.context.eventBus.on('tool:execution-completed', (data) => {
+    this.context.eventBus.on('tool:execution-completed', data => {
       this.context.logger.debug('Tool execution completed:', data);
       // Handle auto-actions based on store state
       this.handleToolExecutionCompleted(data);
     });
 
     // Listen for UI state changes
-    this.context.eventBus.on('ui:sidebar-toggle', (data) => {
+    this.context.eventBus.on('ui:sidebar-toggle', data => {
       this.context.logger.debug('Sidebar toggled:', data);
     });
 
@@ -751,10 +891,10 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
     this.context.logger.debug(`Setting up DOM observers for DeepSeek adapter instance #${this.instanceId}`);
 
     // Set up mutation observer to detect page changes and re-inject UI if needed
-    this.mutationObserver = new MutationObserver((mutations) => {
+    this.mutationObserver = new MutationObserver(mutations => {
       let shouldReinject = false;
 
-      mutations.forEach((mutation) => {
+      mutations.forEach(mutation => {
         if (mutation.type === 'childList') {
           // Check if our MCP popover was removed
           if (!document.getElementById('mcp-popover-container')) {
@@ -776,9 +916,9 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
     // Start observing
     this.mutationObserver.observe(document.body, {
       childList: true,
-      subtree: true
+      subtree: true,
     });
-    
+
     this.domObserversSetup = true;
   }
 
@@ -786,19 +926,23 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
     // Allow multiple calls for UI integration (for re-injection after page changes)
     // but log it for debugging
     if (this.uiIntegrationSetup) {
-      this.context.logger.debug(`UI integration already set up for instance #${this.instanceId}, re-injecting for page changes`);
+      this.context.logger.debug(
+        `UI integration already set up for instance #${this.instanceId}, re-injecting for page changes`,
+      );
     } else {
       this.context.logger.debug(`Setting up UI integration for DeepSeek adapter instance #${this.instanceId}`);
       this.uiIntegrationSetup = true;
     }
 
     // Wait for page to be ready, then inject MCP popover
-    this.waitForPageReady().then(() => {
-      this.injectMCPPopoverWithRetry();
-    }).catch((error) => {
-      this.context.logger.warn('Failed to wait for page ready:', error);
-      // Don't retry if we can't find insertion point
-    });
+    this.waitForPageReady()
+      .then(() => {
+        this.injectMCPPopoverWithRetry();
+      })
+      .catch(error => {
+        this.context.logger.warn('Failed to wait for page ready:', error);
+        // Don't retry if we can't find insertion point
+      });
 
     // Set up periodic check to ensure popover stays injected
     // this.setupPeriodicPopoverCheck();
@@ -808,7 +952,7 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
     return new Promise((resolve, reject) => {
       let attempts = 0;
       const maxAttempts = 5; // Maximum 10 seconds (20 * 500ms)
-      
+
       const checkReady = () => {
         attempts++;
         const insertionPoint = this.findButtonInsertionPoint();
@@ -955,7 +1099,7 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
       '.aaff8b8f', // Chat input area
       '.chat-input-actions',
       '.input-actions',
-      '.actions-wrapper'
+      '.actions-wrapper',
     ];
 
     for (const selector of fallbackSelectors) {
@@ -1027,41 +1171,47 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
 
     try {
       // Import React and ReactDOM dynamically to avoid bundling issues
-      import('react').then(React => {
-        import('react-dom/client').then(ReactDOM => {
-          import('../../components/mcpPopover/mcpPopover').then(({ MCPPopover }) => {
-            // Create toggle state manager that integrates with new stores
-            const toggleStateManager = this.createToggleStateManager();
+      import('react')
+        .then(React => {
+          import('react-dom/client')
+            .then(ReactDOM => {
+              import('../../components/mcpPopover/mcpPopover')
+                .then(({ MCPPopover }) => {
+                  // Create toggle state manager that integrates with new stores
+                  const toggleStateManager = this.createToggleStateManager();
 
-            // DeepSeek-specific button configuration to match native design
-            const adapterButtonConfig = {
-              className: 'mcp-ds-button',
-              contentClassName: 'mcp-ds-button-content',
-              textClassName: 'mcp-ds-button-text',
-              iconClassName: 'mcp-ds-button-icon',
-              activeClassName: 'mcp-button-active'
-            };
+                  // DeepSeek-specific button configuration to match native design
+                  const adapterButtonConfig = {
+                    className: 'mcp-ds-button',
+                    contentClassName: 'mcp-ds-button-content',
+                    textClassName: 'mcp-ds-button-text',
+                    iconClassName: 'mcp-ds-button-icon',
+                    activeClassName: 'mcp-button-active',
+                  };
 
-            // Create React root and render
-            const root = ReactDOM.createRoot(container);
-            root.render(
-              React.createElement(MCPPopover, {
-                toggleStateManager: toggleStateManager,
-                adapterButtonConfig: adapterButtonConfig,
-                adapterName: 'DeepSeekAdapter'
-              })
-            );
+                  // Create React root and render
+                  const root = ReactDOM.createRoot(container);
+                  root.render(
+                    React.createElement(MCPPopover, {
+                      toggleStateManager: toggleStateManager,
+                      adapterButtonConfig: adapterButtonConfig,
+                      adapterName: 'DeepSeekAdapter',
+                    }),
+                  );
 
-            this.context.logger.debug('MCP popover rendered successfully with DeepSeek styling');
-          }).catch(error => {
-            this.context.logger.error('Failed to import MCPPopover component:', error);
-          });
-        }).catch(error => {
-          this.context.logger.error('Failed to import ReactDOM:', error);
+                  this.context.logger.debug('MCP popover rendered successfully with DeepSeek styling');
+                })
+                .catch(error => {
+                  this.context.logger.error('Failed to import MCPPopover component:', error);
+                });
+            })
+            .catch(error => {
+              this.context.logger.error('Failed to import ReactDOM:', error);
+            });
+        })
+        .catch(error => {
+          this.context.logger.error('Failed to import React:', error);
         });
-      }).catch(error => {
-        this.context.logger.error('Failed to import React:', error);
-      });
     } catch (error) {
       this.context.logger.error('Failed to render MCP popover:', error);
     }
@@ -1077,7 +1227,7 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
         try {
           // Get state from UI store - MCP enabled state should be the persistent MCP toggle state
           const uiState = context.stores.ui;
-          
+
           // Get the persistent MCP enabled state and other preferences
           const mcpEnabled = uiState?.mcpEnabled ?? false;
           const autoSubmitEnabled = uiState?.preferences?.autoSubmit ?? false;
@@ -1088,7 +1238,7 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
             mcpEnabled: mcpEnabled, // Use the persistent MCP state
             autoInsert: autoSubmitEnabled,
             autoSubmit: autoSubmitEnabled,
-            autoExecute: false // Default for now, can be extended
+            autoExecute: false, // Default for now, can be extended
           };
         } catch (error) {
           context.logger.error('Error getting toggle state:', error);
@@ -1097,13 +1247,15 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
             mcpEnabled: false,
             autoInsert: false,
             autoSubmit: false,
-            autoExecute: false
+            autoExecute: false,
           };
         }
       },
 
       setMCPEnabled: (enabled: boolean) => {
-        context.logger.debug(`Setting MCP ${enabled ? 'enabled' : 'disabled'} - controlling sidebar visibility via MCP state`);
+        context.logger.debug(
+          `Setting MCP ${enabled ? 'enabled' : 'disabled'} - controlling sidebar visibility via MCP state`,
+        );
 
         try {
           // Primary method: Control MCP state through UI store (which will automatically control sidebar)
@@ -1112,7 +1264,7 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
             context.logger.debug(`MCP state set to: ${enabled} via UI store`);
           } else {
             context.logger.warn('UI store setMCPEnabled method not available');
-            
+
             // Fallback: Control sidebar visibility directly if MCP state setter not available
             if (context.stores.ui?.setSidebarVisibility) {
               context.stores.ui.setSidebarVisibility(enabled, 'mcp-popover-toggle-fallback');
@@ -1138,7 +1290,9 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
             context.logger.warn('activeSidebarManager not available on window - will rely on UI store only');
           }
 
-          context.logger.debug(`MCP toggle completed: MCP ${enabled ? 'enabled' : 'disabled'}, sidebar ${enabled ? 'shown' : 'hidden'}`);
+          context.logger.debug(
+            `MCP toggle completed: MCP ${enabled ? 'enabled' : 'disabled'}, sidebar ${enabled ? 'shown' : 'hidden'}`,
+          );
         } catch (error) {
           context.logger.error('Error in setMCPEnabled:', error);
         }
@@ -1182,11 +1336,11 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
         if (popoverContainer) {
           const currentState = stateManager.getState();
           const event = new CustomEvent('mcp:update-toggle-state', {
-            detail: { toggleState: currentState }
+            detail: { toggleState: currentState },
           });
           popoverContainer.dispatchEvent(event);
         }
-      }
+      },
     };
 
     return stateManager;
@@ -1215,8 +1369,8 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
         parameters,
         result,
         timestamp: Date.now(),
-        status: 'success'
-      }
+        status: 'success',
+      },
     });
   }
 
@@ -1224,7 +1378,7 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
     this.context.eventBus.emit('tool:execution-failed', {
       toolName,
       error,
-      callId: this.generateCallId()
+      callId: this.generateCallId(),
     });
   }
 
@@ -1241,7 +1395,7 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
     try {
       // Check if there's an active sidebar manager
       const activeSidebarManager = (window as any).activeSidebarManager;
-      
+
       if (!activeSidebarManager) {
         this.context.logger.warn('No active sidebar manager found after navigation');
         return;
@@ -1249,7 +1403,6 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
 
       // Sidebar manager exists, just ensure MCP popover connection is working
       this.ensureMCPPopoverConnection();
-      
     } catch (error) {
       this.context.logger.error('Error checking sidebar state after navigation:', error);
     }
@@ -1260,7 +1413,7 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
    */
   private ensureMCPPopoverConnection(): void {
     this.context.logger.debug('Ensuring MCP popover connection after navigation');
-    
+
     try {
       // Check if MCP popover is still injected
       if (!this.isMCPPopoverInjected()) {
@@ -1300,7 +1453,7 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
     // Emit page change event to stores
     this.context.eventBus.emit('app:site-changed', {
       site: url,
-      hostname: window.location.hostname
+      hostname: window.location.hostname,
     });
   }
 
@@ -1314,7 +1467,7 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
       // Emit deactivation event using available event type
       this.context.eventBus.emit('adapter:deactivated', {
         pluginName: this.name,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
     } else {
       // Re-setup for new host

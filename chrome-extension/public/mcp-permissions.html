@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MCP-Interceptor</title>
+    <link rel="stylesheet" href="mcp-permissions.css" />
+  </head>
+  <body>
+    <main class="panel">
+      <header class="header">
+        <img src="icon-34.png" alt="" width="34" height="34" />
+        <div>
+          <h1>MCP-Interceptor</h1>
+          <p>Configure and connect to your MCP server.</p>
+        </div>
+      </header>
+
+      <section class="server">
+        <label for="server-url" class="eyebrow">MCP SERVER ENDPOINT</label>
+        <input
+          id="server-url"
+          type="url"
+          inputmode="url"
+          autocomplete="url"
+          spellcheck="false"
+          placeholder="http://localhost:3006/sse"
+          required />
+
+        <label for="connection-type" class="eyebrow">TRANSPORT</label>
+        <select id="connection-type">
+          <option value="sse">SSE</option>
+          <option value="streamable-http">Streamable HTTP</option>
+          <option value="websocket">WebSocket</option>
+        </select>
+        <p id="server-host" class="muted"></p>
+      </section>
+
+      <button id="grant-connect" type="button" disabled>Grant access and connect</button>
+      <p id="status" class="status" role="status" aria-live="polite"> Loading server configuration… </p>
+
+      <footer>
+        On supported AI chat pages, this extension reads visible responses to detect tool calls. Tool names and
+        arguments are sent only to the MCP server configured here; results can be inserted into the chat. Chrome grants
+        access only to the configured server host.
+      </footer>
+    </main>
+    <script src="mcp-permissions.js"></script>
+  </body>
+</html>

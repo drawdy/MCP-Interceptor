@@ -1,5 +1,5 @@
 // Core exports
-import { McpClient } from './core/McpClient.js';
+import { McpClient, isExpectedConnectionFailure } from './core/McpClient.js';
 import { PluginRegistry } from './core/PluginRegistry.js';
 import { EventEmitter } from './core/EventEmitter.js';
 
@@ -16,7 +16,7 @@ import { createLogger } from '@extension/shared/lib/logger';
 
 const logger = createLogger('mcp_client');
 
-export { McpClient, PluginRegistry, EventEmitter };
+export { McpClient, PluginRegistry, EventEmitter, isExpectedConnectionFailure };
 
 // Export plugins
 export { SSEPlugin, WebSocketPlugin, WebSocketTransport };
@@ -111,6 +111,11 @@ function setupGlobalClientEventListeners(client: McpClient): void {
   });
 
   client.on('client:error', (event) => {
+    if (event.context === 'connection' && isExpectedConnectionFailure(event.error)) {
+      logger.warn('[Global Client] MCP server connection is temporarily unavailable:', event.error.message);
+      return;
+    }
+
     logger.error('[Global Client] Client error:', event);
   });
 }

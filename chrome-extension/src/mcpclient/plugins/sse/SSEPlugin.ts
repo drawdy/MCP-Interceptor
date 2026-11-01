@@ -7,7 +7,6 @@ import type { ITransportPlugin, PluginMetadata, PluginConfig } from '../../types
 import type { SSEPluginConfig } from '../../types/config.js';
 import { createLogger } from '@extension/shared/lib/logger';
 
-
 const logger = createLogger('SSEPlugin');
 
 export class SSEPlugin implements ITransportPlugin {
@@ -16,7 +15,7 @@ export class SSEPlugin implements ITransportPlugin {
     version: '1.0.0',
     transportType: 'sse',
     description: 'Server-Sent Events transport for MCP protocol',
-    author: 'MCP SuperAssistant',
+    author: 'MCP-Interceptor',
   };
 
   private config: SSEPluginConfig = {};

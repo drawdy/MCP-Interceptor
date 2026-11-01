@@ -1,4 +1,5 @@
 import { logMessage } from './helpers';
+import { getExtensionAssetUrl } from './extensionUrl';
 import { createLogger } from '@extension/shared/lib/logger';
 
 /**
@@ -18,7 +19,11 @@ export const injectShadowDomCSS = async (shadowRoot: ShadowRoot, cssPath: string
   }
 
   try {
-    const cssUrl = chrome.runtime.getURL(cssPath);
+    const cssUrl = getExtensionAssetUrl(cssPath);
+    if (!cssUrl) {
+      logMessage('Skipping Shadow DOM CSS injection because the extension context is unavailable');
+      return;
+    }
     logMessage(`Fetching CSS from: ${cssUrl}`);
 
     const response = await fetch(cssUrl);
@@ -395,7 +400,11 @@ export const injectTailwindToShadowDom = async (shadowRoot: ShadowRoot): Promise
 
   try {
     // 1. Fetch the compiled Tailwind CSS
-    const cssUrl = chrome.runtime.getURL('content/index.css');
+    const cssUrl = getExtensionAssetUrl('content/index.css');
+    if (!cssUrl) {
+      logMessage('Skipping Tailwind injection because the extension context is unavailable');
+      return;
+    }
     logMessage(`Fetching Tailwind CSS from: ${cssUrl}`);
 
     const response = await fetch(cssUrl);
@@ -413,8 +422,10 @@ export const injectTailwindToShadowDom = async (shadowRoot: ShadowRoot): Promise
       logMessage('Successfully injected Tailwind CSS using Constructable Stylesheets');
     } catch (constructableError) {
       // 3. Fallback to style element for Firefox and older browsers
-      logMessage(`Constructable Stylesheets not supported, falling back to style element: ${constructableError instanceof Error ? constructableError.message : String(constructableError)}`);
-      
+      logMessage(
+        `Constructable Stylesheets not supported, falling back to style element: ${constructableError instanceof Error ? constructableError.message : String(constructableError)}`,
+      );
+
       const styleElement = document.createElement('style');
       styleElement.textContent = cssText;
       shadowRoot.appendChild(styleElement);

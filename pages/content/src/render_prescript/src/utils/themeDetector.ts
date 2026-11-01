@@ -890,7 +890,7 @@ export function startThemeMonitoring(): void {
     return; // Already monitoring
   }
 
-  let debounceTimeout: number;
+  let debounceTimeout: ReturnType<typeof setTimeout>;
 
   const checkThemeChange = () => {
     clearTimeout(debounceTimeout);
@@ -971,6 +971,17 @@ export function startThemeMonitoring(): void {
     subtree: false,
   });
 
+  // Watch stylesheet and style-element changes instead of forcing synthetic resizes.
+  if (document.head) {
+    themeObserver.observe(document.head, {
+      attributes: true,
+      attributeFilter: ['media', 'disabled', 'href', 'rel'],
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+  }
+
   // Listen for CSS media query changes
   if (window.matchMedia) {
     const darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -1032,55 +1043,6 @@ export function startThemeMonitoring(): void {
     events: customThemeEvents,
   };
 
-  // Watch for CSS variable changes using ResizeObserver trick
-  if (window.ResizeObserver) {
-    const themeVariableWatcher = document.createElement('div');
-    themeVariableWatcher.style.cssText = `
-      position: absolute;
-      top: -9999px;
-      left: -9999px;
-      width: 1px;
-      height: 1px;
-      background: var(--background-color, var(--bg-color, var(--background, transparent)));
-      color: var(--text-color, var(--color, inherit));
-      pointer-events: none;
-    `;
-    document.body.appendChild(themeVariableWatcher);
-
-    const lastComputedStyle = window.getComputedStyle(themeVariableWatcher);
-    let lastBgColor = lastComputedStyle.backgroundColor;
-    let lastTextColor = lastComputedStyle.color;
-
-    const variableObserver = new ResizeObserver(() => {
-      const currentStyle = window.getComputedStyle(themeVariableWatcher);
-      const currentBgColor = currentStyle.backgroundColor;
-      const currentTextColor = currentStyle.color;
-
-      if (currentBgColor !== lastBgColor || currentTextColor !== lastTextColor) {
-        logThemeDetection('CSS variable change detected', {
-          bgColor: { old: lastBgColor, new: currentBgColor },
-          textColor: { old: lastTextColor, new: currentTextColor },
-        });
-        lastBgColor = currentBgColor;
-        lastTextColor = currentTextColor;
-        checkThemeChange();
-      }
-    });
-
-    // Trigger observation by changing a property
-    const triggerObservation = () => {
-      themeVariableWatcher.style.width = themeVariableWatcher.style.width === '1px' ? '2px' : '1px';
-    };
-
-    setInterval(triggerObservation, 1000); // Check every second
-    variableObserver.observe(themeVariableWatcher);
-
-    (window as any)._themeVariableWatcher = {
-      element: themeVariableWatcher,
-      observer: variableObserver,
-    };
-  }
-
   // Initialize current state
   currentThemeState = getCurrentThemeState();
 
@@ -1119,16 +1081,6 @@ export function stopThemeMonitoring(): void {
       window.removeEventListener(eventType, customEventListeners.handler);
     });
     delete (window as any)._themeCustomEventListeners;
-  }
-
-  // Clean up CSS variable watcher
-  const variableWatcher = (window as any)._themeVariableWatcher;
-  if (variableWatcher) {
-    variableWatcher.observer?.disconnect();
-    if (variableWatcher.element && variableWatcher.element.parentNode) {
-      variableWatcher.element.parentNode.removeChild(variableWatcher.element);
-    }
-    delete (window as any)._themeVariableWatcher;
   }
 
   logThemeDetection('Enhanced theme monitoring stopped and cleaned up');

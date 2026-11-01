@@ -1,6 +1,6 @@
 /**
  * Type definitions for adapter configurations
- * These types ensure type safety for both default configs and Firebase Remote Config
+ * These types define the bundled adapter configuration contract
  */
 
 export interface AdapterSelectors {
@@ -86,11 +86,11 @@ export interface AdapterFeatures {
 
 /**
  * Override configuration for adapter config merging
- * When a key is set to true, remote config values will completely override defaults for that section
+ * When a key is set to true, configuration values will completely override defaults for that section
  * instead of merging them together
  */
 export interface AdapterOverrides {
-  /** Override all selectors completely with remote config values */
+  /** Override all selectors completely with configuration values */
   selectors?: boolean;
   /** Override specific UI configuration sections */
   ui?: {
@@ -107,7 +107,7 @@ export interface AdapterOverrides {
     /** Override entire UI section completely */
     all?: boolean;
   };
-  /** Override all features completely with remote config values */
+  /** Override all features completely with configuration values */
   features?: boolean;
   /** Override specific configuration keys by name */
   keys?: string[];
@@ -120,8 +120,8 @@ export interface AdapterConfig {
   version: string;
   lastUpdated: string;
   schemaVersion: number;
-  /** 
-   * Override configuration - when specified, these sections will use only remote config values
+  /**
+   * Override configuration - when specified, these sections will use only configuration values
    * instead of merging with defaults. Provides fail-safe behavior with fallbacks.
    */
   overrides?: AdapterOverrides;
@@ -131,7 +131,7 @@ export interface AdapterConfigVariants {
   [key: string]: AdapterConfig;
 }
 
-// Type for the remote config key structure
+// Type for the adapter configuration key structure
 export interface RemoteAdapterConfigs {
   [adapterName: string]: AdapterConfig;
 }

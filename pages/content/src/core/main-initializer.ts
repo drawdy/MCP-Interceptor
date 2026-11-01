@@ -20,7 +20,6 @@ import { pluginRegistry, cleanupPluginSystem, createPluginContext } from '../plu
 import { initializeGlobalEventHandlers, cleanupGlobalEventHandlers } from '../events/event-handlers';
 import { logMessage } from '../utils/helpers';
 import { createLogger } from '@extension/shared/lib/logger';
-import { initializeAnalyticsListeners, startPeriodicSessionTracking, stopPeriodicSessionTracking } from '../analytics-listener';
 
 // Simple logger implementation
 
@@ -163,7 +162,7 @@ async function initializeApplicationState(): Promise<void> {
     logger.warn('Application state already initialized, skipping.');
     return;
   }
-  
+
   logger.debug('Initializing application state...');
 
   await performanceMonitor.time('app-state-initialization', async () => {
@@ -180,10 +179,10 @@ async function initializeApplicationState(): Promise<void> {
 
       // Import plugin registry first and set initial activation flag
       const { pluginRegistry } = await import('../plugins/plugin-registry');
-      
+
       // Set the flag before any operations that might trigger events
       pluginRegistry.setInitialActivationFlag(true);
-      
+
       try {
         // Update app store with current site (this will emit 'app:site-changed')
         useAppStore.getState().setCurrentSite({ site, host: hostname });
@@ -212,7 +211,7 @@ async function initializeApplicationState(): Promise<void> {
       }, 'config-check');
     }
   });
-  
+
   isApplicationStateInitialized = true;
   logger.debug('Application state initialization completed.');
 }
@@ -248,11 +247,6 @@ export async function applicationInit(): Promise<void> {
     // Initialize application state
     await initializeApplicationState();
     performanceMonitor.mark('app-state-initialized');
-
-    // Initialize analytics listeners
-    initializeAnalyticsListeners();
-    startPeriodicSessionTracking();
-    performanceMonitor.mark('analytics-initialized');
 
     // Mark initialization complete
     performanceMonitor.mark('app-init-complete');
@@ -308,10 +302,6 @@ export async function applicationCleanup(): Promise<void> {
 
   try {
     performanceMonitor.mark('app-cleanup-start');
-
-    // Stop analytics tracking and send final session summary
-    stopPeriodicSessionTracking();
-    logger.debug('Analytics tracking stopped.');
 
     // Cleanup in reverse order of initialization
     await cleanupPluginSystem();

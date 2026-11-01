@@ -6,6 +6,7 @@
 
 import { logMessage } from '@src/utils/helpers';
 import { createLogger } from '@extension/shared/lib/logger';
+import { getExtensionAssetUrl } from '@src/utils/extensionUrl';
 
 // CSS selectors for Gemini's UI elements
 
@@ -120,7 +121,8 @@ export async function attachFileToChatInput(file: File): Promise<boolean> {
   logMessage(`Attaching file: ${file.name}`);
   try {
     // Load drop listener script into page context
-    const listenerUrl = chrome.runtime.getURL('dragDropListener.js');
+    const listenerUrl = getExtensionAssetUrl('dragDropListener.js');
+    if (!listenerUrl) return false;
     const scriptEl = document.createElement('script');
     scriptEl.src = listenerUrl;
     await new Promise<void>((resolve, reject) => {

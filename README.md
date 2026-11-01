@@ -1,45 +1,41 @@
-
 <div align="center">
-   <!-- <img src="chrome-extension/public/icon-34.png" alt="MCP SuperAssistant Logo" width="100" height="100"> -->
-   <h1>MCP SuperAssistant Chrome Extension</h1>
+   <img src="chrome-extension/public/icon-128.png" alt="MCP-Interceptor icon" width="96" height="96">
+   <h1>MCP-Interceptor</h1>
 </div>
 
 <p align="center">
-Brings MCP to ChatGPT, Perplexity, Grok, Gemini, Google AI Studio, OpenRouter, Kimi, Github Copilot, Mistral and more...
+An independent community fork that connects MCP tools to supported AI chat websites, with additional DeepSeek compatibility fixes.
 </p>
 
 <p align="center">
-   <a href="https://mcpsuperassistant.ai/" target="_blank"><strong>🌐 Visit Official Website</strong></a>
+   <strong>Unofficial fork of <a href="https://github.com/srbhptl39/MCP-SuperAssistant">srbhptl39/MCP-SuperAssistant</a>.</strong>
+   Not affiliated with or endorsed by the upstream maintainer.
 </p>
 
-<!-- ![MCP SuperAssistant](chrome-extension/public/Cover3.jpg) -->
 <div align="center">
- <img src="chrome-extension/public/Cover5.jpg" alt="MCP SuperAssistant Cover" width="800">
-</div>
 
-<div align="center">
-   
-   ![Latest Release](https://img.shields.io/github/v/release/srbhptl39/MCP-SuperAssistant?style=flat-square&label=Latest%20Release&color=brightgreen)
-   ![GitHub Stars](https://img.shields.io/github/stars/srbhptl39/MCP-SuperAssistant?style=flat-square&label=Stars)
    ![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
-   ![Chrome Users](https://img.shields.io/chrome-web-store/users/kngiafgkdnlkgmefdafaibkibegkcaef?style=flat-square&label=Chrome%20Users)
-   ![Firefox Users](https://img.shields.io/amo/users/mcp-superassistant?style=flat-square&label=Firefox%20Users)
-   ![Build Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)
+   ![Build Status](https://img.shields.io/badge/Status-Community%20Fork-blue?style=flat-square)
 
 </div>
 
 ## Installation
 
-<div align="center" style="display: flex; justify-content: center; gap: 20px; align-items: center;">
-   <a href="https://chromewebstore.google.com/detail/mcp-superassistant/kngiafgkdnlkgmefdafaibkibegkcaef?hl=en"><img src="https://developer.chrome.com/static/docs/webstore/branding/image/HRs9MPufa1J1h5glNhut.png" alt="Chrome Web Store" width="200" height="auto" style="vertical-align: middle;" /></a>
-   <a href="https://addons.mozilla.org/en-US/firefox/addon/mcp-superassistant/"><img src="https://blog.mozilla.org/addons/files/2015/11/get-the-addon.png" alt="Firefox Add-ons" width="200" height="auto" style="vertical-align: middle;" /></a>
-</div>
+The independent Chrome Web Store listing is being prepared and will be linked here after Google's review.
 
-<br>
+For development or pre-release testing:
+
+1. Build the extension with `pnpm install --frozen-lockfile` and `pnpm zip`.
+2. Open `chrome://extensions/` and enable Developer mode.
+3. Choose **Load unpacked** and select the generated `dist/` directory.
+4. Click the extension toolbar icon, enter your MCP server URL, and select its transport (SSE, Streamable HTTP, or WebSocket).
+5. Choose **Grant access and connect**. Chrome requests optional access only to the configured server host; the endpoint is saved after permission is granted.
+
+See [the Chrome Web Store release checklist](docs/chrome-web-store/RELEASE_CHECKLIST.md) and [privacy policy](PRIVACY.md).
 
 ## Overview
 
-MCP SuperAssistant is a Chrome extension that integrates the Model Context Protocol (MCP) tools with AI platforms like Perplexity, ChatGPT, Google Gemini, Google AI Studio, Grokand more. It allows users to execute MCP tools directly from these platforms enhancing the capabilities of web-based AI assistants.
+MCP-Interceptor is a Chrome extension that integrates Model Context Protocol (MCP) tools with supported AI chat platforms such as Perplexity, ChatGPT, Google Gemini, Google AI Studio, Grok, and DeepSeek. It allows users to execute MCP tools directly from these platforms enhancing the capabilities of web-based AI assistants.
 
 ## Currently Supported Platforms
 
@@ -70,7 +66,7 @@ ChatGPT
 
 Watch the demo to see MCP SuperAssistant in action!
 
-[MCP SuperAssistant Demo Playlist](https://www.youtube.com/playlist?list=PLOK1DBnkeaJFzxC4M-z7TU7_j04SShX_w)
+[MCP SuperAssistant Demo Playlist](https://www.youtube.com/playlist?[REDACTED:entropy:39])
 
 ## Setup Tutorial
 
@@ -167,7 +163,7 @@ To connect the Chrome extension to a local server for proxying connections:
 #### Connection Steps:
 
 1. Start the proxy server using one of the commands above
-2. Open the MCP SuperAssistant sidebar in one of the supported AI platforms, this should show the sidebar UI
+2. Open the MCP-Interceptor sidebar in one of the supported AI platforms, this should show the sidebar UI
 3. Click on the server status indicator (usually showing as "Disconnected")
 4. Enter the local server URL (default: `http://localhost:3006/sse`)
    URL format depends on the --outputTransport method used:
@@ -182,10 +178,10 @@ To connect the Chrome extension to a local server for proxying connections:
 ## Usage
 Example Workflow:
 1. Navigate to a supported AI platform example chatgpt.
-2. The MCP SuperAssistant sidebar will appear on the right side of the page
+2. The MCP-Interceptor sidebar will appear on the right side of the page
 3. Configure your MCP Tools to enable and disable the tools you want to use.
 4. In the message prompt area, hover the 'MCP' button to see the available tools and their descriptions.
-5. MCP SuperAssistant requires to add an MCP working instructions prompt to the chat, to give details of its new capabilities and how to use the tools. Use the 'Insert' or attach button to add the instructions prompt.
+5. MCP-Interceptor requires to add an MCP working instructions prompt to the chat, to give details of its new capabilities and how to use the tools. Use the 'Insert' or attach button to add the instructions prompt.
 6. Once the instructions prompt is added, Now you can ask it to read files or any related MCP tool operations.
 7. When AI wants to use any tool it will show a custom tool call card with the tool name and parameters.
 8. User can manually execute the tool call by clicking on the "RUN" button on the tool call card, or if Auto-Execute mode is enabled, it will execute automatically.
@@ -201,9 +197,9 @@ Example Workflow:
 5. Mention the specific tools you want to use in your conversation.
 6. Use the MCP Auto toggles to control the tool execution.
 
-## Common Issues with MCP SuperAssistant
+## Common Issues with MCP-Interceptor
 
-This page covers the most common issues users encounter with MCP SuperAssistant and provides solutions to resolve them.
+This page covers the most common issues users encounter with MCP-Interceptor and provides solutions to resolve them.
 
 ### 1. Extension Not Detecting Tool Calls
 
@@ -231,9 +227,9 @@ This page covers the most common issues users encounter with MCP SuperAssistant 
 
 - There are times model does not generate correct tool call format as requested, this makes the tool detection to fail.
 In such cases, use better models which are meant for tool calling or have better tool calling capabilities.
-- Use the custom instructions prompt, which can be found in the MCP SuperAssistant sidebar.
+- Use the custom instructions prompt, which can be found in the MCP-Interceptor sidebar.
 - Ask explicitily to use the tools by mentioning them in the prompt.
-- This Below is an example of correct MCP function call format, which is rendered by MCP SuperAssistant extension:
+- This Below is an example of correct MCP function call format, which is rendered by MCP-Interceptor extension:
 
 ```
 ```jsonl
@@ -248,7 +244,7 @@ In such cases, use better models which are meant for tool calling or have better
 ### Manual Installation (Development)
 
 #### Release Version
-1. Download the latest release from [Releases](https://github.com/srbhptl39/MCP-SuperAssistant/releases)
+1. Download the latest build from this fork's [Releases](https://github.com/drawdy/MCP-Interceptor/releases)
 2. Unzip the downloaded file
 3. Navigate to `chrome://extensions/` in Chrome
 4. Enable "Developer mode"
@@ -259,8 +255,8 @@ In such cases, use better models which are meant for tool calling or have better
 
 ### Prerequisites
 
-- Node.js (v16+)
-- pnpm
+- Node.js (v22.12.0+)
+- pnpm 9.15.1
 
 ### Setup
 
@@ -288,28 +284,15 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## Author
+## Fork maintenance and attribution
 
-### [Saurabh Patel](https://github.com/srbhptl39)
+This repository is an independent community fork maintained by the `drawdy` account. It retains the upstream MIT license and attribution to the original project:
 
-## Sponsor & Support
+- Upstream project: [srbhptl39/MCP-SuperAssistant](https://github.com/srbhptl39/MCP-SuperAssistant)
+- Fork maintainer: [drawdy](https://github.com/drawdy)
 
-This project is developed entirely in my spare time, driven by a passion for AI and the Model Context Protocol (MCP). As a full-time professional, balancing work commitments with open-source development makes it challenging to contribute regularly and maintain the pace of updates.
+This fork is not affiliated with or endorsed by the upstream maintainer. The browser extension changes are maintained here; the MCP SuperAssistant Proxy can continue to be installed from the upstream npm package.
 
-Your support helps me dedicate more time to:
-- 🐛 Fixing bugs and addressing issues
-- ✨ Adding new features and platform support
-- 📚 Improving documentation and tutorials
-- 🔄 Keeping dependencies up-to-date
-- 💬 Responding to community requests
-
-**Support this project:**
-- ⭐ Star the repository to show your appreciation
-- 💖 [Sponsor on GitHub](https://github.com/sponsors/srbhptl39) to help sustain development
-- 🐦 Follow me on [Twitter](https://twitter.com/srbhptl39) (@srbhptl39) for updates
-- 📧 For private support or custom implementations, reach out via [Twitter](https://twitter.com/srbhptl39)
-
-Every contribution, big or small, helps keep this project alive and thriving! 🙏
 
 ## License
 
@@ -324,4 +307,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=srbhptl39/MCP-SuperAssistant&type=Date)](https://www.star-history.com/#srbhptl39/MCP-SuperAssistant&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=drawdy/MCP-Interceptor&type=Date)](https://www.star-history.com/#drawdy/MCP-Interceptor&Date)

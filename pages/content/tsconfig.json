@@ -1,6 +1,7 @@
 {
   "extends": "@extension/tsconfig/base",
   "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
     "baseUrl": ".",
     "paths": {
       "@src/*": ["src/*"]

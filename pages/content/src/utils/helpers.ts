@@ -10,6 +10,7 @@
  * @param message The message to log
  */
 import { createLogger } from '@extension/shared/lib/logger';
+import { getExtensionAssetUrl } from './extensionUrl';
 
 const logger = createLogger('logMessage');
 
@@ -30,7 +31,11 @@ export const injectCSSIntoShadowDOM = async (shadowRoot: ShadowRoot, cssPath: st
   }
 
   try {
-    const cssUrl = chrome.runtime.getURL(cssPath);
+    const cssUrl = getExtensionAssetUrl(cssPath);
+    if (!cssUrl) {
+      logMessage('Skipping CSS injection because the extension context is unavailable');
+      return;
+    }
     logMessage(`Fetching CSS from: ${cssUrl}`);
 
     const response = await fetch(cssUrl);

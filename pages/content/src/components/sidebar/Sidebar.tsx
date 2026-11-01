@@ -15,9 +15,11 @@ import { cn } from '@src/lib/utils';
 import { Card, CardContent } from '@src/components/ui/card';
 import type { UserPreferences } from '@src/types/stores';
 import { createLogger } from '@extension/shared/lib/logger';
+import { getExtensionAssetUrl } from '../../utils/extensionUrl';
 // Debug helper function to check if activeSidebarManager is available
 
 const logger = createLogger('Sidebar');
+const mcpIconUrl = getExtensionAssetUrl('icon-34.png') || undefined;
 
 const checkActiveSidebarManager = (): boolean => {
   const available = !!(window as any).activeSidebarManager;
@@ -47,18 +49,21 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
   const currentAdapter = useCurrentAdapter();
 
   // Create a compatibility adapter for legacy components
-  const adapter = useMemo(() => ({
-    // Legacy methods for backward compatibility
-    insertTextIntoInput: (text: string) => currentAdapter.insertText(text),
-    triggerSubmission: () => currentAdapter.submitForm(),
-    supportsFileUpload: () => currentAdapter.hasCapability('file-attachment'),
-    attachFile: (file: File) => currentAdapter.attachFile(file),
-    // Pass through other properties that might be needed
-    name: currentAdapter.activeAdapterName || 'Unknown',
-    isReady: currentAdapter.isReady,
-    status: currentAdapter.status,
-    capabilities: currentAdapter.capabilities
-  }), [currentAdapter]);
+  const adapter = useMemo(
+    () => ({
+      // Legacy methods for backward compatibility
+      insertTextIntoInput: (text: string) => currentAdapter.insertText(text),
+      triggerSubmission: () => currentAdapter.submitForm(),
+      supportsFileUpload: () => currentAdapter.hasCapability('file-attachment'),
+      attachFile: (file: File) => currentAdapter.attachFile(file),
+      // Pass through other properties that might be needed
+      name: currentAdapter.activeAdapterName || 'Unknown',
+      isReady: currentAdapter.isReady,
+      status: currentAdapter.status,
+      capabilities: currentAdapter.capabilities,
+    }),
+    [currentAdapter],
+  );
 
   // Use Zustand hooks for state management
   const { theme, setTheme } = useTheme();
@@ -69,7 +74,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
     toggleSidebar,
     toggleMinimize,
     resizeSidebar,
-    setSidebarVisibility
+    setSidebarVisibility,
   } = useSidebarState();
   const { preferences, updatePreferences } = useUserPreferences();
   const { status: connectionStatus } = useConnectionStatus();
@@ -94,7 +99,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
         setExtensionContextInvalid(true);
         setInitializationError('Extension was reloaded. Please refresh the page to restore functionality.');
       }, []);
-      
+
       // Provide fallback methods
       communicationMethods = {
         availableTools: [],
@@ -103,10 +108,12 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
         forceReconnect: async () => false,
         serverStatus: 'disconnected' as const,
         updateServerConfig: async () => false,
-        getServerConfig: async () => ({ uri: '' })
+        getServerConfig: async () => ({ uri: '' }),
       };
     } else {
-      logMessage(`[Sidebar] Unexpected error in useMcpCommunication: ${error instanceof Error ? error.message : String(error)}`);
+      logMessage(
+        `[Sidebar] Unexpected error in useMcpCommunication: ${error instanceof Error ? error.message : String(error)}`,
+      );
       // Provide safe fallback methods for any other error
       communicationMethods = {
         availableTools: [],
@@ -115,7 +122,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
         forceReconnect: async () => false,
         serverStatus: 'disconnected' as const,
         updateServerConfig: async () => false,
-        getServerConfig: async () => ({ uri: '' })
+        getServerConfig: async () => ({ uri: '' }),
       };
     }
   }
@@ -131,13 +138,13 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
   useEffect(() => {
     setIsComponentMounted(true);
     logMessage(`[Sidebar] Component mounted (ID: ${componentId.current})`);
-    
+
     // Mark initialization as complete after a brief delay
     const initTimer = setTimeout(() => {
       setIsInitializing(false);
       logMessage(`[Sidebar] Component initialization completed (ID: ${componentId.current})`);
     }, 100);
-    
+
     return () => {
       clearTimeout(initTimer);
       setIsComponentMounted(false);
@@ -159,7 +166,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
   useEffect(() => {
     // Initial check
     checkActiveSidebarManager();
-    
+
     // Periodic monitoring to detect if reference gets lost
     const monitorInterval = setInterval(() => {
       const available = checkActiveSidebarManager();
@@ -178,7 +185,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
     const unsubscribeCallbacks: (() => void)[] = [];
 
     // Listen for connection status changes
-    const unsubscribeConnection = eventBus.on('connection:status-changed', (data) => {
+    const unsubscribeConnection = eventBus.on('connection:status-changed', data => {
       logMessage(`[Sidebar] Connection status event received: ${data.status}${data.error ? ` (${data.error})` : ''}`);
 
       // The connection store will be updated by the MCP client,
@@ -194,7 +201,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
     unsubscribeCallbacks.push(unsubscribeConnection);
 
     // Listen for tool updates
-    const unsubscribeTools = eventBus.on('tool:list-updated', (data) => {
+    const unsubscribeTools = eventBus.on('tool:list-updated', data => {
       logMessage(`[Sidebar] Tool list updated event received: ${data.tools.length} tools`);
       // Tools are already updated in the store by the MCP client
       // We can add UI feedback here if needed
@@ -202,38 +209,25 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
     unsubscribeCallbacks.push(unsubscribeTools);
 
     // Listen for tool execution events for better user feedback
-    const unsubscribeToolExecution = eventBus.on('tool:execution-completed', (data) => {
+    const unsubscribeToolExecution = eventBus.on('tool:execution-completed', data => {
       logMessage(`[Sidebar] Tool execution completed: ${data.execution.toolName} (ID: ${data.execution.id})`);
       // Could show success notifications or update UI state
     });
     unsubscribeCallbacks.push(unsubscribeToolExecution);
 
-    const unsubscribeToolError = eventBus.on('tool:execution-failed', (data) => {
+    const unsubscribeToolError = eventBus.on('tool:execution-failed', data => {
       logMessage(`[Sidebar] Tool execution failed: ${data.toolName} - ${data.error}`);
       // Could show error notifications
     });
     unsubscribeCallbacks.push(unsubscribeToolError);
 
     // Listen for context bridge events to handle extension lifecycle
-    const unsubscribeBridgeInvalidated = eventBus.on('context:bridge-invalidated', (data) => {
+    const unsubscribeBridgeInvalidated = eventBus.on('context:bridge-invalidated', data => {
       logMessage(`[Sidebar] Context bridge invalidated: ${data.error}`);
       setExtensionContextInvalid(true);
       setInitializationError('Extension was reloaded. Please refresh the page to restore functionality.');
     });
     unsubscribeCallbacks.push(unsubscribeBridgeInvalidated);
-
-    const unsubscribeBridgeRestored = eventBus.on('context:bridge-restored', () => {
-      logMessage('[Sidebar] Context bridge restored');
-      setExtensionContextInvalid(false);
-      if (initializationError?.includes('Extension was reloaded')) {
-        setInitializationError(null);
-      }
-      // Try to reconnect when context is restored
-      forceReconnect().catch(error => {
-        logMessage(`[Sidebar] Failed to reconnect after context restoration: ${error}`);
-      });
-    });
-    unsubscribeCallbacks.push(unsubscribeBridgeRestored);
 
     // Cleanup all event listeners
     return () => {
@@ -260,14 +254,16 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
   }, [serverStatus, availableTools.length]);
 
   // Use store values with fallbacks to initial preferences
-  const isMinimized = storeSidebarMinimized ?? (initialPreferences?.isMinimized ?? false);
+  const isMinimized = storeSidebarMinimized ?? initialPreferences?.isMinimized ?? false;
   const sidebarWidth = storeSidebarWidth || initialPreferences?.sidebarWidth || SIDEBAR_DEFAULT_WIDTH;
   const isPushMode = preferences.isPushMode ?? initialPreferences?.isPushMode ?? false;
   const autoSubmit = preferences.autoSubmit ?? initialPreferences?.autoSubmit ?? false;
 
   // Debug logging for state tracking
   useEffect(() => {
-    logMessage(`[Sidebar] State update - visible: ${sidebarVisible}, minimized: ${isMinimized}, pushMode: ${isPushMode}, width: ${sidebarWidth}`);
+    logMessage(
+      `[Sidebar] State update - visible: ${sidebarVisible}, minimized: ${isMinimized}, pushMode: ${isPushMode}, width: ${sidebarWidth}`,
+    );
   }, [sidebarVisible, isMinimized, isPushMode, sidebarWidth]);
 
   // Local UI state that doesn't need to be in the store
@@ -290,42 +286,49 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
         logMessage(`[Sidebar] activeSidebarManager found after ${attempt} attempts`);
         return sidebarManager;
       }
-      
+
       // Exponential backoff: 50ms, 100ms, 200ms, 400ms, etc.
       const delay = baseDelay * Math.pow(2, attempt);
-      logMessage(`[Sidebar] activeSidebarManager not available, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
-      
+      logMessage(
+        `[Sidebar] activeSidebarManager not available, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`,
+      );
+
       await new Promise(resolve => setTimeout(resolve, delay));
     }
-    
+
     logMessage(`[Sidebar] activeSidebarManager not available after ${maxRetries} attempts`);
     return null;
   }, []);
 
   // --- Theme Application Logic ---
-  const applyTheme = useCallback(async (selectedTheme: Theme) => {
-    try {
-      // Use retry mechanism to wait for SidebarManager
-      const sidebarManager = await waitForSidebarManager(5, 50); // Shorter retry for theme application
-      
-      if (!sidebarManager) {
-        logMessage('[Sidebar] Sidebar manager not available for theme application - will apply when ready.');
-        return;
-      }
-
-      // OPTIMIZATION: Theme application is now CSS-only and doesn't trigger re-renders
+  const applyTheme = useCallback(
+    async (selectedTheme: Theme) => {
       try {
-        const success = sidebarManager.applyThemeClass(selectedTheme);
-        if (!success) {
-          logMessage('[Sidebar] Theme application failed but continuing...');
+        // Use retry mechanism to wait for SidebarManager
+        const sidebarManager = await waitForSidebarManager(5, 50); // Shorter retry for theme application
+
+        if (!sidebarManager) {
+          logMessage('[Sidebar] Sidebar manager not available for theme application - will apply when ready.');
+          return;
+        }
+
+        // OPTIMIZATION: Theme application is now CSS-only and doesn't trigger re-renders
+        try {
+          const success = sidebarManager.applyThemeClass(selectedTheme);
+          if (!success) {
+            logMessage('[Sidebar] Theme application failed but continuing...');
+          }
+        } catch (error) {
+          logMessage(`[Sidebar] Theme application error: ${error instanceof Error ? error.message : String(error)}`);
         }
       } catch (error) {
-        logMessage(`[Sidebar] Theme application error: ${error instanceof Error ? error.message : String(error)}`);
+        logMessage(
+          `[Sidebar] Error waiting for SidebarManager during theme application: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
-    } catch (error) {
-      logMessage(`[Sidebar] Error waiting for SidebarManager during theme application: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }, [waitForSidebarManager]);
+    },
+    [waitForSidebarManager],
+  );
 
   // Effect to apply theme and listen for system changes
   // OPTIMIZATION: Throttle theme changes to avoid excessive calls
@@ -402,22 +405,24 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
 
   // Apply push mode when settings change - with robust retry mechanism
   useEffect(() => {
-    logMessage(`[Sidebar] Push mode effect triggered - visible: ${sidebarVisible}, pushMode: ${isPushMode}, minimized: ${isMinimized}, width: ${sidebarWidth}`);
-    
+    logMessage(
+      `[Sidebar] Push mode effect triggered - visible: ${sidebarVisible}, pushMode: ${isPushMode}, minimized: ${isMinimized}, width: ${sidebarWidth}`,
+    );
+
     // Use async function to handle the retry mechanism
     const applyPushModeSettings = async () => {
       try {
         // Wait for SidebarManager to become available with retry
         const sidebarManager = await waitForSidebarManager();
-        
+
         if (sidebarManager) {
           logMessage(`[Sidebar] activeSidebarManager available: true`);
-          
+
           try {
             // Apply push mode settings when visible
             if (sidebarVisible) {
               logMessage(
-                `[Sidebar] Applying push mode (${isPushMode}, minimized: ${isMinimized}) and width (${sidebarWidth})`
+                `[Sidebar] Applying push mode (${isPushMode}, minimized: ${isMinimized}) and width (${sidebarWidth})`,
               );
               sidebarManager.setPushContentMode(
                 isPushMode,
@@ -462,7 +467,9 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
             logMessage('[Sidebar] Component unmounting - could not access SidebarManager for cleanup');
           }
         } catch (error) {
-          logMessage(`[Sidebar] Error during push mode cleanup: ${error instanceof Error ? error.message : String(error)}`);
+          logMessage(
+            `[Sidebar] Error during push mode cleanup: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       };
 
@@ -662,15 +669,15 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
             <div className="flex items-center space-x-2">
               {/* Always show the header content immediately */}
               <a
-                href="https://mcpsuperassistant.ai/"
+                href="https://github.com/drawdy/MCP-Interceptor"
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="Visit MCP Super Assistant Website"
+                aria-label="Visit MCP-Interceptor Repository"
                 className="block">
                 {' '}
                 {/* Make link block for sizing */}
                 <img
-                  src={chrome.runtime.getURL('icon-34.png')}
+                  src={mcpIconUrl}
                   alt="MCP Logo"
                   className="w-8 h-8 rounded-md " // Increase size & add rounded corners
                 />
@@ -678,22 +685,22 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
               <>
                 {/* Wrap title in link */}
                 <a
-                  href="https://mcpsuperassistant.ai/"
+                  href="https://github.com/drawdy/MCP-Interceptor"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-slate-800 dark:text-slate-100 hover:text-slate-600 dark:hover:text-slate-300 transition-colors duration-150 no-underline"
-                  aria-label="Visit MCP Super Assistant Website">
+                  aria-label="Visit MCP-Interceptor Repository">
                   <Typography variant="h4" className="font-semibold">
-                    MCP SuperAssistant
+                    MCP-Interceptor
                   </Typography>
                 </a>
                 {/* Existing icon link */}
                 <a
-                  href="https://mcpsuperassistant.ai/"
+                  href="https://github.com/drawdy/MCP-Interceptor"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="ml-1 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 transition-colors duration-150"
-                  aria-label="Visit MCP Super Assistant Website">
+                  aria-label="Visit MCP-Interceptor Repository">
                   <Icon name="arrow-up-right" size="xs" className="inline-block align-baseline" />
                 </a>
               </>
@@ -762,8 +769,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
                       <Typography variant="caption" className="text-red-700 dark:text-red-300">
                         {extensionContextInvalid
                           ? 'The extension was reloaded. Please refresh this page to restore full functionality.'
-                          : `Some features may be limited: ${initializationError}`
-                        }
+                          : `Some features may be limited: ${initializationError}`}
                       </Typography>
                       {extensionContextInvalid && (
                         <div className="mt-2">

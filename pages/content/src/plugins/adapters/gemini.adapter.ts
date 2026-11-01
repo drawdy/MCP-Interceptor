@@ -2,6 +2,8 @@ import { BaseAdapterPlugin } from './base.adapter';
 import type { AdapterCapability, PluginContext } from '../plugin-types';
 import { adapterConfigManager, type AdapterConfig } from './defaultConfigs';
 import { createLogger } from '@extension/shared/lib/logger';
+import { getExtensionAssetUrl } from '../../utils/extensionUrl';
+import type { Root } from 'react-dom/client';
 
 /**
  * Gemini Adapter for Google Gemini (gemini.google.com)
@@ -23,7 +25,7 @@ export class GeminiAdapter extends BaseAdapterPlugin {
     'text-insertion',
     'form-submission',
     'file-attachment',
-    'dom-manipulation'
+    'dom-manipulation',
   ];
 
   // CSS selectors for Gemini's UI elements - loaded from configuration
@@ -32,14 +34,15 @@ export class GeminiAdapter extends BaseAdapterPlugin {
   // Legacy selectors as fallbacks (will be removed once config system is stable)
   private readonly fallbackSelectors = {
     CHAT_INPUT: 'div.ql-editor.textarea.new-input-ui p, .ql-editor p, div[contenteditable="true"]',
-    SUBMIT_BUTTON: 'button.mat-mdc-icon-button.send-button, button[aria-label*="Send"], button[data-testid="send-button"]',
+    SUBMIT_BUTTON:
+      'button.mat-mdc-icon-button.send-button, button[aria-label*="Send"], button[data-testid="send-button"]',
     FILE_UPLOAD_BUTTON: 'button[aria-label="Add files"], button[aria-label*="attach"]',
     FILE_INPUT: 'input[type="file"]',
     MAIN_PANEL: '.chat-web, .main-content, .conversation-container',
     DROP_ZONE: 'div[xapfileselectordropzone], .text-input-field, .input-area, .ql-editor, .chat-input-container',
     FILE_PREVIEW: '.file-preview, .xap-filed-upload-preview, .attachment-preview',
     BUTTON_INSERTION_CONTAINER: '.leading-actions-wrapper, .input-area .actions, .chat-input-actions',
-    FALLBACK_INSERTION: '.input-area, .chat-input-container, .conversation-input'
+    FALLBACK_INSERTION: '.input-area, .chat-input-container, .conversation-input',
   };
 
   // URL patterns for navigation tracking
@@ -48,18 +51,22 @@ export class GeminiAdapter extends BaseAdapterPlugin {
 
   // State management integration
   private mcpPopoverContainer: HTMLElement | null = null;
+  private mcpPopoverRoot: Root | null = null;
   private mutationObserver: MutationObserver | null = null;
-  private popoverCheckInterval: NodeJS.Timeout | null = null;
-  
+  private lifecycleGeneration = 0;
+  private scheduledTimeouts = new Set<ReturnType<typeof setTimeout>>();
+  private pageReadyPromise: Promise<boolean> | null = null;
+  private resolvePageReady: ((ready: boolean) => void) | null = null;
+  private reinjectionTimer: ReturnType<typeof setTimeout> | null = null;
+
   // Setup state tracking
   private storeEventListenersSetup: boolean = false;
   private domObserversSetup: boolean = false;
-  private uiIntegrationSetup: boolean = false;
-  
+
   // Instance tracking for debugging
   private static instanceCount = 0;
   private instanceId: number;
-  
+
   // Styling state tracking
   private geminiStylesInjected: boolean = false;
 
@@ -73,7 +80,9 @@ export class GeminiAdapter extends BaseAdapterPlugin {
   async initialize(context: PluginContext): Promise<void> {
     // Guard against multiple initialization
     if (this.currentStatus === 'initializing' || this.currentStatus === 'active') {
-      this.context?.logger.warn(`Gemini adapter instance #${this.instanceId} already initialized or active, skipping re-initialization`);
+      this.context?.logger.warn(
+        `Gemini adapter instance #${this.instanceId} already initialized or active, skipping re-initialization`,
+      );
       return;
     }
 
@@ -89,9 +98,6 @@ export class GeminiAdapter extends BaseAdapterPlugin {
 
     // Initialize configuration
     await this.initializeConfig();
-
-    // Listen for remote config updates
-    this.setupConfigUpdateListener();
   }
 
   async activate(): Promise<void> {
@@ -114,7 +120,7 @@ export class GeminiAdapter extends BaseAdapterPlugin {
     // Emit activation event for store synchronization
     this.context.eventBus.emit('adapter:activated', {
       pluginName: this.name,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }
 
@@ -135,12 +141,11 @@ export class GeminiAdapter extends BaseAdapterPlugin {
     // Reset setup flags
     this.storeEventListenersSetup = false;
     this.domObserversSetup = false;
-    this.uiIntegrationSetup = false;
 
     // Emit deactivation event
     this.context.eventBus.emit('adapter:deactivated', {
       pluginName: this.name,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }
 
@@ -154,27 +159,20 @@ export class GeminiAdapter extends BaseAdapterPlugin {
       this.urlCheckInterval = null;
     }
 
-    // Clear popover check interval
-    if (this.popoverCheckInterval) {
-      clearInterval(this.popoverCheckInterval);
-      this.popoverCheckInterval = null;
-    }
-
     // Final cleanup
     this.cleanupUIIntegration();
     this.cleanupDOMObservers();
-    
+
     // Remove injected Gemini styles
     const styleElement = document.getElementById('mcp-gemini-button-styles');
     if (styleElement) {
       styleElement.remove();
       this.geminiStylesInjected = false;
     }
-    
+
     // Reset all setup flags
     this.storeEventListenersSetup = false;
     this.domObserversSetup = false;
-    this.uiIntegrationSetup = false;
     this.geminiStylesInjected = false;
   }
 
@@ -183,7 +181,9 @@ export class GeminiAdapter extends BaseAdapterPlugin {
    * Enhanced with better selector handling and event integration
    */
   async insertText(text: string, options?: { targetElement?: HTMLElement }): Promise<boolean> {
-    this.context.logger.debug(`Attempting to insert text into Gemini chat input: ${text.substring(0, 50)}${text.length > 50 ? '...' : ''}`);
+    this.context.logger.debug(
+      `Attempting to insert text into Gemini chat input: ${text.substring(0, 50)}${text.length > 50 ? '...' : ''}`,
+    );
 
     let targetElement: HTMLElement | null = null;
 
@@ -226,14 +226,20 @@ export class GeminiAdapter extends BaseAdapterPlugin {
       targetElement.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
 
       // Emit success event to the new event system
-      this.emitExecutionCompleted('insertText', { text }, {
-        success: true,
-        originalLength: originalValue.length,
-        newLength: text.length,
-        totalLength: newContent.length
-      });
+      this.emitExecutionCompleted(
+        'insertText',
+        { text },
+        {
+          success: true,
+          originalLength: originalValue.length,
+          newLength: text.length,
+          totalLength: newContent.length,
+        },
+      );
 
-      this.context.logger.debug(`Text inserted successfully. Original: ${originalValue.length}, Added: ${text.length}, Total: ${newContent.length}`);
+      this.context.logger.debug(
+        `Text inserted successfully. Original: ${originalValue.length}, Added: ${text.length}, Total: ${newContent.length}`,
+      );
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -288,13 +294,17 @@ export class GeminiAdapter extends BaseAdapterPlugin {
       submitButton.click();
 
       // Emit success event to the new event system
-      this.emitExecutionCompleted('submitForm', {
-        formElement: options?.formElement?.tagName || 'unknown'
-      }, {
-        success: true,
-        method: 'submitButton.click',
-        buttonSelector: selectors.find(s => document.querySelector(s.trim()) === submitButton)
-      });
+      this.emitExecutionCompleted(
+        'submitForm',
+        {
+          formElement: options?.formElement?.tagName || 'unknown',
+        },
+        {
+          success: true,
+          method: 'submitButton.click',
+          buttonSelector: selectors.find(s => document.querySelector(s.trim()) === submitButton),
+        },
+      );
 
       this.context.logger.debug('Gemini chat input submitted successfully');
       return true;
@@ -346,36 +356,44 @@ export class GeminiAdapter extends BaseAdapterPlugin {
           lastModified: file.lastModified,
           fileData: dataUrl,
         },
-        '*'
+        '*',
       );
 
       // Check for file preview to confirm success
       const previewFound = await this.checkFilePreview();
 
       if (previewFound) {
-        this.emitExecutionCompleted('attachFile', {
-          fileName: file.name,
-          fileType: file.type,
-          fileSize: file.size,
-          inputElement: options?.inputElement?.tagName || 'unknown'
-        }, {
-          success: true,
-          previewFound: true,
-          method: 'drag-drop-simulation'
-        });
+        this.emitExecutionCompleted(
+          'attachFile',
+          {
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+            inputElement: options?.inputElement?.tagName || 'unknown',
+          },
+          {
+            success: true,
+            previewFound: true,
+            method: 'drag-drop-simulation',
+          },
+        );
         this.context.logger.debug(`File attached successfully: ${file.name}`);
         return true;
       } else {
         // Still consider it successful even if preview not found (optimistic)
-        this.emitExecutionCompleted('attachFile', {
-          fileName: file.name,
-          fileType: file.type,
-          fileSize: file.size
-        }, {
-          success: true,
-          previewFound: false,
-          method: 'drag-drop-simulation'
-        });
+        this.emitExecutionCompleted(
+          'attachFile',
+          {
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+          },
+          {
+            success: true,
+            previewFound: false,
+            method: 'drag-drop-simulation',
+          },
+        );
         this.context.logger.debug(`File attachment initiated (preview not confirmed): ${file.name}`);
         return true;
       }
@@ -413,10 +431,10 @@ export class GeminiAdapter extends BaseAdapterPlugin {
 
     // Check if we're on a supported Gemini page (not just the homepage)
     const supportedPatterns = [
-      /^https:\/\/gemini\.google\.com\/u\/\d+\/app\/.*/,  // User-specific app pages
-      /^https:\/\/gemini\.google\.com\/.*/,          // General app pages
-      /^https:\/\/gemini\.google\.com\/chat\/.*/,         // Chat pages
-      /^https:\/\/gemini\.google\.com\/u\/\d+\/chat\/.*/  // User-specific chat pages
+      /^https:\/\/gemini\.google\.com\/u\/\d+\/app\/.*/, // User-specific app pages
+      /^https:\/\/gemini\.google\.com\/.*/, // General app pages
+      /^https:\/\/gemini\.google\.com\/chat\/.*/, // Chat pages
+      /^https:\/\/gemini\.google\.com\/u\/\d+\/chat\/.*/, // User-specific chat pages
     ];
 
     const isSupported = supportedPatterns.some(pattern => pattern.test(currentUrl));
@@ -737,151 +755,228 @@ export class GeminiAdapter extends BaseAdapterPlugin {
     this.context.logger.debug(`Setting up store event listeners for Gemini adapter instance #${this.instanceId}`);
 
     // Listen for tool execution events from the store
-    this.context.eventBus.on('tool:execution-completed', (data) => {
+    this.context.eventBus.on('tool:execution-completed', data => {
       this.context.logger.debug('Tool execution completed:', data);
       // Handle auto-actions based on store state
       this.handleToolExecutionCompleted(data);
     });
 
     // Listen for UI state changes
-    this.context.eventBus.on('ui:sidebar-toggle', (data) => {
+    this.context.eventBus.on('ui:sidebar-toggle', data => {
       this.context.logger.debug('Sidebar toggled:', data);
     });
 
     this.storeEventListenersSetup = true;
   }
 
+  private isCurrentLifecycle(generation: number): boolean {
+    return generation === this.lifecycleGeneration && this.currentStatus === 'active';
+  }
+
+  private scheduleTimeout(callback: () => void, delay: number): ReturnType<typeof setTimeout> {
+    const timer = setTimeout(() => {
+      this.scheduledTimeouts.delete(timer);
+      try {
+        callback();
+      } catch (error) {
+        this.context?.logger.error('Gemini adapter scheduled UI task failed:', error);
+      }
+    }, delay);
+    this.scheduledTimeouts.add(timer);
+    return timer;
+  }
+
+  private clearScheduledTimeouts(): void {
+    this.scheduledTimeouts.forEach(timer => clearTimeout(timer));
+    this.scheduledTimeouts.clear();
+    this.reinjectionTimer = null;
+  }
+
+  private unmountMCPPopoverRoot(): void {
+    if (!this.mcpPopoverRoot) {
+      return;
+    }
+
+    try {
+      this.mcpPopoverRoot.unmount();
+      this.context?.logger.debug('Gemini MCP popover React root unmounted');
+    } catch (error) {
+      this.context?.logger.warn('Failed to unmount Gemini MCP popover React root:', error);
+    } finally {
+      this.mcpPopoverRoot = null;
+    }
+  }
+
   private setupDOMObservers(): void {
     if (this.domObserversSetup) {
-      this.context.logger.warn(`DOM observers already set up for instance #${this.instanceId}, skipping`);
+      this.context.logger.debug(
+        `DOM observers already set up for Gemini adapter instance #${this.instanceId}, skipping`,
+      );
+      return;
+    }
+
+    if (!document.body) {
+      this.context.logger.warn('Gemini document body is not available; DOM observer setup deferred');
       return;
     }
 
     this.context.logger.debug(`Setting up DOM observers for Gemini adapter instance #${this.instanceId}`);
 
-    // Set up mutation observer to detect page changes and re-inject UI if needed
-    this.mutationObserver = new MutationObserver((mutations) => {
-      let shouldReinject = false;
+    this.mutationObserver = new MutationObserver(() => {
+      if (this.currentStatus !== 'active' || this.mcpPopoverContainer?.isConnected) {
+        return;
+      }
 
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'childList') {
-          // Check if our MCP popover was removed
-          if (!document.getElementById('mcp-popover-container')) {
-            shouldReinject = true;
-          }
+      // Gemini frequently replaces composer subtrees. Debounce the observer so
+      // a burst of framework mutations results in one reinjection attempt.
+      if (this.reinjectionTimer !== null) {
+        return;
+      }
+
+      const generation = this.lifecycleGeneration;
+      this.reinjectionTimer = this.scheduleTimeout(() => {
+        this.reinjectionTimer = null;
+        if (!this.isCurrentLifecycle(generation)) {
+          return;
         }
-      });
 
-      if (shouldReinject) {
-        // Only attempt re-injection if we can find an insertion point
-        const insertionPoint = this.findButtonInsertionPoint();
-        if (insertionPoint) {
-          this.context.logger.debug('MCP popover removed, attempting to re-inject');
+        if (this.mcpPopoverContainer && !this.mcpPopoverContainer.isConnected) {
+          this.unmountMCPPopoverRoot();
+          this.mcpPopoverContainer = null;
+        }
+
+        // Another adapter or an already-running render may have recreated it.
+        if (!document.getElementById('mcp-popover-container')) {
           this.setupUIIntegration();
         }
-      }
+      }, 150);
     });
 
-    // Start observing
     this.mutationObserver.observe(document.body, {
       childList: true,
-      subtree: true
+      subtree: true,
     });
-    
+
     this.domObserversSetup = true;
   }
 
   private setupUIIntegration(): void {
-    // Allow multiple calls for UI integration (for re-injection after page changes)
-    // but log it for debugging
-    if (this.uiIntegrationSetup) {
-      this.context.logger.debug(`UI integration already set up for instance #${this.instanceId}, re-injecting for page changes`);
-    } else {
-      this.context.logger.debug(`Setting up UI integration for Gemini adapter instance #${this.instanceId}`);
-      this.uiIntegrationSetup = true;
+    if (this.currentStatus !== 'active') {
+      return;
     }
 
-    // Wait for page to be ready, then inject MCP popover
-    this.waitForPageReady().then(() => {
-      this.injectMCPPopoverWithRetry();
-    }).catch((error) => {
-      this.context.logger.error('Failed to wait for page ready for MCP popover injection:', error);
-      // Don't set up periodic check if we can't find insertion point
+    if (this.mcpPopoverContainer?.isConnected) {
       return;
-    });
+    }
 
-    // Set up periodic check to ensure popover stays injected
-    // this.setupPeriodicPopoverCheck();
-  }
+    if (this.pageReadyPromise) {
+      return;
+    }
 
-  private async waitForPageReady(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      let attempts = 0;
-      const maxAttempts = 15;
-      
-      const checkReady = () => {
-        attempts++;
-        
-        // Check if the page has the necessary elements
-        const insertionPoint = this.findButtonInsertionPoint();
-        if (insertionPoint) {
-          this.context.logger.debug(`Page ready for MCP popover injection (attempt ${attempts}/${maxAttempts})`);
-          resolve();
-        } else if (attempts >= maxAttempts) {
-          this.context.logger.warn(`Failed to find button insertion point after ${maxAttempts} attempts, giving up`);
-          reject(new Error(`Could not find insertion point after ${maxAttempts} attempts`));
-        } else {
-          // Retry after a short delay
-          this.context.logger.debug(`Button insertion point not found, retrying... (attempt ${attempts}/${maxAttempts})`);
-          setTimeout(checkReady, 500);
-        }
-      };
+    const generation = this.lifecycleGeneration;
+    this.context.logger.debug(`Waiting for Gemini composer before injecting MCP popover (generation ${generation})`);
 
-      // Start checking immediately, but with a small initial delay
-      setTimeout(checkReady, 100);
-    });
-  }
-
-  private injectMCPPopoverWithRetry(maxRetries: number = 5): void {
-    const attemptInjection = (attempt: number) => {
-      this.context.logger.debug(`Attempting MCP popover injection (attempt ${attempt}/${maxRetries})`);
-
-      // Check if popover already exists
-      if (document.getElementById('mcp-popover-container')) {
-        this.context.logger.debug('MCP popover already exists');
+    void this.waitForPageReady(generation).then(ready => {
+      if (!ready || !this.isCurrentLifecycle(generation)) {
         return;
       }
 
-      // Find insertion point
+      this.injectMCPPopoverWithRetry(5, generation);
+    });
+  }
+
+  private waitForPageReady(generation: number): Promise<boolean> {
+    if (this.pageReadyPromise) {
+      return this.pageReadyPromise;
+    }
+
+    const promise = new Promise<boolean>(resolve => {
+      let attempts = 0;
+      let settled = false;
+      const maxAttempts = 15;
+
+      const finish = (ready: boolean) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        if (this.pageReadyPromise === promise) {
+          this.pageReadyPromise = null;
+        }
+        if (this.resolvePageReady === finish) {
+          this.resolvePageReady = null;
+        }
+        resolve(ready);
+      };
+
+      this.resolvePageReady = finish;
+
+      const checkReady = () => {
+        if (!this.isCurrentLifecycle(generation)) {
+          finish(false);
+          return;
+        }
+
+        attempts++;
+        if (this.findButtonInsertionPoint()) {
+          this.context.logger.debug(`Gemini composer is ready (attempt ${attempts}/${maxAttempts})`);
+          finish(true);
+          return;
+        }
+
+        if (attempts >= maxAttempts) {
+          this.context.logger.warn(`Gemini composer was not found after ${maxAttempts} attempts`);
+          finish(false);
+          return;
+        }
+
+        this.scheduleTimeout(checkReady, 500);
+      };
+
+      this.scheduleTimeout(checkReady, 100);
+    });
+
+    this.pageReadyPromise = promise;
+    return promise;
+  }
+
+  private injectMCPPopoverWithRetry(maxRetries: number = 5, generation = this.lifecycleGeneration): void {
+    if (!this.isCurrentLifecycle(generation)) {
+      return;
+    }
+
+    if (this.mcpPopoverContainer?.isConnected) {
+      return;
+    }
+
+    if (this.mcpPopoverContainer && !this.mcpPopoverContainer.isConnected) {
+      this.unmountMCPPopoverRoot();
+      this.mcpPopoverContainer = null;
+    }
+
+    const attemptInjection = (attempt: number) => {
+      if (!this.isCurrentLifecycle(generation) || this.mcpPopoverContainer?.isConnected) {
+        return;
+      }
+
+      // Avoid creating a second root if a host page mutation or another
+      // integration path has already inserted the shared mount container.
+      if (document.getElementById('mcp-popover-container')) {
+        return;
+      }
+
       const insertionPoint = this.findButtonInsertionPoint();
       if (insertionPoint) {
-        this.injectMCPPopover(insertionPoint);
+        this.injectMCPPopover(insertionPoint, generation);
       } else if (attempt < maxRetries) {
-        // Retry after delay
-        this.context.logger.debug(`Insertion point not found, retrying in 1 second (attempt ${attempt}/${maxRetries})`);
-        setTimeout(() => attemptInjection(attempt + 1), 1000);
+        this.scheduleTimeout(() => attemptInjection(attempt + 1), 1000);
       } else {
-        this.context.logger.warn('Failed to inject MCP popover after maximum retries');
+        this.context.logger.warn('Failed to inject MCP popover after maximum Gemini composer retries');
       }
     };
 
     attemptInjection(1);
-  }
-
-  private setupPeriodicPopoverCheck(): void {
-    // Check every 5 seconds if the popover is still there
-    if (!this.popoverCheckInterval) {
-      this.popoverCheckInterval = setInterval(() => {
-        if (!document.getElementById('mcp-popover-container')) {
-          // Only attempt re-injection if we can find an insertion point
-          const insertionPoint = this.findButtonInsertionPoint();
-          if (insertionPoint) {
-            this.context.logger.debug('MCP popover missing, attempting to re-inject');
-            this.injectMCPPopoverWithRetry(3); // Fewer retries for periodic checks
-          }
-        }
-      }, 5000);
-    }
   }
 
   private cleanupDOMObservers(): void {
@@ -891,18 +986,53 @@ export class GeminiAdapter extends BaseAdapterPlugin {
       this.mutationObserver.disconnect();
       this.mutationObserver = null;
     }
+
+    this.domObserversSetup = false;
   }
 
   private cleanupUIIntegration(): void {
-    this.context.logger.debug('Cleaning up UI integration for Gemini adapter');
+    this.context?.logger.debug('Cleaning up Gemini MCP popover integration');
 
-    // Remove MCP popover if it exists
-    const popoverContainer = document.getElementById('mcp-popover-container');
-    if (popoverContainer) {
-      popoverContainer.remove();
+    // Invalidate every pending page-ready, retry, and dynamic-render callback.
+    this.lifecycleGeneration++;
+    this.clearScheduledTimeouts();
+    this.resolvePageReady?.(false);
+    this.resolvePageReady = null;
+    this.pageReadyPromise = null;
+
+    this.unmountMCPPopoverRoot();
+
+    if (this.mcpPopoverContainer?.isConnected) {
+      this.mcpPopoverContainer.remove();
+    }
+    this.mcpPopoverContainer = null;
+  }
+
+  private findButtonInsertionPoint(): { container: Element; insertAfter: Element | null } | null {
+    const buttonInsertionSelector = this.getSelector('buttonInsertionContainer');
+    const selectors = buttonInsertionSelector
+      .split(',')
+      .map(selector => selector.trim())
+      .filter(Boolean);
+
+    for (const selector of selectors) {
+      const wrapper = document.querySelector(selector);
+      if (wrapper) {
+        const buttons = wrapper.querySelectorAll('button');
+        const insertAfter = buttons.length > 1 ? buttons[1] : buttons.length > 0 ? buttons[0] : null;
+        return { container: wrapper, insertAfter };
+      }
     }
 
-    this.mcpPopoverContainer = null;
+    const fallbackSelectors = ['.input-area .actions', '.chat-input-actions', '.conversation-input .actions'];
+    for (const selector of fallbackSelectors) {
+      const container = document.querySelector(selector);
+      if (container) {
+        return { container, insertAfter: null };
+      }
+    }
+
+    return null;
   }
 
   private handleToolExecutionCompleted(data: any): void {
@@ -923,121 +1053,83 @@ export class GeminiAdapter extends BaseAdapterPlugin {
     }
   }
 
-  private findButtonInsertionPoint(): { container: Element; insertAfter: Element | null } | null {
-    this.context.logger.debug('Finding button insertion point for MCP popover');
-
-    // Try primary selector first using getSelector method
-    const buttonInsertionSelector = this.getSelector('buttonInsertionContainer');
-    const selectors = buttonInsertionSelector.split(', ');
-    
-    for (const selector of selectors) {
-      const wrapper = document.querySelector(selector.trim());
-      if (wrapper) {
-        this.context.logger.debug(`Found insertion point: ${selector.trim()}`);
-        const btns = wrapper.querySelectorAll('button');
-        const after = btns.length > 1 ? btns[1] : btns.length > 0 ? btns[0] : null;
-        return { container: wrapper, insertAfter: after };
-      }
+  private injectMCPPopover(
+    insertionPoint: { container: Element; insertAfter: Element | null },
+    generation = this.lifecycleGeneration,
+  ): void {
+    if (!this.isCurrentLifecycle(generation) || this.mcpPopoverContainer?.isConnected) {
+      return;
     }
 
-    // Try fallback selectors
-    const fallbackSelectors = [
-      '.input-area .actions',
-      '.chat-input-actions',
-      '.conversation-input .actions'
-    ];
-
-    for (const selector of fallbackSelectors) {
-      const container = document.querySelector(selector);
-      if (container) {
-        this.context.logger.debug(`Found fallback insertion point: ${selector}`);
-        return { container, insertAfter: null };
-      }
+    if (this.mcpPopoverContainer && !this.mcpPopoverContainer.isConnected) {
+      this.unmountMCPPopoverRoot();
+      this.mcpPopoverContainer = null;
     }
 
-    this.context.logger.debug('Could not find suitable insertion point for MCP popover');
-    return null;
+    if (document.getElementById('mcp-popover-container')) {
+      return;
+    }
+
+    const reactContainer = document.createElement('div');
+    reactContainer.id = 'mcp-popover-container';
+    reactContainer.style.display = 'inline-block';
+    reactContainer.style.margin = '0 4px';
+
+    const { container, insertAfter } = insertionPoint;
+    if (!container.isConnected) {
+      return;
+    }
+
+    if (insertAfter && insertAfter.parentNode === container) {
+      container.insertBefore(reactContainer, insertAfter.nextSibling);
+    } else {
+      container.appendChild(reactContainer);
+    }
+
+    this.mcpPopoverContainer = reactContainer;
+    void this.renderMCPPopover(reactContainer, generation);
   }
 
-  private injectMCPPopover(insertionPoint: { container: Element; insertAfter: Element | null }): void {
-    this.context.logger.debug('Injecting MCP popover into Gemini interface');
-
+  private async renderMCPPopover(container: HTMLElement, generation: number): Promise<void> {
     try {
-      // Check if popover already exists
-      if (document.getElementById('mcp-popover-container')) {
-        this.context.logger.debug('MCP popover already exists, skipping injection');
+      const [React, ReactDOM, { MCPPopover }] = await Promise.all([
+        import('react'),
+        import('react-dom/client'),
+        import('../../components/mcpPopover/mcpPopover'),
+      ]);
+
+      // Dynamic imports can resolve after Gemini has navigated, removed the
+      // composer, or the adapter has been deactivated. Never mount stale UI.
+      if (!this.isCurrentLifecycle(generation) || !container.isConnected || this.mcpPopoverContainer !== container) {
         return;
       }
 
-      // Create container for the popover
-      const reactContainer = document.createElement('div');
-      reactContainer.id = 'mcp-popover-container';
-      reactContainer.style.display = 'inline-block';
-      reactContainer.style.margin = '0 4px';
+      this.unmountMCPPopoverRoot();
 
-      // Insert at appropriate location
-      const { container, insertAfter } = insertionPoint;
-      if (insertAfter && insertAfter.parentNode === container) {
-        container.insertBefore(reactContainer, insertAfter.nextSibling);
-        this.context.logger.debug('Inserted popover container after specified element');
-      } else {
-        container.appendChild(reactContainer);
-        this.context.logger.debug('Appended popover container to container element');
+      const toggleStateManager = this.createToggleStateManager();
+      const adapterButtonConfig = {
+        className: 'mcp-gemini-button-base',
+        contentClassName: 'mcp-gemini-button-content',
+        textClassName: 'mcp-gemini-button-text',
+        activeClassName: 'mcp-button-active',
+      };
+
+      const root = ReactDOM.createRoot(container);
+      this.mcpPopoverRoot = root;
+      root.render(
+        React.createElement(MCPPopover, {
+          toggleStateManager,
+          adapterButtonConfig,
+          adapterName: this.name,
+        }),
+      );
+
+      this.context.logger.debug('Gemini MCP popover rendered successfully');
+    } catch (error) {
+      if (this.isCurrentLifecycle(generation) && this.mcpPopoverContainer === container) {
+        this.context.logger.error('Failed to render Gemini MCP popover:', error);
+        this.unmountMCPPopoverRoot();
       }
-
-      // Store reference
-      this.mcpPopoverContainer = reactContainer;
-
-      // Render the React MCP Popover using the new architecture
-      this.renderMCPPopover(reactContainer);
-
-      this.context.logger.debug('MCP popover injected and rendered successfully');
-    } catch (error) {
-      this.context.logger.error('Failed to inject MCP popover:', error);
-    }
-  }
-
-  private renderMCPPopover(container: HTMLElement): void {
-    this.context.logger.debug('Rendering MCP popover with new architecture integration');
-
-    try {
-      // Import React and ReactDOM dynamically to avoid bundling issues
-      import('react').then(React => {
-        import('react-dom/client').then(ReactDOM => {
-          import('../../components/mcpPopover/mcpPopover').then(({ MCPPopover }) => {
-            // Create toggle state manager that integrates with new stores
-            const toggleStateManager = this.createToggleStateManager();
-
-            // Create adapter button configuration for Gemini styling
-            const adapterButtonConfig = {
-              className: 'mcp-gemini-button-base',
-              contentClassName: 'mcp-gemini-button-content',
-              textClassName: 'mcp-gemini-button-text',
-              activeClassName: 'mcp-button-active'
-            };
-
-            // Create React root and render
-            const root = ReactDOM.createRoot(container);
-            root.render(
-              React.createElement(MCPPopover, {
-                toggleStateManager: toggleStateManager,
-                adapterButtonConfig: adapterButtonConfig,
-                adapterName: this.name
-              })
-            );
-
-            this.context.logger.debug('MCP popover rendered successfully with new architecture');
-          }).catch(error => {
-            this.context.logger.error('Failed to import MCPPopover component:', error);
-          });
-        }).catch(error => {
-          this.context.logger.error('Failed to import ReactDOM:', error);
-        });
-      }).catch(error => {
-        this.context.logger.error('Failed to import React:', error);
-      });
-    } catch (error) {
-      this.context.logger.error('Failed to render MCP popover:', error);
     }
   }
 
@@ -1050,7 +1142,7 @@ export class GeminiAdapter extends BaseAdapterPlugin {
         try {
           // Get state from UI store - MCP enabled state should be the persistent MCP toggle state
           const uiState = context.stores.ui;
-          
+
           // Get the persistent MCP enabled state and other preferences
           const mcpEnabled = uiState?.mcpEnabled ?? false;
           const autoSubmitEnabled = uiState?.preferences?.autoSubmit ?? false;
@@ -1061,7 +1153,7 @@ export class GeminiAdapter extends BaseAdapterPlugin {
             mcpEnabled: mcpEnabled, // Use the persistent MCP state
             autoInsert: autoSubmitEnabled,
             autoSubmit: autoSubmitEnabled,
-            autoExecute: false // Default for now, can be extended
+            autoExecute: false, // Default for now, can be extended
           };
         } catch (error) {
           context.logger.error('Error getting toggle state:', error);
@@ -1070,13 +1162,15 @@ export class GeminiAdapter extends BaseAdapterPlugin {
             mcpEnabled: false,
             autoInsert: false,
             autoSubmit: false,
-            autoExecute: false
+            autoExecute: false,
           };
         }
       },
 
       setMCPEnabled: (enabled: boolean) => {
-        context.logger.debug(`Setting MCP ${enabled ? 'enabled' : 'disabled'} - controlling sidebar visibility via MCP state`);
+        context.logger.debug(
+          `Setting MCP ${enabled ? 'enabled' : 'disabled'} - controlling sidebar visibility via MCP state`,
+        );
 
         try {
           // Primary method: Control MCP state through UI store (which will automatically control sidebar)
@@ -1085,7 +1179,7 @@ export class GeminiAdapter extends BaseAdapterPlugin {
             context.logger.debug(`MCP state set to: ${enabled} via UI store`);
           } else {
             context.logger.warn('UI store setMCPEnabled method not available');
-            
+
             // Fallback: Control sidebar visibility directly if MCP state setter not available
             if (context.stores.ui?.setSidebarVisibility) {
               context.stores.ui.setSidebarVisibility(enabled, 'mcp-popover-toggle-fallback');
@@ -1111,7 +1205,9 @@ export class GeminiAdapter extends BaseAdapterPlugin {
             context.logger.warn('activeSidebarManager not available on window - will rely on UI store only');
           }
 
-          context.logger.debug(`MCP toggle completed: MCP ${enabled ? 'enabled' : 'disabled'}, sidebar ${enabled ? 'shown' : 'hidden'}`);
+          context.logger.debug(
+            `MCP toggle completed: MCP ${enabled ? 'enabled' : 'disabled'}, sidebar ${enabled ? 'shown' : 'hidden'}`,
+          );
         } catch (error) {
           context.logger.error('Error in setMCPEnabled:', error);
         }
@@ -1155,11 +1251,11 @@ export class GeminiAdapter extends BaseAdapterPlugin {
         if (popoverContainer) {
           const currentState = stateManager.getState();
           const event = new CustomEvent('mcp:update-toggle-state', {
-            detail: { toggleState: currentState }
+            detail: { toggleState: currentState },
           });
           popoverContainer.dispatchEvent(event);
         }
-      }
+      },
     };
 
     return stateManager;
@@ -1170,7 +1266,7 @@ export class GeminiAdapter extends BaseAdapterPlugin {
    */
   public injectMCPPopoverManually(): void {
     this.context.logger.debug('Manual MCP popover injection requested');
-    this.injectMCPPopoverWithRetry();
+    this.setupUIIntegration();
   }
 
   /**
@@ -1187,7 +1283,7 @@ export class GeminiAdapter extends BaseAdapterPlugin {
     if (this.config?.selectors[selectorName]) {
       return this.config.selectors[selectorName];
     }
-    
+
     // Fallback to legacy selectors
     const fallbackMap: Record<keyof AdapterConfig['selectors'], string> = {
       chatInput: this.fallbackSelectors.CHAT_INPUT,
@@ -1219,20 +1315,20 @@ export class GeminiAdapter extends BaseAdapterPlugin {
       regenerateButton: '',
       shareButton: '',
       errorMessage: '',
-      retryButton: ''
+      retryButton: '',
     };
-    
+
     return fallbackMap[selectorName] || '';
   }
 
   /**
-   * Initialize configuration from remote config or defaults
+   * Initialize configuration from bundled defaults
    */
   private async initializeConfig(): Promise<void> {
     try {
       // Initialize the config manager with context
       adapterConfigManager.initialize(this.context);
-      
+
       // Load configuration
       this.config = await adapterConfigManager.getAdapterConfig('gemini');
       this.context?.logger.debug('[GeminiAdapter] Configuration loaded successfully');
@@ -1242,47 +1338,19 @@ export class GeminiAdapter extends BaseAdapterPlugin {
     }
   }
 
-  /**
-   * Listen for remote config updates
-   */
-  private setupConfigUpdateListener(): void {
-    // Listen for remote config updates
-    this.context?.eventBus.on('remote-config:updated', (data) => {
-      if (data.changes.includes('gemini_adapter_config')) {
-        this.context?.logger.debug('[GeminiAdapter] Remote config updated, refreshing configuration');
-        this.refreshConfig();
-      }
-    });
-  }
-
-  /**
-   * Refresh configuration from remote config
-   */
-  private async refreshConfig(): Promise<void> {
-    try {
-      // Clear cache for this adapter
-      adapterConfigManager.clearCache('gemini');
-      
-      // Reload configuration
-      this.config = await adapterConfigManager.getAdapterConfig('gemini');
-      this.context?.logger.debug('[GeminiAdapter] Configuration refreshed successfully');
-    } catch (error) {
-      this.context?.logger.warn('[GeminiAdapter] Failed to refresh configuration:', error);
-    }
-  }
-
   private async injectFileDropListener(): Promise<boolean> {
     try {
-      const listenerUrl = this.context.chrome.runtime.getURL('dragDropListener.js');
+      const listenerUrl = getExtensionAssetUrl('dragDropListener.js');
+      if (!listenerUrl) return false;
       const scriptEl = document.createElement('script');
       scriptEl.src = listenerUrl;
-      
+
       await new Promise<void>((resolve, reject) => {
         scriptEl.onload = () => resolve();
         scriptEl.onerror = () => reject(new Error('Failed to load drop listener script'));
         (document.head || document.documentElement).appendChild(scriptEl);
       });
-      
+
       scriptEl.remove();
       return true;
     } catch (error) {
@@ -1323,8 +1391,8 @@ export class GeminiAdapter extends BaseAdapterPlugin {
         parameters,
         result,
         timestamp: Date.now(),
-        status: 'success'
-      }
+        status: 'success',
+      },
     });
   }
 
@@ -1332,7 +1400,7 @@ export class GeminiAdapter extends BaseAdapterPlugin {
     this.context.eventBus.emit('tool:execution-failed', {
       toolName,
       error,
-      callId: this.generateCallId()
+      callId: this.generateCallId(),
     });
   }
 
@@ -1349,7 +1417,7 @@ export class GeminiAdapter extends BaseAdapterPlugin {
     try {
       // Check if there's an active sidebar manager
       const activeSidebarManager = (window as any).activeSidebarManager;
-      
+
       if (!activeSidebarManager) {
         this.context.logger.warn('No active sidebar manager found after navigation');
         return;
@@ -1357,7 +1425,6 @@ export class GeminiAdapter extends BaseAdapterPlugin {
 
       // Sidebar manager exists, just ensure MCP popover connection is working
       this.ensureMCPPopoverConnection();
-      
     } catch (error) {
       this.context.logger.error('Error checking sidebar state after navigation:', error);
     }
@@ -1368,7 +1435,7 @@ export class GeminiAdapter extends BaseAdapterPlugin {
    */
   private ensureMCPPopoverConnection(): void {
     this.context.logger.debug('Ensuring MCP popover connection after navigation');
-    
+
     try {
       // Check if MCP popover is still injected
       if (!this.isMCPPopoverInjected()) {
@@ -1394,16 +1461,21 @@ export class GeminiAdapter extends BaseAdapterPlugin {
     if (stillSupported) {
       // Re-inject styles after page change
       this.injectGeminiButtonStyles();
-      
-      // Re-setup UI integration after page change
-      setTimeout(() => {
-        this.setupUIIntegration();
-      }, 1000); // Give page time to load
 
-      // Check if sidebar exists and restore it if needed
-      setTimeout(() => {
-        this.checkAndRestoreSidebar();
-      }, 1500); // Additional delay to ensure page is fully loaded
+      // Re-setup UI integration after page change. Timers are tracked so a
+      // deactivation or cleanup cancels work for the previous page.
+      const generation = this.lifecycleGeneration;
+      this.scheduleTimeout(() => {
+        if (this.isCurrentLifecycle(generation)) {
+          this.setupUIIntegration();
+        }
+      }, 1000);
+
+      this.scheduleTimeout(() => {
+        if (this.isCurrentLifecycle(generation)) {
+          this.checkAndRestoreSidebar();
+        }
+      }, 1500);
     } else {
       this.context.logger.warn('Page no longer supported after navigation');
     }
@@ -1411,7 +1483,7 @@ export class GeminiAdapter extends BaseAdapterPlugin {
     // Emit page change event to stores
     this.context.eventBus.emit('app:site-changed', {
       site: url,
-      hostname: window.location.hostname
+      hostname: window.location.hostname,
     });
   }
 
@@ -1425,7 +1497,7 @@ export class GeminiAdapter extends BaseAdapterPlugin {
       // Emit deactivation event using available event type
       this.context.eventBus.emit('adapter:deactivated', {
         pluginName: this.name,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
     } else {
       // Re-setup for new host

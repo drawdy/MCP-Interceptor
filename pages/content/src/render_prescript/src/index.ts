@@ -21,6 +21,7 @@ import {
 } from './observer/index';
 import { renderFunctionCall, renderedFunctionBlocks } from './renderer/index';
 import { createLogger } from '@extension/shared/lib/logger';
+import { getExtensionAssetUrl } from '../../utils/extensionUrl';
 // Import the website-specific components
 // import { initPerplexityComponents } from './websites_components/perplexity';
 // import { initGrokComponents } from './websites_components/grok';
@@ -51,9 +52,11 @@ const injectCodeMirrorAccessor = () => {
   injectionAttempted = true;
 
   // Check if script is already present in DOM
-  if (document.getElementById('codemirror-accessor-script') ||
+  if (
+    document.getElementById('codemirror-accessor-script') ||
     document.getElementById('codemirror-accessor-script-direct') ||
-    document.getElementById('codemirror-accessor-page-context')) {
+    document.getElementById('codemirror-accessor-page-context')
+  ) {
     if (CONFIG.debug) {
       logger.debug('CodeMirror accessor script already present in DOM, skipping injection');
     }
@@ -72,7 +75,8 @@ const injectCodeMirrorAccessor = () => {
 
   try {
     // Get the script URL from the chrome extension
-    const scriptUrl = chrome.runtime.getURL('codemirror-accessor.js');
+    const scriptUrl = getExtensionAssetUrl('codemirror-accessor.js');
+    if (!scriptUrl) return;
 
     // Use src attribute method (CSP-safe) instead of inline textContent
     // This avoids CSP violations on strict sites like chat.qwen.ai
@@ -103,7 +107,7 @@ const injectCodeMirrorAccessor = () => {
       }, 100);
     };
 
-    scriptElement.onerror = (error) => {
+    scriptElement.onerror = error => {
       logger.debug('Failed to load CodeMirror accessor script via src:', error);
       // Only try alternative if not already present
       if (!document.getElementById('codemirror-accessor-script-direct')) {
@@ -113,7 +117,6 @@ const injectCodeMirrorAccessor = () => {
 
     // Inject into page context, not content script context
     (document.head || document.documentElement).appendChild(scriptElement);
-
   } catch (error) {
     logger.debug('Error during CodeMirror script injection:', error);
     // Only try alternative if not already present
@@ -126,8 +129,10 @@ const injectCodeMirrorAccessor = () => {
 // Alternative injection method for when content script context isolation prevents access
 const injectCodeMirrorAccessorAlternative = () => {
   // Prevent multiple alternative injections
-  if (document.getElementById('codemirror-accessor-script-direct') ||
-    typeof (window as any).CodeMirrorAccessor !== 'undefined') {
+  if (
+    document.getElementById('codemirror-accessor-script-direct') ||
+    typeof (window as any).CodeMirrorAccessor !== 'undefined'
+  ) {
     if (CONFIG.debug) {
       logger.debug('CodeMirror accessor already present, skipping alternative injection');
     }
@@ -135,7 +140,8 @@ const injectCodeMirrorAccessorAlternative = () => {
   }
 
   try {
-    const scriptUrl = chrome.runtime.getURL('codemirror-accessor.js');
+    const scriptUrl = getExtensionAssetUrl('codemirror-accessor.js');
+    if (!scriptUrl) return;
 
     // Method 1: Direct script tag injection
     const scriptElement = document.createElement('script');
@@ -183,8 +189,10 @@ const injectCodeMirrorAccessorAlternative = () => {
 // Page context injection method - CSP-safe version
 const injectCodeMirrorAccessorPageContext = () => {
   // Prevent multiple page context injections
-  if (document.getElementById('codemirror-accessor-page-context') ||
-    typeof (window as any).CodeMirrorAccessor !== 'undefined') {
+  if (
+    document.getElementById('codemirror-accessor-page-context') ||
+    typeof (window as any).CodeMirrorAccessor !== 'undefined'
+  ) {
     if (CONFIG.debug) {
       logger.debug('CodeMirror accessor already present, skipping page context injection');
     }
@@ -192,7 +200,8 @@ const injectCodeMirrorAccessorPageContext = () => {
   }
 
   try {
-    const scriptUrl = chrome.runtime.getURL('codemirror-accessor.js');
+    const scriptUrl = getExtensionAssetUrl('codemirror-accessor.js');
+    if (!scriptUrl) return;
 
     // Use src attribute method (CSP-safe) instead of inline script
     const scriptElement = document.createElement('script');

@@ -71,7 +71,7 @@ validate_env_keys() {
     elif [[ "$key" =~ ^CEB_ ]]; then
       validate_key "$key" true
     fi
-    # Allow other keys (like FIREBASE_*) without validation
+    # Allow other service-specific keys without validation
   done < .env
 }
 
@@ -115,7 +115,7 @@ create_new_file() {
           continue
         fi
         
-        # Preserve all other lines (including FIREBASE_, CEB_, comments, empty lines)
+        # Preserve all other lines (including service-specific keys, CEB_, comments, and empty lines)
         echo "$line"
       done < .env
     fi

@@ -7,7 +7,6 @@ import type { WebSocketPluginConfig } from '../../types/config.js';
 import { WebSocketTransport } from './WebSocketTransport.js';
 import { createLogger } from '@extension/shared/lib/logger';
 
-
 const logger = createLogger('WebSocketPlugin');
 
 export class WebSocketPlugin implements ITransportPlugin {
@@ -16,7 +15,7 @@ export class WebSocketPlugin implements ITransportPlugin {
     version: '1.0.0',
     transportType: 'websocket',
     description: 'WebSocket transport for MCP protocol with real-time bidirectional communication',
-    author: 'MCP SuperAssistant',
+    author: 'MCP-Interceptor',
   };
 
   private config: WebSocketPluginConfig = {};
@@ -78,7 +77,7 @@ export class WebSocketPlugin implements ITransportPlugin {
       transport.on('close', (event: any) => {
         logger.debug(`Transport closed: ${event.code} ${event.reason}`);
         this.isConnectedFlag = false;
-        
+
         // Notify the main client about disconnection
         this.handleDisconnection('WebSocket closed', event.code, event.reason);
       });
@@ -276,7 +275,7 @@ export class WebSocketPlugin implements ITransportPlugin {
    */
   private handleDisconnection(reason: string, code?: number, details?: string): void {
     logger.debug(`Handling disconnection: ${reason} (code: ${code}, details: ${details})`);
-    
+
     if (this.disconnectionCallback) {
       try {
         this.disconnectionCallback(reason, code, details);

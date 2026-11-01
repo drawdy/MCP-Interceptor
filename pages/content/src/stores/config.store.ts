@@ -69,7 +69,7 @@ export interface ConfigState {
   // Feature flags
   featureFlags: Record<string, FeatureFlag>;
   
-  // Remote config metadata
+  // Configuration metadata
   lastFetchTime: number | null;
   lastUpdateTime: number | null;
   isLoading: boolean;
