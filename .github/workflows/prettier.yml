@@ -2,8 +2,26 @@ name: Formating validation
 
 on:
   pull_request:
+    branches: [main, dev]
+    paths:
+      - '**/*.js'
+      - '**/*.jsx'
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '**/*.json'
+      - '.prettierrc'
+      - '.prettierignore'
   push:
-    branches: [ main, dev ]
+    branches: [main, dev]
+    paths:
+      - '**/*.js'
+      - '**/*.jsx'
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '**/*.json'
+      - '.prettierrc'
+      - '.prettierignore'
+  workflow_dispatch:
 
 jobs:
   prettier:
@@ -11,14 +29,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Run Prettier
         id: prettier-run
         uses: rutajdash/prettier-cli-action@v1.0.0
         with:
           config_path: ./.prettierrc
-          file_pattern: "*.{js,jsx,ts,tsx,json}"
+          file_pattern: "**/*.{js,jsx,ts,tsx,json}"
 
       # This step only runs if prettier finds errors causing the previous step to fail
       # This steps lists the files where errors were found

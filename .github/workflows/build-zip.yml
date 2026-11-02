@@ -3,13 +3,43 @@ name: Build And Upload Extension Zip Via Artifact
 on:
   push:
     branches: [ main, dev ]
+    paths:
+      - '.example.env'
+      - '.npmrc'
+      - '.nvmrc'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig.json'
+      - 'turbo.json'
+      - 'bash-scripts/**'
+      - 'chrome-extension/**'
+      - 'pages/**'
+      - 'packages/**'
+      - '!docs/**'
+      - '!**/*.md'
   pull_request:
+    branches: [ main, dev ]
+    paths:
+      - '.example.env'
+      - '.npmrc'
+      - '.nvmrc'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig.json'
+      - 'turbo.json'
+      - 'bash-scripts/**'
+      - 'chrome-extension/**'
+      - 'pages/**'
+      - 'packages/**'
+      - '!docs/**'
+      - '!**/*.md'
+  workflow_dispatch:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -19,7 +49,6 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile --prefer-offline
-
       - run: pnpm build
 
       - uses: actions/upload-artifact@v4

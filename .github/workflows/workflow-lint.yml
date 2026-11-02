@@ -1,0 +1,26 @@
+name: Workflow Lint
+
+on:
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - '.github/workflows/**'
+  push:
+    branches: [main, dev]
+    paths:
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    name: Validate GitHub Actions workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run actionlint
+        uses: docker://rhysd/actionlint:1.7.12
+        with:
+          args: -color
