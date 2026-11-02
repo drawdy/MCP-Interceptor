@@ -115,7 +115,7 @@ npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outpu
 
 首次启动可能需要等待几分钟，因为 npm 需要下载 Proxy Server 和 MCP Server 程序。
 
-当 Proxy Server 成功启动后，**请保持这个终端窗口运行，不要关闭**。使用 MCP-Interceptor 期间，Proxy Server 必须保持运行。
+此命令会让 Proxy Server 在前台运行。使用 MCP-Interceptor 期间，请保持该终端窗口打开。如果不想一直占用终端窗口，可以使用下面的后台运行命令。
 
 默认 SSE 地址为：
 
@@ -124,6 +124,59 @@ http://localhost:3006/sse
 ```
 
 目前 Proxy Server 的 npm 包仍使用上游项目名称 `@srbhptl39/mcp-superassistant-proxy`。这是正常的，它与 MCP-Interceptor 浏览器扩展是两个独立组件。
+
+### 可选：后台运行 Proxy Server
+
+请在包含 `config.json` 的目录中执行以下命令。后台进程的输出会写入 `proxy.log`。
+
+**macOS / Linux**
+
+```bash
+nohup npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outputTransport sse > ./proxy.log 2>&1 < /dev/null & echo $! > ./proxy.pid
+```
+
+使用 `tail -f ./proxy.log` 查看日志。使用 `kill "$(cat ./proxy.pid)"` 停止进程，然后用 `rm -f ./proxy.pid` 删除 PID 文件。
+
+**Windows / PowerShell**
+
+```powershell
+Start-Process -FilePath "cmd.exe" -ArgumentList '/c npx -y @srbhptl39/mcp-superassistant-proxy@latest --config .\\config.json --outputTransport sse > .\\proxy.log 2>&1' -WorkingDirectory (Get-Location).Path -WindowStyle Hidden -PassThru | Select-Object -ExpandProperty Id
+```
+
+命令会输出后台进程 ID。使用 `Get-Content .\\proxy.log -Wait` 查看日志；使用 `taskkill /PID <PID> /T /F` 停止进程及其子进程。
+
+### 可选：允许局域网内其他设备访问
+
+默认的 `localhost` 地址适用于在同一台电脑上运行的浏览器。如果需要从其他设备连接，Proxy Server 必须能够通过局域网网卡访问。
+
+1. 先检查当前安装版本支持的命令行参数：
+
+   ```bash
+   npx -y @srbhptl39/mcp-superassistant-proxy@latest --help
+   ```
+
+2. **只有当帮助信息中明确列出 `--host` 参数时**，才在启动命令中增加 `--host 0.0.0.0`：
+
+   ```bash
+   npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outputTransport sse --host 0.0.0.0
+   ```
+
+3. 扩展中应填写 Proxy Server 所在机器的实际局域网 IP，例如 `http://192.168.1.100:3006/sse`。不要把 `0.0.0.0` 填入 Endpoint；它是监听地址，不是客户端连接地址。
+
+**注意：** 当前上游发布的 CLI 文档列出了 `--port`、`--baseUrl` 等参数，但没有列出 `--host`。如果你安装版本的 `--help` 中没有 `--host`，就不要使用该参数。`--baseUrl` 用于设置 SSE 客户端使用的 URL，不能直接视为监听地址配置。
+
+如果当前 Proxy Server 不支持设置监听地址，可以在局域网网卡上部署反向代理，将请求转发到只监听本机的 Proxy Server。例如，下面的 Caddy 配置会在所有 IPv4 网卡的 3007 端口监听，并转发到本机 3006 端口：
+
+```caddyfile
+:3007 {
+    bind 0.0.0.0
+    reverse_proxy 127.0.0.1:3006
+}
+```
+
+然后在扩展中填写 `http://<服务器局域网IP>:3007/sse`。
+
+请通过防火墙将开放端口限制为可信的局域网设备。不要将 Proxy Server 直接暴露到公网，也不要在路由器上配置公网端口转发。
 
 ## 三、添加更多 MCP Server
 
@@ -237,7 +290,7 @@ npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outpu
 3. 展开某个 Server，查看它提供的工具。
 4. 启用你希望 AI 使用的工具。可以点击 **Enable All** 或 **Disable All** 批量启用或禁用。
 
-如果没有看到 Server 或工具，请先检查 Proxy Server 终端是否有报错，再点击 Server 状态旁边的刷新按钮。
+如果没有看到 Server 或工具，请先检查 Proxy Server 前台终端或后台运行时的 `proxy.log` 日志是否有报错，再点击 Server 状态旁边的刷新按钮。
 
 ### 步骤 3：向对话插入 MCP Instructions
 
@@ -287,7 +340,7 @@ AI 需要先获得调用工具的说明，才能按照 MCP-Interceptor 支持的
 |---|---|
 | 扩展弹窗显示 **Disconnected** | 确认 Proxy Server 终端仍在运行，并检查 Endpoint 和 Transport 是否正确。 |
 | Chrome 没有弹出权限提示 | 输入 Endpoint 后点击 **Grant access and connect**。如果更换了主机地址，需要为新主机重新授权。 |
-| 侧边栏显示 **Disconnected** | 检查 Proxy Server 终端，确认扩展 Endpoint 正确，然后点击 Server 状态旁的刷新按钮。 |
+| 侧边栏显示 **Disconnected** | 检查 Proxy Server 前台终端或后台运行时的 `proxy.log` 日志，确认扩展 Endpoint 正确，然后点击 Server 状态旁的刷新按钮。 |
 | 已连接，但没有显示工具 | 检查 `config.json` 中是否正确配置了 `mcpServers`，查看 Proxy Server 启动日志，修复错误后重启并刷新工具列表。 |
 | AI 不调用工具 | 将 MCP Instructions 插入当前对话，明确指定工具名称和任务。 |
 | 工具执行失败 | 检查工具参数、Proxy Server 日志、MCP Server 命令和参数、认证信息及文件系统权限。 |
@@ -303,7 +356,7 @@ MCP 工具可能读取或修改文件、执行命令或访问外部服务。请�
 - 不要将密码、API Key、Token 等敏感信息提交到公开仓库。请使用环境变量或 MCP Server 支持的密钥配置方式。
 - 点击 **Run** 前检查工具名称和参数。
 - 除非确实需要无人值守执行，否则保持 **Auto Execute** 关闭。
-- 默认只在本机运行 Proxy Server。不要将它直接暴露到公网；如需远程访问，请自行配置可靠的网络隔离和访问控制。
+- 默认只在本机运行 Proxy Server。如果通过 `0.0.0.0` 或反向代理开放局域网访问，请通过防火墙限制为可信设备。不要将它暴露到公网，也不要配置路由器公网端口转发。
 
 ## 支持的平台
 
