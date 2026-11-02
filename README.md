@@ -181,7 +181,7 @@ sudo useradd --system --create-home --home-dir /opt/mcp-superassistant --shell /
 sudo -u mcp-proxy npm install --prefix /opt/mcp-superassistant @srbhptl39/mcp-superassistant-proxy
 ```
 
-Place your `config.json` at `/opt/mcp-superassistant/config.json` and make sure it is owned by `mcp-proxy` and not readable by other users. Create `/etc/systemd/system/mcp-superassistant-proxy.service`:
+Place your `config.json` at `/opt/mcp-superassistant/config.json` and make sure it is owned by `mcp-proxy`. If it contains credentials, restrict its permissions (for example, `chmod 600`). Create `/etc/systemd/system/mcp-superassistant-proxy.service`:
 
 ```ini
 [Unit]
