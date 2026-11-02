@@ -178,11 +178,18 @@ curl http://192.168.1.100:3006/healthz
 将代理程序安装在专用服务账号拥有的固定目录中。例如：
 
 ```bash
-sudo useradd --system --create-home --home-dir /opt/mcp-superassistant --shell /usr/sbin/nologin mcp-proxy
+sudo useradd --system --user-group --create-home --home-dir /opt/mcp-superassistant --shell /usr/sbin/nologin mcp-proxy
 sudo -u mcp-proxy npm install --prefix /opt/mcp-superassistant @srbhptl39/mcp-superassistant-proxy
 ```
 
-将 `config.json` 放在 `/opt/mcp-superassistant/config.json`，确保文件归属 `mcp-proxy` 用户。如果其中包含凭据，应限制文件权限（例如设置为 `chmod 600`）。创建文件 `/etc/systemd/system/mcp-superassistant-proxy.service`：
+将 `config.json` 放在 `/opt/mcp-superassistant/config.json`，然后设置文件归属和权限：
+
+```bash
+sudo chown mcp-proxy:mcp-proxy /opt/mcp-superassistant/config.json
+sudo chmod 600 /opt/mcp-superassistant/config.json
+```
+
+创建文件 `/etc/systemd/system/mcp-superassistant-proxy.service`：
 
 ```ini
 [Unit]
