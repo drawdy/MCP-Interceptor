@@ -1,310 +1,310 @@
+<!-- MCP-INTERCEPTOR-README -->
 <div align="center">
-   <img src="chrome-extension/public/icon-128.png" alt="MCP-Interceptor icon" width="96" height="96">
-   <h1>MCP-Interceptor</h1>
+  <img src="docs/assets/logo-horizontal.png" alt="MCP-Interceptor" width="560" />
+  <p><strong>Use your MCP tools directly in Gemini, DeepSeek, Grok, ChatGPT and other supported AI chat websites.</strong></p>
+  <p>
+    <a href="https://github.com/drawdy/MCP-Interceptor/releases/latest">Download latest version</a>
+    ·
+    <a href="https://github.com/drawdy/MCP-Interceptor/issues">Report a problem</a>
+  </p>
 </div>
 
-<p align="center">
-An independent community fork that connects MCP tools to supported AI chat websites, with additional DeepSeek compatibility fixes.
-</p>
+---
 
-<p align="center">
-   <strong>Unofficial fork of <a href="https://github.com/srbhptl39/MCP-SuperAssistant">srbhptl39/MCP-SuperAssistant</a>.</strong>
-   Not affiliated with or endorsed by the upstream maintainer.
-</p>
+MCP-Interceptor connects AI chat websites to MCP tools through a small local Proxy Server. Install the browser extension, start the Proxy Server, add the MCP Servers you want to use, and connect.
 
-<div align="center">
+## How it works
 
-   ![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
-   ![Build Status](https://img.shields.io/badge/Status-Community%20Fork-blue?style=flat-square)
-
-</div>
-
-## Installation
-
-The independent Chrome Web Store listing is being prepared and will be linked here after Google's review.
-
-For development or pre-release testing:
-
-1. Build the extension with `pnpm install --frozen-lockfile` and `pnpm zip`.
-2. Open `chrome://extensions/` and enable Developer mode.
-3. Choose **Load unpacked** and select the generated `dist/` directory.
-4. Click the extension toolbar icon, enter your MCP server URL, and select its transport (SSE, Streamable HTTP, or WebSocket).
-5. Choose **Grant access and connect**. Chrome requests optional access only to the configured server host; the endpoint is saved after permission is granted.
-
-See [the Chrome Web Store release checklist](docs/chrome-web-store/RELEASE_CHECKLIST.md) and [privacy policy](PRIVACY.md).
-
-## Overview
-
-MCP-Interceptor is a Chrome extension that integrates Model Context Protocol (MCP) tools with supported AI chat platforms such as Perplexity, ChatGPT, Google Gemini, Google AI Studio, Grok, and DeepSeek. It allows users to execute MCP tools directly from these platforms enhancing the capabilities of web-based AI assistants.
-
-## Currently Supported Platforms
-
-- [ChatGPT](https://chatgpt.com/)
-- [Google Gemini](https://gemini.google.com/)
-- [Perplexity](https://perplexity.ai/)
-- [Grok](https://grok.com/)
-- [Google AI Studio](https://aistudio.google.com/)
-- [OpenRouter Chat](https://openrouter.ai/chat)
-- [DeepSeek](https://chat.deepseek.com/)
-- [T3 Chat](https://t3.chat/)
-- [GitHub Copilot](https://github.com/copilot)
-- [Mistral AI](https://chat.mistral.ai/)
-- [Kimi](https://kimi.com/)
-- [Qwen Chat](https://chat.qwen.ai/)
-- [Z Chat](https://chat.z.ai/)
-
-
-## Demo Video
-
-Kimi.com
-
-[![MCP SuperAssistant Demo](https://img.youtube.com/vi/jnBPh2jzunM/0.jpg)](https://www.youtube.com/watch?v=jnBPh2jzunM)
-
-ChatGPT
-
-[![MCP SuperAssistant Demo](https://img.youtube.com/vi/PY0SKjtmy4E/0.jpg)](https://www.youtube.com/watch?v=PY0SKjtmy4E)
-
-Watch the demo to see MCP SuperAssistant in action!
-
-[MCP SuperAssistant Demo Playlist](https://www.youtube.com/playlist?[REDACTED:entropy:39])
-
-## Setup Tutorial
-
-[![Setup Tutorial](https://img.youtube.com/vi/h9f_GX1Ef20/0.jpg)](https://www.youtube.com/watch?v=h9f_GX1Ef20&pp=ygUTbWNwIHN1cGVyIGFzc2lzdGFudA%3D%3D)
-
-**New to MCP SuperAssistant?** Watch this complete setup guide to get started in minutes!
-
-[View Setup Tutorial](https://www.youtube.com/watch?v=h9f_GX1Ef20&pp=ygUTbWNwIHN1cGVyIGFzc2lzdGFudA%3D%3D)
-
-## What is MCP?
-
-The Model Context Protocol (MCP) is an open standard developed by Anthropic that connects AI assistants to systems where data actually lives, including content repositories, business tools, and development environments. It serves as a universal protocol that enables AI systems to securely and dynamically interact with data sources in real time.
-
-## Key Features
-
-- **Multiple AI Platform Support**: Works with ChatGPT, Perplexity, Google Gemini, Grok, Google AI Studio, OpenRouter Chat, DeepSeek, Kagi, T3 Chat, GitHub Copilot, Mistral AI, Kimi, Qwen Chat, Z Chat and more
-- **Tool Detection**: Automatically detects MCP tool calls in AI responses
-- **Tool Execution**: Execute MCP tools with a single click
-- **Tool Result Integration**: Seamlessly insert tool execution results back into the AI conversation
-- **Render Mode**: Renders Function call and Function results. 
-- **Auto-Execute Mode**: Automatically execute detected tools
-- **Auto-Submit Mode**: Automatically submit chat input after result insertion
-- **Push Content Mode**: Option to push page content instead of overlaying
-- **Preferences Persistence**: Remembers sidebar position, size, and settings
-- **Dark/Light Mode Support**: Adapts to the AI platform's theme
-
-```mermaid
-flowchart TD
-    A[AI Chat Interface] -->|Generate| B[Tool Calls]
-    B -->|Detect| C[Extension Detects Tool Calls]
-    C -->|Send via SSE| D[MCP Local Proxy Server]
-    D -->|Forward| E[Actual MCP Server]
-    E -->|Return Results| D
-    D -->|Return Results| C
-    C -->|Insert| F[Add Results Back to Chat]
+```text
+Gemini / DeepSeek / Grok / ChatGPT
+              ⇅
+       MCP-Interceptor
+        Chrome extension
+              ⇅
+      Local Proxy Server
+              ⇅
+   Your configured MCP Servers
 ```
 
-### Connecting to Local Proxy Server
+**Important:** You add MCP Servers to the Proxy Server configuration. The browser extension connects to the Proxy Server; you do not add each MCP Server separately in the extension.
 
-To connect the Chrome extension to a local server for proxying connections:
+## 1. Install the browser extension
 
-#### Run MCP SuperAssistant Proxy via npx:
+1. Open the [latest release](https://github.com/drawdy/MCP-Interceptor/releases/latest).
+2. Download the file named `MCP-Interceptor-*.zip`.
+3. Extract the ZIP file to a folder that you will keep, for example `C:\MCP-Interceptor`.
+4. Open Chrome and enter `chrome://extensions/` in the address bar.
+5. Turn on **Developer mode**.
+6. Click **Load unpacked**.
+7. Select the extracted folder — the folder that contains `manifest.json`.
 
-1. Create a `config.json` file with your MCP server details. For example, to use the [Desktop Commander](https://github.com/wonderwhy-er/DesktopCommanderMCP):
+The MCP-Interceptor icon should now appear in Chrome. If it is hidden, open Chrome's Extensions menu and pin it to the toolbar.
 
+> Keep the extracted folder in the same location. If you move or delete it, Chrome cannot load the extension.
 
-   **Example config.json:**
-   ```json
-   {
-     "mcpServers": {
-       "desktop-commander": {
-         "command": "npx",
-         "args": [
-           "-y",
-           "@wonderwhy-er/desktop-commander"
-         ]
-       }
-     }
-   }
-   ```
-   config.json also support other MCP server configurations like remote MCP server URLs.
-   Try composio mcp, zappier mcp, or smithery or any other remote MCP server.
+## 2. Install and start the local Proxy Server
 
-   **Or use existing config file location from Cursor or other tools:**
-   ```
-   macOS: ~/Library/Application Support/Claude/claude_desktop_config.json
-   Windows: %APPDATA%\Claude\claude_desktop_config.json
-   ```
+The Proxy Server is a separate command-line program. It connects the browser extension to local or remote MCP Servers.
 
-2. Start the MCP SuperAssistant Proxy server using one of the following commands:
+### Step 2.1 — Install Node.js
 
-   ```bash
-   npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outputTransport sse
-   ```
-   or 
-   ```bash
-   npx -y @srbhptl39/mcp-superassistant-proxy --config ./config.json --outputTransport streamableHttp
-   ```
-   or
-   ```bash
-   npx -y @srbhptl39/mcp-superassistant-proxy --config ./config.json --outputTransport ws
-   ```
-
-   **View all available options:**
-   ```bash
-   npx -y @srbhptl39/mcp-superassistant-proxy@latest --help
-   ```
-   
-   This is useful for:
-   - Proxying remote MCP servers
-   - Adding CORS support to remote servers
-   - Providing health endpoints for monitoring
-
-#### Connection Steps:
-
-1. Start the proxy server using one of the commands above
-2. Open the MCP-Interceptor sidebar in one of the supported AI platforms, this should show the sidebar UI
-3. Click on the server status indicator (usually showing as "Disconnected")
-4. Enter the local server URL (default: `http://localhost:3006/sse`)
-   URL format depends on the --outputTransport method used:
-   - For SSE: `http://localhost:3006/sse`
-   - For Streamable HTTP: `http://localhost:3006/mcp`
-   - For WebSocket: `ws://localhost:3006/message`
-   - Choose the appropriate transport method (SSE or Streamable HTTP or WebSocket) 
-   - You can add any remote MCP server URL here as well, if it supports CORS or is proxied via this local proxy server. Try [Composio mcp](https://mcp.composio.dev/), [Zappier mcp](https://zapier.com/mcp), or [smithery](https://smithery.ai/) or any other remote MCP server.
-5. Click "Connect" to establish the connection
-6. The status indicator should change to "Connected" if successful
-
-## Usage
-Example Workflow:
-1. Navigate to a supported AI platform example chatgpt.
-2. The MCP-Interceptor sidebar will appear on the right side of the page
-3. Configure your MCP Tools to enable and disable the tools you want to use.
-4. In the message prompt area, hover the 'MCP' button to see the available tools and their descriptions.
-5. MCP-Interceptor requires to add an MCP working instructions prompt to the chat, to give details of its new capabilities and how to use the tools. Use the 'Insert' or attach button to add the instructions prompt.
-6. Once the instructions prompt is added, Now you can ask it to read files or any related MCP tool operations.
-7. When AI wants to use any tool it will show a custom tool call card with the tool name and parameters.
-8. User can manually execute the tool call by clicking on the "RUN" button on the tool call card, or if Auto-Execute mode is enabled, it will execute automatically.
-9. Automation can be achieved by enabling Auto-Execute and Auto-Submit modes, by clicking on the 'MCP' button and configuring the Auto modes.
-
-
-## Tips & Tricks
-
-1. **Turn off search mode** (chatgpt, perplexity) in AI chat interfaces for better tool call prompt experience and to prevent MCP SuperAssistant from getting derail.
-2. **Turn on Reasoning mode** (chatgpt, perplexity, grok) in AI chat interfaces, which will help the AI to understand the context better and generate the correct tool calls.
-3. Use newer high-end models as they are better at understanding the context and generating the correct tool calls.
-4. Copy the MCP instructions prompt and paste it in the AI chat system prompt (Google AI Studio).
-5. Mention the specific tools you want to use in your conversation.
-6. Use the MCP Auto toggles to control the tool execution.
-
-## Common Issues with MCP-Interceptor
-
-This page covers the most common issues users encounter with MCP-Interceptor and provides solutions to resolve them.
-
-### 1. Extension Not Detecting Tool Calls
-
-- Make sure the extension is enabled in your browser.
-- Make sure the **mcp prompt instructions are properly attached or inserted** in the chat, before starting any chat.
-- Check that your AI platform supports tool calls and that the feature is enabled.
-- Refresh the page or restart your browser if the issue persists.
-
-### 2. Tool Execution Fails
-
-- Ensure your proxy server is running and the URL is correct in the sidebar server settings.
-- check your config.json file for any errors or formatting issues.
-- Check your network connectivity and firewall settings.
-
-### 3. Connection Issues
-
-- Ensure that your MCP server is running and accessible.
-- Check the server URL in the extension settings.
-- First start the npx mcp-SuperAssistant-proxy server and then reload/restart the extension from chrome://extensions/ page.
-- Check the proxy server logs for any errors or issues.
-- Ensure that your firewall or antivirus software is not blocking the connection.
-- Make sure the server shows the proper connected status and exposes the `/sse` endpoint.
-
-### 4. Incorrect tool call format 
-
-- There are times model does not generate correct tool call format as requested, this makes the tool detection to fail.
-In such cases, use better models which are meant for tool calling or have better tool calling capabilities.
-- Use the custom instructions prompt, which can be found in the MCP-Interceptor sidebar.
-- Ask explicitily to use the tools by mentioning them in the prompt.
-- This Below is an example of correct MCP function call format, which is rendered by MCP-Interceptor extension:
-
-```
-```jsonl
-{"type": "function_call_start", "name": "function_name", "call_id": 1}
-{"type": "description", "text": "Short 1 line of what this function does"}
-{"type": "parameter", "key": "parameter_1", "value": "value_1"}
-{"type": "parameter", "key": "parameter_2", "value": "value_2"}
-{"type": "function_call_end", "call_id": 1}
-```
-```
-
-### Manual Installation (Development)
-
-#### Release Version
-1. Download the latest build from this fork's [Releases](https://github.com/drawdy/MCP-Interceptor/releases)
-2. Unzip the downloaded file
-3. Navigate to `chrome://extensions/` in Chrome
-4. Enable "Developer mode"
-5. Click "Load unpacked" and select the unzipped directory
-6. Follow [Connecting to Local Proxy Server](#connecting-to-local-proxy-server) to connect to your MCP server
-
-## Development
-
-### Prerequisites
-
-- Node.js (v22.12.0+)
-- pnpm 9.15.1
-
-### Setup
+1. Download and install the current **Node.js LTS** version from [nodejs.org](https://nodejs.org/).
+2. Close and reopen your terminal (or PowerShell).
+3. Check that Node.js and npx are available:
 
 ```bash
-# Install dependencies
-pnpm install
-
-# Start development server
-pnpm dev
-
-# Build for production
-pnpm build
-
-# Create zip package for distribution
-pnpm zip
+node -v
+npm -v
+npx -v
 ```
 
-## Contributing
+If each command prints a version number, continue.
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+### Step 2.2 — Create a configuration folder
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Create a folder to keep your MCP configuration. For example:
 
-## Fork maintenance and attribution
+- Windows: `C:\MCP-Interceptor`
+- macOS / Linux: `~/mcp-interceptor`
 
-This repository is an independent community fork maintained by the `drawdy` account. It retains the upstream MIT license and attribution to the original project:
+Inside this folder, create a file named **config.json**.
 
-- Upstream project: [srbhptl39/MCP-SuperAssistant](https://github.com/srbhptl39/MCP-SuperAssistant)
-- Fork maintainer: [drawdy](https://github.com/drawdy)
+**Windows tip:** Open the folder in File Explorer, right-click an empty area, choose **New → Text Document**, rename it to `config.json`, then open it with Notepad. Make sure Windows has not named it `config.json.txt`.
 
-This fork is not affiliated with or endorsed by the upstream maintainer. The browser extension changes are maintained here; the MCP SuperAssistant Proxy can continue to be installed from the upstream npm package.
+### Step 2.3 — Add your first MCP Server
 
+Copy this example into `config.json`. It starts the Desktop Commander MCP Server:
+
+```json
+{
+  "mcpServers": {
+    "desktop-commander": {
+      "command": "npx",
+      "args": ["-y", "@wonderwhy-er/desktop-commander"]
+    }
+  }
+}
+```
+
+Save the file.
+
+### Step 2.4 — Start the Proxy Server
+
+Open a terminal in the configuration folder.
+
+**Windows / PowerShell**
+
+1. Open the `C:\MCP-Interceptor` folder in File Explorer.
+2. Click the address bar, type `powershell`, and press Enter.
+3. Run:
+
+```powershell
+npx -y @srbhptl39/mcp-superassistant-proxy@latest --config .\config.json --outputTransport sse
+```
+
+**macOS / Linux**
+
+Open a terminal and run:
+
+```bash
+cd ~/mcp-interceptor
+npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outputTransport sse
+```
+
+The first run may take a few minutes because npm downloads the Proxy Server and the MCP Server package.
+
+When the Proxy Server starts successfully, **leave this terminal window open** while you use MCP-Interceptor.
+
+The default SSE address is:
+
+```text
+http://localhost:3006/sse
+```
+
+The Proxy Server package currently retains its upstream npm name, `@srbhptl39/mcp-superassistant-proxy`. This is expected; it is separate from the MCP-Interceptor browser extension.
+
+## 3. Add more MCP Servers
+
+You can connect several MCP Servers at the same time. Add each one as a separate entry inside the `mcpServers` object in `config.json`. Give each entry a unique name.
+
+### Example A — Add filesystem access
+
+The following example adds a filesystem MCP Server that can access one folder:
+
+```json
+{
+  "mcpServers": {
+    "desktop-commander": {
+      "command": "npx",
+      "args": ["-y", "@wonderwhy-er/desktop-commander"]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "C:/Users/YourName/Documents"
+      ]
+    }
+  }
+}
+```
+
+Replace `C:/Users/YourName/Documents` with the folder you want to make available. On Windows, use forward slashes in the JSON path.
+
+**Only grant access to folders you trust the AI tools to read or modify.** Do not give a filesystem server access to your entire drive unless you really need it.
+
+### Example B — Add a remote MCP Server
+
+If you already have a remote MCP Server that provides an SSE endpoint, add it with its URL:
+
+```json
+{
+  "mcpServers": {
+    "my-remote-server": {
+      "url": "https://your-mcp-server.example.com/sse"
+    }
+  }
+}
+```
+
+Use the URL and authentication settings supplied by that server. If it requires credentials, follow that server's instructions and keep secrets out of public repositories.
+
+### After changing config.json
+
+1. Return to the terminal running the Proxy Server.
+2. Press **Ctrl+C** to stop it.
+3. Run the Proxy Server start command again.
+4. Reconnect from the MCP-Interceptor extension if it does not reconnect automatically.
+
+The tools from all configured and successfully started MCP Servers will be available through the Proxy Server.
+
+## 4. Connect the extension to the Proxy Server
+
+Do this after the Proxy Server is running.
+
+1. Click the **MCP-Interceptor** icon in Chrome's toolbar.
+2. In **MCP Server Endpoint**, enter:
+
+   `http://localhost:3006/sse`
+
+3. Set **Transport** to **SSE**.
+4. Click **Grant access and connect**.
+5. When Chrome asks for permission to access the server host, click **Allow**.
+6. Wait for the popup to show **Connected**.
+
+You only need to grant permission for the configured host. The extension does not need access to every website or every address on your network.
+
+### Other transport options
+
+SSE is recommended for the first setup. If you intentionally start the Proxy Server with a different output transport, use the matching setting:
+
+| Proxy Server start option | Extension transport | Endpoint |
+|---|---|---|
+| `--outputTransport sse` | SSE | `http://localhost:3006/sse` |
+| `--outputTransport streamableHttp` | Streamable HTTP | `http://localhost:3006` |
+| `--outputTransport ws` | WebSocket | `ws://localhost:3006/message` |
+
+For example, to start the Proxy Server with Streamable HTTP, use:
+
+```bash
+npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outputTransport streamableHttp
+```
+
+The extension transport and Proxy Server output transport must match.
+
+## 5. Use MCP tools in Gemini, DeepSeek, Grok or ChatGPT
+
+The steps are nearly identical on each supported website.
+
+### Step 5.1 — Open an AI chat
+
+Open one of these websites and start a conversation:
+
+- [Google Gemini](https://gemini.google.com/)
+- [DeepSeek](https://chat.deepseek.com/)
+- [Grok](https://grok.com/)
+- [ChatGPT](https://chatgpt.com/)
+
+The MCP-Interceptor sidebar should appear on the page.
+
+### Step 5.2 — Check the connection and available tools
+
+1. Look at **Server** near the top of the sidebar. It should show **Connected**.
+2. Open **Available Tools**.
+3. Expand a server to see its tools.
+4. Enable the tools you want the AI to use. You can use **Enable All** or **Disable All**.
+
+If a server or its tools are missing, check the Proxy Server terminal for errors, then use the refresh button beside the Server status.
+
+### Step 5.3 — Insert MCP instructions into the chat
+
+The AI needs instructions explaining how to call the tools.
+
+1. In the chat input area, find the small **MCP** button added by the extension.
+2. Hover over the MCP button to open its quick actions.
+3. Click **Insert**. The instructions will be inserted into the current chat input.
+4. Send the instructions as a message before asking the AI to use MCP tools.
+
+You can also click **Attach** in the same menu if you prefer to attach the instructions as a file and the website supports it.
+
+The **Instructions** tab in the sidebar lets you view the generated instructions. Use **Edit** there only if you want to customize them.
+
+### Step 5.4 — Ask the AI to use a tool
+
+Ask for a specific action. For example:
+
+- "Use desktop-commander to show the current working directory."
+- "Use the filesystem tools to list the files in my Documents folder."
+- "Use the available MCP tools to check the server status, then summarize the result."
+
+When the model produces a supported tool call, MCP-Interceptor detects it and displays the tool name and arguments. Review them, then click **Run** to execute the tool. The result is returned to the chat so the model can continue.
+
+### Step 5.5 — Keep automatic actions off until you are comfortable
+
+Hover over the MCP button and open **Configure** to see the automation switches:
+
+| Setting | What it does |
+|---|---|
+| **MCP** | Enables or disables MCP controls for the current chat page. |
+| **Auto Insert** | Automatically inserts tool-call content into the chat input. |
+| **Auto Submit** | Automatically submits the chat input after insertion. |
+| **Auto Execute** | Automatically executes detected MCP tool calls. |
+
+For your first use, leave **Auto Insert**, **Auto Submit**, and **Auto Execute** off. Review each tool call and click **Run** yourself. Turn on automation only after you trust the configured servers and understand the actions their tools can perform.
+
+### Optional — Push Content Mode
+
+The **Push Content Mode** switch is at the top of the sidebar. It changes the page layout to make room for the sidebar instead of letting the sidebar cover part of the page. Turn it on if the sidebar overlaps the website's content; otherwise, leave it off.
+
+## 6. Troubleshooting
+
+| What you see | What to check |
+|---|---|
+| Popup says **Disconnected** | Make sure the Proxy Server terminal is still running. Check the endpoint and transport in the popup. |
+| Chrome does not show the permission prompt | Click **Grant access and connect** after entering the endpoint. If you changed the host, Chrome may need permission for the new host. |
+| Sidebar says **Disconnected** | Check the Proxy Server terminal. Confirm the extension endpoint is correct, then click the refresh icon beside Server. |
+| Connected, but no tools appear | Check that `config.json` contains the server under `mcpServers`. Look for startup errors in the Proxy Server terminal, then restart the Proxy Server and refresh the tools. |
+| The AI does not call a tool | Insert the MCP instructions into the current conversation. Ask for a specific tool by name and describe the task clearly. |
+| Tool execution fails | Check the tool arguments and the Proxy Server terminal output. Verify the MCP Server command, arguments, credentials and filesystem permissions. |
+| The extension UI looks stale after an extension update | Refresh the AI chat page to create a fresh extension context. |
+
+## 7. Security recommendations
+
+MCP tools may read or modify files, execute commands, or access external services. Treat every MCP Server as software you are choosing to trust.
+
+- Install MCP Servers only from sources you trust.
+- Start with a small set of tools and enable only what you need.
+- Restrict filesystem servers to specific folders.
+- Keep passwords, API keys and tokens out of public repositories. Use environment variables or the MCP Server's supported secret mechanism.
+- Review tool names and arguments before clicking **Run**.
+- Keep **Auto Execute** off unless you intentionally want unattended tool execution.
+- Keep the Proxy Server local unless you have deliberately configured and secured remote access. Do not expose it directly to the public internet.
+
+## Supported platforms
+
+MCP-Interceptor currently includes adapters for Gemini, DeepSeek, Grok, ChatGPT and other supported chat websites. These websites may change their interfaces at any time. If an integration stops working, [open an issue](https://github.com/drawdy/MCP-Interceptor/issues) and include the website, browser version and steps to reproduce. Do not include API keys, private URLs or other secrets.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- Inspired by the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) by Anthropic
-- Thanks to [Cline](https://github.com/cline/cline) for idea inspiration
-- Built with [Chrome Extension Boilerplate with React + Vite](https://github.com/Jonghakseo/chrome-extension-boilerplate-react-vite)
-
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=drawdy/MCP-Interceptor&type=Date)](https://www.star-history.com/#drawdy/MCP-Interceptor&Date)
+MCP-Interceptor is released under the MIT License. See [LICENSE](LICENSE).
