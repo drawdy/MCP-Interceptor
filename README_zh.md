@@ -147,36 +147,87 @@ Start-Process -FilePath "cmd.exe" -ArgumentList '/c npx -y @srbhptl39/mcp-supera
 
 ### 可选：允许局域网内其他设备访问
 
-默认的 `localhost` 地址适用于在同一台电脑上运行的浏览器。如果需要从其他设备连接，Proxy Server 必须能够通过局域网网卡访问。
+Proxy Server 默认监听 `localhost`，因此只有运行在同一台电脑上的应用可以连接。该代理程序支持 `--host` 参数，将其设置为 `0.0.0.0` 即可监听所有 IPv4 网络接口：
 
-1. 先检查当前安装版本支持的命令行参数：
-
-   ```bash
-   npx -y @srbhptl39/mcp-superassistant-proxy@latest --help
-   ```
-
-2. **只有当帮助信息中明确列出 `--host` 参数时**，才在启动命令中增加 `--host 0.0.0.0`：
-
-   ```bash
-   npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outputTransport sse --host 0.0.0.0
-   ```
-
-3. 扩展中应填写 Proxy Server 所在机器的实际局域网 IP，例如 `http://192.168.1.100:3006/sse`。不要把 `0.0.0.0` 填入 Endpoint；它是监听地址，不是客户端连接地址。
-
-**注意：** 当前上游发布的 CLI 文档列出了 `--port`、`--baseUrl` 等参数，但没有列出 `--host`。如果你安装版本的 `--help` 中没有 `--host`，就不要使用该参数。`--baseUrl` 用于设置 SSE 客户端使用的 URL，不能直接视为监听地址配置。
-
-如果当前 Proxy Server 不支持设置监听地址，可以在局域网网卡上部署反向代理，将请求转发到只监听本机的 Proxy Server。例如，下面的 Caddy 配置会在所有 IPv4 网卡的 3007 端口监听，并转发到本机 3006 端口：
-
-```caddyfile
-:3007 {
-    bind 0.0.0.0
-    reverse_proxy 127.0.0.1:3006
-}
+```bash
+npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outputTransport sse --host 0.0.0.0 --port 3006 --healthEndpoint /healthz
 ```
 
-然后在扩展中填写 `http://<服务器局域网IP>:3007/sse`。
+然后在扩展中填写 Proxy Server 所在机器的实际局域网 IP，例如：
 
-请通过防火墙将开放端口限制为可信的局域网设备。不要将 Proxy Server 直接暴露到公网，也不要在路由器上配置公网端口转发。
+```text
+http://192.168.1.100:3006/sse
+```
+
+将 `192.168.1.100` 替换为服务器的实际局域网地址。**不要在扩展 Endpoint 中填写 `0.0.0.0`**，它是监听地址，不是客户端连接地址。Chrome 提示访问新主机时，需要允许该主机权限。
+
+可选参数 `--healthEndpoint /healthz` 会增加一个健康检查接口。可以从局域网内其他设备执行以下命令验证连通性：
+
+```bash
+curl http://192.168.1.100:3006/healthz
+```
+
+正常情况下返回 `ok`。只有启动命令包含该参数时，健康检查接口才会存在。
+
+**安全注意：** 绑定到 `0.0.0.0` 意味着服务会监听所有 IPv4 网卡，并不只限于私有局域网。请在主机防火墙中将 TCP `3006` 端口限制为可信的局域网设备。不要将服务直接暴露到公网，也不要配置路由器公网端口转发。代理程序默认允许所有来源的 CORS 请求；CORS 不是身份认证，也不能代替网络访问控制。
+
+### 可选：在 Linux 上使用 systemd 常驻运行
+
+对于需要长期运行的 Linux 主机，建议使用 systemd，而不是一直占用终端或使用 `nohup`。systemd 可以在系统启动时自动启动服务、异常退出后自动重启，并统一收集日志。
+
+将代理程序安装在专用服务账号拥有的固定目录中。例如：
+
+```bash
+sudo useradd --system --user-group --create-home --home-dir /opt/mcp-superassistant --shell /usr/sbin/nologin mcp-proxy
+sudo -u mcp-proxy npm install --prefix /opt/mcp-superassistant @srbhptl39/mcp-superassistant-proxy
+```
+
+将 `config.json` 放在 `/opt/mcp-superassistant/config.json`，然后设置文件归属和权限：
+
+```bash
+sudo chown mcp-proxy:mcp-proxy /opt/mcp-superassistant/config.json
+sudo chmod 600 /opt/mcp-superassistant/config.json
+```
+
+创建文件 `/etc/systemd/system/mcp-superassistant-proxy.service`：
+
+```ini
+[Unit]
+Description=MCP SuperAssistant Proxy
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=mcp-proxy
+Group=mcp-proxy
+WorkingDirectory=/opt/mcp-superassistant
+Environment=HOME=/opt/mcp-superassistant
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=NODE_ENV=production
+UMask=0077
+ExecStart=/opt/mcp-superassistant/node_modules/.bin/mcp-superassistant-proxy --config /opt/mcp-superassistant/config.json --outputTransport sse --host 0.0.0.0 --port 3006 --healthEndpoint /healthz
+Restart=always
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=20
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+```
+
+启用并启动服务：
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now mcp-superassistant-proxy
+sudo systemctl status mcp-superassistant-proxy
+```
+
+使用 `journalctl -u mcp-superassistant-proxy -f` 查看日志。修改 `config.json` 后，执行 `sudo systemctl restart mcp-superassistant-proxy` 重启服务。如果 Node.js 安装在系统默认 PATH 之外，需要将其实际目录加入 service 文件的 `PATH`。
+
 
 ## 三、添加更多 MCP Server
 
@@ -340,7 +391,7 @@ AI 需要先获得调用工具的说明，才能按照 MCP-Interceptor 支持的
 |---|---|
 | 扩展弹窗显示 **Disconnected** | 确认 Proxy Server 终端仍在运行，并检查 Endpoint 和 Transport 是否正确。 |
 | Chrome 没有弹出权限提示 | 输入 Endpoint 后点击 **Grant access and connect**。如果更换了主机地址，需要为新主机重新授权。 |
-| 侧边栏显示 **Disconnected** | 检查 Proxy Server 前台终端或后台运行时的 `proxy.log` 日志，确认扩展 Endpoint 正确，然后点击 Server 状态旁的刷新按钮。 |
+| 侧边栏显示 **Disconnected** | 检查 Proxy Server 前台终端、后台运行时的 `proxy.log`，或 systemd 服务日志 `journalctl -u mcp-superassistant-proxy -f`，确认扩展 Endpoint 正确，然后点击 Server 状态旁的刷新按钮。 |
 | 已连接，但没有显示工具 | 检查 `config.json` 中是否正确配置了 `mcpServers`，查看 Proxy Server 启动日志，修复错误后重启并刷新工具列表。 |
 | AI 不调用工具 | 将 MCP Instructions 插入当前对话，明确指定工具名称和任务。 |
 | 工具执行失败 | 检查工具参数、Proxy Server 日志、MCP Server 命令和参数、认证信息及文件系统权限。 |
