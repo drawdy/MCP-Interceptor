@@ -13,7 +13,7 @@
 
 ---
 
-MCP-Interceptor 通过一个运行在本机的 Proxy Server，将 AI 聊天网站连接到 MCP 工具。只需安装浏览器扩展、启动 Proxy Server、添加需要使用的 MCP Server，然后连接即可。
+MCP-Interceptor 通过独立的 Go 代理服务 [MCP-Proxy](https://github.com/drawdy/MCP-Proxy)，将 AI 聊天网站连接到 MCP 工具。只需安装浏览器扩展、启动 MCP-Proxy 并配置 MCP Server，然后连接即可。
 
 ## 工作原理
 
@@ -23,12 +23,12 @@ Gemini / DeepSeek / Grok / ChatGPT
        MCP-Interceptor
           Chrome 扩展
               ⇅
-        本地 Proxy Server
+          MCP-Proxy (Go)
               ⇅
        已配置的 MCP Server
 ```
 
-**请注意：** MCP Server 是添加到 Proxy Server 的配置文件中的。浏览器扩展只需要连接 Proxy Server，不需要在扩展中逐个添加 MCP Server。
+**请注意：** MCP Server 配置在 MCP-Proxy 的配置文件中。浏览器扩展只需要连接 MCP-Proxy，不需要在扩展中逐个添加后端 MCP Server。
 
 ## 一、安装 Chrome 扩展
 
@@ -44,42 +44,58 @@ Gemini / DeepSeek / Grok / ChatGPT
 
 > 请不要移动或删除扩展解压目录，否则 Chrome 将无法加载扩展。
 
-## 二、安装并启动本地 Proxy Server
+## 二、安装并启动 MCP-Proxy
 
-Proxy Server 是一个独立的命令行程序，负责连接浏览器扩展和本地或远程 MCP Server。
+MCP-Interceptor 使用独立的 Go 服务 [MCP-Proxy](https://github.com/drawdy/MCP-Proxy)，将本地和远程 MCP Server 聚合后，通过传统 SSE 协议提供给浏览器扩展。
 
-### 步骤 1：安装 Node.js
+**MCP-Proxy 已替代此前的 Node.js Proxy Server。新安装请统一使用 Go 版本 MCP-Proxy。**
 
-1. 从 [Node.js 官网](https://nodejs.org/) 下载并安装当前的 **LTS 版本**。
-2. 关闭并重新打开终端或 PowerShell。
-3. 检查 Node.js、npm 和 npx 是否可用：
+### 步骤 1：安装 Docker
+
+Windows 或 macOS 建议安装 [Docker Desktop](https://www.docker.com/products/docker-desktop/)；Linux 可安装 Docker Engine 和 Docker Compose 插件。确认 Docker 已启动：
 
 ```bash
-node -v
-npm -v
-npx -v
+docker --version
+docker compose version
 ```
 
-如果每条命令都能输出版本号，就可以继续。
+使用 Docker Compose 时，宿主机不需要安装 Go 或 Node.js。MCP-Proxy 镜像包含 Go 代理程序，以及供容器内通过 `npx` 启动 MCP 后端使用的 Node.js 运行环境。
 
-### 步骤 2：创建配置目录
+### 步骤 2：下载 MCP-Proxy
 
-创建一个目录，用于存放 MCP 配置文件。例如：
+克隆 MCP-Proxy 仓库。请保留该目录，后续 Compose 文件和本地配置都在这里。
 
-- Windows：`C:\MCP-Interceptor`
-- macOS / Linux：`~/mcp-interceptor`
+**Windows / PowerShell**
 
-在该目录下创建一个名为 **config.json** 的文件。
+```powershell
+git clone https://github.com/drawdy/MCP-Proxy.git
+cd MCP-Proxy
+Copy-Item config.example.json config.json
+New-Item -ItemType Directory -Force workspace
+notepad config.json
+```
 
-**Windows 提示：** 在资源管理器中打开目录，右键空白处，选择“新建 → 文本文档”，将文件重命名为 `config.json`，然后用记事本打开。注意确认文件名不是 `config.json.txt`。
+**macOS / Linux**
 
-### 步骤 3：添加第一个 MCP Server
+```bash
+git clone https://github.com/drawdy/MCP-Proxy.git
+cd MCP-Proxy
+cp config.example.json config.json
+mkdir -p workspace
+vi config.json
+```
 
-将下面的配置复制到 `config.json`。这个示例会启动 Desktop Commander MCP Server：
+### 步骤 3：配置 MCP Server
+
+在 `config.json` 的 `mcpServers` 对象中添加需要使用的 MCP Server。示例配置已经包含一个可访问挂载目录 `/workspace` 的文件系统 Server。还可以增加其他后端，例如 Desktop Commander：
 
 ```json
 {
   "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"]
+    },
     "desktop-commander": {
       "command": "npx",
       "args": ["-y", "@wonderwhy-er/desktop-commander"]
@@ -88,146 +104,66 @@ npx -v
 }
 ```
 
-保存文件。
+这里的 `npx` 命令运行在 MCP-Proxy 容器内部，宿主机不需要安装 Node.js。容器自带 Node.js，npm 缓存保存在独立 Docker volume 中。
 
-### 步骤 4：启动 Proxy Server
+将希望开放给工具访问的文件放入克隆仓库目录下的 `workspace` 文件夹。如果后端需要认证凭据，可以将环境变量放在 MCP-Proxy 目录下的 `.env` 文件中，然后在 `config.json` 中通过 `"${API_TOKEN}"` 引用。不要将 `.env` 或密钥提交到代码仓库。
 
-在配置目录中打开终端。
+### 步骤 4：启动 MCP-Proxy
 
-**Windows / PowerShell**
-
-1. 在资源管理器中打开 `C:\MCP-Interceptor`。
-2. 点击地址栏，输入 `powershell`，按回车。
-3. 执行：
-
-```powershell
-npx -y @srbhptl39/mcp-superassistant-proxy@latest --config .\config.json --outputTransport sse
-```
-
-**macOS / Linux**
-
-打开终端并执行：
+在克隆得到的 `MCP-Proxy` 目录中执行：
 
 ```bash
-cd ~/mcp-interceptor
-npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outputTransport sse
+docker compose up -d --build
+docker compose ps
+docker compose logs -f mcp-proxy
 ```
 
-首次启动可能需要等待几分钟，因为 npm 需要下载 Proxy Server 和 MCP Server 程序。
-
-此命令会让 Proxy Server 在前台运行。使用 MCP-Interceptor 期间，请保持该终端窗口打开。如果不想一直占用终端窗口，可以使用下面的后台运行命令。
-
-默认 SSE 地址为：
+容器会在后台运行，并在异常退出后自动重启。默认 SSE 地址为：
 
 ```text
 http://localhost:3006/sse
 ```
 
-目前 Proxy Server 的 npm 包仍使用上游项目名称 `@srbhptl39/mcp-superassistant-proxy`。这是正常的，它与 MCP-Interceptor 浏览器扩展是两个独立组件。
-
-### 可选：后台运行 Proxy Server
-
-请在包含 `config.json` 的目录中执行以下命令。后台进程的输出会写入 `proxy.log`。
-
-**macOS / Linux**
+停止 MCP-Proxy：
 
 ```bash
-nohup npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outputTransport sse > ./proxy.log 2>&1 < /dev/null & echo $! > ./proxy.pid
+docker compose down
 ```
 
-使用 `tail -f ./proxy.log` 查看日志。使用 `kill "$(cat ./proxy.pid)"` 停止进程，然后用 `rm -f ./proxy.pid` 删除 PID 文件。
+修改 `config.json` 后，需要重启服务以重新加载配置：
 
-**Windows / PowerShell**
-
-```powershell
-Start-Process -FilePath "cmd.exe" -ArgumentList '/c npx -y @srbhptl39/mcp-superassistant-proxy@latest --config .\config.json --outputTransport sse > .\proxy.log 2>&1' -WorkingDirectory (Get-Location).Path -WindowStyle Hidden -PassThru | Select-Object -ExpandProperty Id
+```bash
+docker compose restart mcp-proxy
 ```
-
-命令会输出后台进程 ID。使用 `Get-Content .\proxy.log -Wait` 查看日志；使用 `taskkill /PID <PID> /T /F` 停止进程及其子进程。
 
 ### 可选：允许局域网内其他设备访问
 
-Proxy Server 默认监听 `localhost`，因此只有运行在同一台电脑上的应用可以连接。该代理程序支持 `--host` 参数，将其设置为 `0.0.0.0` 即可监听所有 IPv4 网络接口：
+Compose 默认只将服务发布到宿主机回环地址（`127.0.0.1:3006`）。如果需要让局域网内其他可信设备访问，在 MCP-Proxy 目录下创建或编辑 `.env`：
+
+```dotenv
+MCP_PROXY_BIND=0.0.0.0
+MCP_PROXY_PORT=3006
+```
+
+然后应用配置：
 
 ```bash
-npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outputTransport sse --host 0.0.0.0 --port 3006 --healthEndpoint /healthz
+docker compose up -d
 ```
 
-然后在扩展中填写 Proxy Server 所在机器的实际局域网 IP，例如：
+在 MCP-Interceptor 中填写 MCP-Proxy 所在机器的实际局域网 IP，例如 `http://192.168.1.100:3006/sse`。请替换为服务器真实 IP，并在 Chrome 提示时授予该主机访问权限。**不要将 `0.0.0.0` 填入扩展 Endpoint**，它是监听地址，不是客户端连接地址。
 
-```text
-http://192.168.1.100:3006/sse
-```
+绑定 `0.0.0.0` 会让服务发布到宿主机的所有网络接口。请通过防火墙将 TCP `3006` 端口限制为可信的局域网设备。不要将 MCP-Proxy 直接暴露到公网，也不要配置路由器公网端口转发。CORS 不是身份认证，也不能替代网络访问控制。
 
-将 `192.168.1.100` 替换为服务器的实际局域网地址。**不要在扩展 Endpoint 中填写 `0.0.0.0`**，它是监听地址，不是客户端连接地址。Chrome 提示访问新主机时，需要允许该主机权限。
+### 可选：不使用 Docker，直接运行 Go 程序
 
-可选参数 `--healthEndpoint /healthz` 会增加一个健康检查接口。可以从局域网内其他设备执行以下命令验证连通性：
+如果希望直接运行本地进程，请安装 Go 1.26.8 或更高版本；如果配置中包含通过 `npx` 启动的后端，还需要安装 Node.js。克隆仓库并按上文创建 `config.json` 后，执行：
 
 ```bash
-curl http://192.168.1.100:3006/healthz
+go run ./cmd/mcp-proxy --config ./config.json --host 127.0.0.1 --port 3006
 ```
 
-正常情况下返回 `ok`。只有启动命令包含该参数时，健康检查接口才会存在。
-
-**安全注意：** 绑定到 `0.0.0.0` 意味着服务会监听所有 IPv4 网卡，并不只限于私有局域网。请在主机防火墙中将 TCP `3006` 端口限制为可信的局域网设备。不要将服务直接暴露到公网，也不要配置路由器公网端口转发。代理程序默认允许所有来源的 CORS 请求；CORS 不是身份认证，也不能代替网络访问控制。
-
-### 可选：在 Linux 上使用 systemd 常驻运行
-
-对于需要长期运行的 Linux 主机，建议使用 systemd，而不是一直占用终端或使用 `nohup`。systemd 可以在系统启动时自动启动服务、异常退出后自动重启，并统一收集日志。
-
-将代理程序安装在专用服务账号拥有的固定目录中。例如：
-
-```bash
-sudo useradd --system --user-group --create-home --home-dir /opt/mcp-superassistant --shell /usr/sbin/nologin mcp-proxy
-sudo -u mcp-proxy npm install --prefix /opt/mcp-superassistant @srbhptl39/mcp-superassistant-proxy
-```
-
-将 `config.json` 放在 `/opt/mcp-superassistant/config.json`，然后设置文件归属和权限：
-
-```bash
-sudo chown mcp-proxy:mcp-proxy /opt/mcp-superassistant/config.json
-sudo chmod 600 /opt/mcp-superassistant/config.json
-```
-
-创建文件 `/etc/systemd/system/mcp-superassistant-proxy.service`：
-
-```ini
-[Unit]
-Description=MCP SuperAssistant Proxy
-Wants=network-online.target
-After=network-online.target
-
-[Service]
-Type=simple
-User=mcp-proxy
-Group=mcp-proxy
-WorkingDirectory=/opt/mcp-superassistant
-Environment=HOME=/opt/mcp-superassistant
-Environment=PATH=/usr/local/bin:/usr/bin:/bin
-Environment=NODE_ENV=production
-UMask=0077
-ExecStart=/opt/mcp-superassistant/node_modules/.bin/mcp-superassistant-proxy --config /opt/mcp-superassistant/config.json --outputTransport sse --host 0.0.0.0 --port 3006 --healthEndpoint /healthz
-Restart=always
-RestartSec=5
-KillMode=control-group
-TimeoutStopSec=20
-NoNewPrivileges=true
-PrivateTmp=true
-
-[Install]
-WantedBy=multi-user.target
-```
-
-启用并启动服务：
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now mcp-superassistant-proxy
-sudo systemctl status mcp-superassistant-proxy
-```
-
-使用 `journalctl -u mcp-superassistant-proxy -f` 查看日志。修改 `config.json` 后，执行 `sudo systemctl restart mcp-superassistant-proxy` 重启服务。如果 Node.js 安装在系统默认 PATH 之外，需要将其实际目录加入 service 文件的 `PATH`。
-
+扩展 Endpoint 仍然使用 `http://localhost:3006/sse`。构建、配置和开发说明参见 [MCP-Proxy README](https://github.com/drawdy/MCP-Proxy)。
 
 ## 三、添加更多 MCP Server
 
@@ -235,7 +171,7 @@ sudo systemctl status mcp-superassistant-proxy
 
 ### 示例 A：添加文件系统访问能力
 
-下面的示例增加一个文件系统 MCP Server，并将它的访问范围限制在指定目录：
+Compose 会将本地 `workspace` 目录挂载到容器内的 `/workspace`。文件系统 MCP Server 应使用容器内路径：
 
 ```json
 {
@@ -249,14 +185,14 @@ sudo systemctl status mcp-superassistant-proxy
       "args": [
         "-y",
         "@modelcontextprotocol/server-filesystem",
-        "C:/Users/YourName/Documents"
+        "/workspace"
       ]
     }
   }
 }
 ```
 
-将 `C:/Users/YourName/Documents` 替换为你希望开放给工具访问的目录。Windows 的 JSON 路径建议使用正斜杠。
+将希望开放给工具访问的文件放入克隆得到的 MCP-Proxy 仓库中的 `workspace` 目录。`config.json` 中填写的是容器内路径，不是 Windows 宿主机路径。如果还需要开放其他宿主机目录，可以在 `compose.yml` 中增加 volume 映射。
 
 **请只开放你信任 AI 工具读取或修改的目录。** 除非确实有需要，不要将整个磁盘开放给文件系统 Server。
 
@@ -301,23 +237,11 @@ sudo systemctl status mcp-superassistant-proxy
 
 只需要授予扩展访问当前配置的 Server 主机的权限，不需要允许它访问所有网站或局域网地址。
 
-### 其他传输协议
+### 传输协议兼容性
 
-首次使用建议选择 SSE。如果你明确使用其他输出协议启动 Proxy Server，则扩展中的传输协议也必须选择对应类型：
+MCP-Proxy 当前向 MCP-Interceptor 提供传统 **SSE** 接口。扩展中的 **Transport** 请选择 **SSE**，Endpoint 使用 `http://localhost:3006/sse`。
 
-| Proxy Server 启动参数 | 扩展 Transport | Endpoint |
-|---|---|---|
-| `--outputTransport sse` | SSE | `http://localhost:3006/sse` |
-| `--outputTransport streamableHttp` | Streamable HTTP | `http://localhost:3006` |
-| `--outputTransport ws` | WebSocket | `ws://localhost:3006/message` |
-
-例如，使用 Streamable HTTP 启动 Proxy Server：
-
-```bash
-npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outputTransport streamableHttp
-```
-
-请确保扩展选择的 Transport 与 Proxy Server 的输出协议一致。
+MCP-Proxy 的后端连接支持 stdio、SSE 和 Streamable HTTP。这里指的是它连接后端 MCP Server 的能力，并不代表面向浏览器扩展的代理接口也支持 Streamable HTTP 或 WebSocket。使用 MCP-Proxy 时，不要在扩展中选择这两种输出协议。
 
 ## 五、在 Gemini、DeepSeek、Grok、ChatGPT 中使用 MCP 工具
 
@@ -389,12 +313,12 @@ AI 需要先获得调用工具的说明，才能按照 MCP-Interceptor 支持的
 
 | 现象 | 检查方法 |
 |---|---|
-| 扩展弹窗显示 **Disconnected** | 确认 Proxy Server 终端仍在运行，并检查 Endpoint 和 Transport 是否正确。 |
+| 扩展弹窗显示 **Disconnected** | 在 MCP-Proxy 目录执行 `docker compose ps`，确认容器正在运行；检查 Endpoint，并确认 Transport 选择了 SSE。 |
 | Chrome 没有弹出权限提示 | 输入 Endpoint 后点击 **Grant access and connect**。如果更换了主机地址，需要为新主机重新授权。 |
-| 侧边栏显示 **Disconnected** | 检查 Proxy Server 前台终端、后台运行时的 `proxy.log`，或 systemd 服务日志 `journalctl -u mcp-superassistant-proxy -f`，确认扩展 Endpoint 正确，然后点击 Server 状态旁的刷新按钮。 |
-| 已连接，但没有显示工具 | 检查 `config.json` 中是否正确配置了 `mcpServers`，查看 Proxy Server 启动日志，修复错误后重启并刷新工具列表。 |
+| 侧边栏显示 **Disconnected** | 在 MCP-Proxy 目录执行 `docker compose logs -f mcp-proxy` 查看日志。确认扩展 Endpoint 正确且 Transport 为 SSE，然后点击 Server 状态旁的刷新按钮。 |
+| 已连接，但没有显示工具 | 检查 `config.json` 中是否正确配置了 `mcpServers`，使用 `docker compose logs mcp-proxy` 查看后端错误，修复后执行 `docker compose restart mcp-proxy` 并刷新工具列表。 |
 | AI 不调用工具 | 将 MCP Instructions 插入当前对话，明确指定工具名称和任务。 |
-| 工具执行失败 | 检查工具参数、Proxy Server 日志、MCP Server 命令和参数、认证信息及文件系统权限。 |
+| 工具执行失败 | 检查工具参数和 `docker compose logs mcp-proxy` 输出，并核对后端 MCP Server 命令、参数、认证信息及文件系统权限。 |
 | 扩展更新后网页中的 UI 异常 | 刷新 AI 聊天页面，让扩展重新初始化。 |
 
 ## 七、安全建议
@@ -407,7 +331,7 @@ MCP 工具可能读取或修改文件、执行命令或访问外部服务。请�
 - 不要将密码、API Key、Token 等敏感信息提交到公开仓库。请使用环境变量或 MCP Server 支持的密钥配置方式。
 - 点击 **Run** 前检查工具名称和参数。
 - 除非确实需要无人值守执行，否则保持 **Auto Execute** 关闭。
-- 默认只在本机运行 Proxy Server。如果通过 `0.0.0.0` 或反向代理开放局域网访问，请通过防火墙限制为可信设备。不要将它暴露到公网，也不要配置路由器公网端口转发。
+- MCP-Proxy 默认只绑定 `127.0.0.1`。如设置 `MCP_PROXY_BIND=0.0.0.0` 开放局域网访问，请通过防火墙将 `3006` 端口限制为可信设备。不要将它暴露到公网，也不要配置路由器公网端口转发。
 
 ## 支持的平台
 
