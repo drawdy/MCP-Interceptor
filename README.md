@@ -146,36 +146,80 @@ The command prints the background process ID. View the log with `Get-Content .\p
 
 ### Optional — Allow access from other devices on your LAN
 
-The default `localhost` endpoint is intended for a browser running on the same computer. To connect from another device, the Proxy Server must be reachable through a LAN interface.
+The Proxy Server binds to `localhost` by default, so only applications on the same computer can connect. The proxy package supports the `--host` option. Set it to `0.0.0.0` to listen on all IPv4 network interfaces:
 
-1. Check the options supported by the installed Proxy Server:
-
-   ```bash
-   npx -y @srbhptl39/mcp-superassistant-proxy@latest --help
-   ```
-
-2. **Only if the help output lists `--host`**, add `--host 0.0.0.0` to the start command:
-
-   ```bash
-   npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outputTransport sse --host 0.0.0.0
-   ```
-
-3. In the extension, use the Proxy Server machine's actual LAN IP, for example `http://192.168.1.100:3006/sse`. Do not use `0.0.0.0` as the client endpoint; it is a bind address, not a destination address.
-
-**Important:** The current published CLI reference documents `--port` and `--baseUrl`, but does not list `--host`. If your installed version's `--help` output does not show `--host`, do not pass it. `--baseUrl` sets the URL used by SSE clients; it is not a documented substitute for a bind-address option.
-
-If the package does not provide a host option, you can put a reverse proxy on the LAN interface and forward traffic to the loopback-only Proxy Server. For example, this Caddy configuration listens on all IPv4 interfaces on port 3007 and forwards to the Proxy Server on port 3006:
-
-```caddyfile
-:3007 {
-    bind 0.0.0.0
-    reverse_proxy 127.0.0.1:3006
-}
+```bash
+npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outputTransport sse --host 0.0.0.0 --port 3006 --healthEndpoint /healthz
 ```
 
-Then set the extension endpoint to `http://<server-LAN-IP>:3007/sse`.
+Then configure the extension with the Proxy Server machine's actual LAN IP, for example:
 
-Only allow the exposed port from trusted LAN devices in your firewall. Do not expose the Proxy Server directly to the public internet or configure router port forwarding.
+```text
+http://192.168.1.100:3006/sse
+```
+
+Replace `192.168.1.100` with the machine's LAN address. **Do not use `0.0.0.0` in the extension endpoint** — it is a bind address, not a destination address. When Chrome prompts for access to the new host, grant permission.
+
+The optional `--healthEndpoint /healthz` flag adds a simple health check. From another LAN device, verify reachability with:
+
+```bash
+curl http://192.168.1.100:3006/healthz
+```
+
+A successful response is `ok`. The health endpoint is available only when you start the proxy with the flag.
+
+**Security:** Binding to `0.0.0.0` exposes the listener on every IPv4 interface, not just your private LAN. Allow TCP port `3006` only from trusted LAN devices in your host firewall. Do not expose this service directly to the public internet or configure router port forwarding. The proxy's default CORS policy allows all origins; CORS is not authentication or network access control.
+
+### Optional — Run as a Linux systemd service
+
+For an always-on Linux host, systemd is more reliable than keeping a terminal open or using `nohup`: it starts the proxy at boot, restarts it after failures, and collects logs in the journal.
+
+Install the package in a stable directory owned by a dedicated service account. For example:
+
+```bash
+sudo useradd --system --create-home --home-dir /opt/mcp-superassistant --shell /usr/sbin/nologin mcp-proxy
+sudo -u mcp-proxy npm install --prefix /opt/mcp-superassistant @srbhptl39/mcp-superassistant-proxy
+```
+
+Place your `config.json` at `/opt/mcp-superassistant/config.json` and make sure it is owned by `mcp-proxy` and not readable by other users. Create `/etc/systemd/system/mcp-superassistant-proxy.service`:
+
+```ini
+[Unit]
+Description=MCP SuperAssistant Proxy
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=mcp-proxy
+Group=mcp-proxy
+WorkingDirectory=/opt/mcp-superassistant
+Environment=HOME=/opt/mcp-superassistant
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=NODE_ENV=production
+UMask=0077
+ExecStart=/opt/mcp-superassistant/node_modules/.bin/mcp-superassistant-proxy --config /opt/mcp-superassistant/config.json --outputTransport sse --host 0.0.0.0 --port 3006 --healthEndpoint /healthz
+Restart=always
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=20
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start the service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now mcp-superassistant-proxy
+sudo systemctl status mcp-superassistant-proxy
+```
+
+Follow its logs with `journalctl -u mcp-superassistant-proxy -f`; restart it after changing `config.json` with `sudo systemctl restart mcp-superassistant-proxy`. If Node.js is installed outside the system PATH, add its absolute directory to the unit's `PATH`.
+
 
 ## 3. Add more MCP Servers
 
@@ -337,7 +381,7 @@ The **Push Content Mode** switch is at the top of the sidebar. It changes the pa
 |---|---|
 | Popup says **Disconnected** | Make sure the Proxy Server terminal is still running. Check the endpoint and transport in the popup. |
 | Chrome does not show the permission prompt | Click **Grant access and connect** after entering the endpoint. If you changed the host, Chrome may need permission for the new host. |
-| Sidebar says **Disconnected** | Check the foreground terminal or `proxy.log` if running in the background. Confirm the extension endpoint is correct, then click the refresh icon beside Server. |
+| Sidebar says **Disconnected** | Check the foreground terminal, `proxy.log`, or `journalctl -u mcp-superassistant-proxy -f` for a systemd service. Confirm the extension endpoint is correct, then click the refresh icon beside Server. |
 | Connected, but no tools appear | Check that `config.json` contains the server under `mcpServers`. Look for startup errors in the Proxy Server terminal, then restart the Proxy Server and refresh the tools. |
 | The AI does not call a tool | Insert the MCP instructions into the current conversation. Ask for a specific tool by name and describe the task clearly. |
 | Tool execution fails | Check the tool arguments and the Proxy Server terminal output. Verify the MCP Server command, arguments, credentials and filesystem permissions. |
