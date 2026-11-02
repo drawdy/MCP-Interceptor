@@ -182,7 +182,7 @@ sudo useradd --system --create-home --home-dir /opt/mcp-superassistant --shell /
 sudo -u mcp-proxy npm install --prefix /opt/mcp-superassistant @srbhptl39/mcp-superassistant-proxy
 ```
 
-将 `config.json` 放在 `/opt/mcp-superassistant/config.json`，确保文件归属 `mcp-proxy` 用户，且其他用户不可读取。创建文件 `/etc/systemd/system/mcp-superassistant-proxy.service`：
+将 `config.json` 放在 `/opt/mcp-superassistant/config.json`，确保文件归属 `mcp-proxy` 用户。如果其中包含凭据，应限制文件权限（例如设置为 `chmod 600`）。创建文件 `/etc/systemd/system/mcp-superassistant-proxy.service`：
 
 ```ini
 [Unit]
