@@ -36,7 +36,7 @@
     "@laynezh/vite-plugin-lib-assets": "^2.1.0",
     "@types/chrome": "0.0.304",
     "@types/node": "^22.5.5",
-    "magic-string": "^0.30.10",
+    "magic-string": "^1.4.5",
     "ts-loader": "^9.5.1"
   }
 }
