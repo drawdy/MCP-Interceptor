@@ -1,5 +1,6 @@
 <!-- MCP-INTERCEPTOR-README -->
 <div align="center">
+  <p><a href="README_zh.md">简体中文</a> · <a href="README.md">English</a></p>
   <img src="docs/assets/logo-horizontal.svg" alt="MCP-Interceptor" width="560" />
   <p><strong>Use your MCP tools directly in Gemini, DeepSeek, Grok, ChatGPT and other supported AI chat websites.</strong></p>
   <p>
