@@ -177,11 +177,18 @@ For an always-on Linux host, systemd is more reliable than keeping a terminal op
 Install the package in a stable directory owned by a dedicated service account. For example:
 
 ```bash
-sudo useradd --system --create-home --home-dir /opt/mcp-superassistant --shell /usr/sbin/nologin mcp-proxy
+sudo useradd --system --user-group --create-home --home-dir /opt/mcp-superassistant --shell /usr/sbin/nologin mcp-proxy
 sudo -u mcp-proxy npm install --prefix /opt/mcp-superassistant @srbhptl39/mcp-superassistant-proxy
 ```
 
-Place your `config.json` at `/opt/mcp-superassistant/config.json` and make sure it is owned by `mcp-proxy`. If it contains credentials, restrict its permissions (for example, `chmod 600`). Create `/etc/systemd/system/mcp-superassistant-proxy.service`:
+Place your `config.json` at `/opt/mcp-superassistant/config.json`, then set its ownership:
+
+```bash
+sudo chown mcp-proxy:mcp-proxy /opt/mcp-superassistant/config.json
+sudo chmod 600 /opt/mcp-superassistant/config.json
+```
+
+Create `/etc/systemd/system/mcp-superassistant-proxy.service`:
 
 ```ini
 [Unit]
