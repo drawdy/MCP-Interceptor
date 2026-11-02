@@ -114,7 +114,7 @@ npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outpu
 
 The first run may take a few minutes because npm downloads the Proxy Server and the MCP Server package.
 
-When the Proxy Server starts successfully, **leave this terminal window open** while you use MCP-Interceptor.
+This command runs the Proxy Server in the foreground. Keep this terminal window open while using MCP-Interceptor. To run it without keeping a terminal window open, use the optional background commands below.
 
 The default SSE address is:
 
@@ -123,6 +123,59 @@ http://localhost:3006/sse
 ```
 
 The Proxy Server package currently retains its upstream npm name, `@srbhptl39/mcp-superassistant-proxy`. This is expected; it is separate from the MCP-Interceptor browser extension.
+
+### Optional — Run the Proxy Server in the background
+
+Run the command from the directory containing `config.json`. The process writes its output to `proxy.log`.
+
+**macOS / Linux**
+
+```bash
+nohup npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outputTransport sse > ./proxy.log 2>&1 < /dev/null & echo $! > ./proxy.pid
+```
+
+View the log with `tail -f ./proxy.log`. Stop the process with `kill "$(cat ./proxy.pid)"`, then remove the PID file with `rm -f ./proxy.pid`.
+
+**Windows / PowerShell**
+
+```powershell
+Start-Process -FilePath "cmd.exe" -ArgumentList '/c npx -y @srbhptl39/mcp-superassistant-proxy@latest --config .\\config.json --outputTransport sse > .\\proxy.log 2>&1' -WorkingDirectory (Get-Location).Path -WindowStyle Hidden -PassThru | Select-Object -ExpandProperty Id
+```
+
+The command prints the background process ID. View the log with `Get-Content .\\proxy.log -Wait`; stop the process tree with `taskkill /PID <PID> /T /F`.
+
+### Optional — Allow access from other devices on your LAN
+
+The default `localhost` endpoint is intended for a browser running on the same computer. To connect from another device, the Proxy Server must be reachable through a LAN interface.
+
+1. Check the options supported by the installed Proxy Server:
+
+   ```bash
+   npx -y @srbhptl39/mcp-superassistant-proxy@latest --help
+   ```
+
+2. **Only if the help output lists `--host`**, add `--host 0.0.0.0` to the start command:
+
+   ```bash
+   npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outputTransport sse --host 0.0.0.0
+   ```
+
+3. In the extension, use the Proxy Server machine's actual LAN IP, for example `http://192.168.1.100:3006/sse`. Do not use `0.0.0.0` as the client endpoint; it is a bind address, not a destination address.
+
+**Important:** The current published CLI reference documents `--port` and `--baseUrl`, but does not list `--host`. If your installed version's `--help` output does not show `--host`, do not pass it. `--baseUrl` sets the URL used by SSE clients; it is not a documented substitute for a bind-address option.
+
+If the package does not provide a host option, you can put a reverse proxy on the LAN interface and forward traffic to the loopback-only Proxy Server. For example, this Caddy configuration listens on all IPv4 interfaces on port 3007 and forwards to the Proxy Server on port 3006:
+
+```caddyfile
+:3007 {
+    bind 0.0.0.0
+    reverse_proxy 127.0.0.1:3006
+}
+```
+
+Then set the extension endpoint to `http://<server-LAN-IP>:3007/sse`.
+
+Only allow the exposed port from trusted LAN devices in your firewall. Do not expose the Proxy Server directly to the public internet or configure router port forwarding.
 
 ## 3. Add more MCP Servers
 
@@ -236,7 +289,7 @@ The MCP-Interceptor sidebar should appear on the page.
 3. Expand a server to see its tools.
 4. Enable the tools you want the AI to use. You can use **Enable All** or **Disable All**.
 
-If a server or its tools are missing, check the Proxy Server terminal for errors, then use the refresh button beside the Server status.
+If a server or its tools are missing, check the foreground terminal or `proxy.log` if the Proxy Server is running in the background, then use the refresh button beside the Server status.
 
 ### Step 5.3 — Insert MCP instructions into the chat
 
@@ -284,7 +337,7 @@ The **Push Content Mode** switch is at the top of the sidebar. It changes the pa
 |---|---|
 | Popup says **Disconnected** | Make sure the Proxy Server terminal is still running. Check the endpoint and transport in the popup. |
 | Chrome does not show the permission prompt | Click **Grant access and connect** after entering the endpoint. If you changed the host, Chrome may need permission for the new host. |
-| Sidebar says **Disconnected** | Check the Proxy Server terminal. Confirm the extension endpoint is correct, then click the refresh icon beside Server. |
+| Sidebar says **Disconnected** | Check the foreground terminal or `proxy.log` if running in the background. Confirm the extension endpoint is correct, then click the refresh icon beside Server. |
 | Connected, but no tools appear | Check that `config.json` contains the server under `mcpServers`. Look for startup errors in the Proxy Server terminal, then restart the Proxy Server and refresh the tools. |
 | The AI does not call a tool | Insert the MCP instructions into the current conversation. Ask for a specific tool by name and describe the task clearly. |
 | Tool execution fails | Check the tool arguments and the Proxy Server terminal output. Verify the MCP Server command, arguments, credentials and filesystem permissions. |
@@ -300,7 +353,7 @@ MCP tools may read or modify files, execute commands, or access external service
 - Keep passwords, API keys and tokens out of public repositories. Use environment variables or the MCP Server's supported secret mechanism.
 - Review tool names and arguments before clicking **Run**.
 - Keep **Auto Execute** off unless you intentionally want unattended tool execution.
-- Keep the Proxy Server local unless you have deliberately configured and secured remote access. Do not expose it directly to the public internet.
+- Keep the Proxy Server on the local machine by default. If you expose it to the LAN with `0.0.0.0` or a reverse proxy, restrict access to trusted devices with your firewall. Do not expose it to the public internet or configure router port forwarding.
 
 ## Supported platforms
 
