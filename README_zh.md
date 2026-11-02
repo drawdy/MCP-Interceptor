@@ -140,10 +140,10 @@ nohup npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json -
 **Windows / PowerShell**
 
 ```powershell
-Start-Process -FilePath "cmd.exe" -ArgumentList '/c npx -y @srbhptl39/mcp-superassistant-proxy@latest --config .\\config.json --outputTransport sse > .\\proxy.log 2>&1' -WorkingDirectory (Get-Location).Path -WindowStyle Hidden -PassThru | Select-Object -ExpandProperty Id
+Start-Process -FilePath "cmd.exe" -ArgumentList '/c npx -y @srbhptl39/mcp-superassistant-proxy@latest --config .\config.json --outputTransport sse > .\proxy.log 2>&1' -WorkingDirectory (Get-Location).Path -WindowStyle Hidden -PassThru | Select-Object -ExpandProperty Id
 ```
 
-命令会输出后台进程 ID。使用 `Get-Content .\\proxy.log -Wait` 查看日志；使用 `taskkill /PID <PID> /T /F` 停止进程及其子进程。
+命令会输出后台进程 ID。使用 `Get-Content .\proxy.log -Wait` 查看日志；使用 `taskkill /PID <PID> /T /F` 停止进程及其子进程。
 
 ### 可选：允许局域网内其他设备访问
 
