@@ -139,10 +139,10 @@ View the log with `tail -f ./proxy.log`. Stop the process with `kill "$(cat ./pr
 **Windows / PowerShell**
 
 ```powershell
-Start-Process -FilePath "cmd.exe" -ArgumentList '/c npx -y @srbhptl39/mcp-superassistant-proxy@latest --config .\\config.json --outputTransport sse > .\\proxy.log 2>&1' -WorkingDirectory (Get-Location).Path -WindowStyle Hidden -PassThru | Select-Object -ExpandProperty Id
+Start-Process -FilePath "cmd.exe" -ArgumentList '/c npx -y @srbhptl39/mcp-superassistant-proxy@latest --config .\config.json --outputTransport sse > .\proxy.log 2>&1' -WorkingDirectory (Get-Location).Path -WindowStyle Hidden -PassThru | Select-Object -ExpandProperty Id
 ```
 
-The command prints the background process ID. View the log with `Get-Content .\\proxy.log -Wait`; stop the process tree with `taskkill /PID <PID> /T /F`.
+The command prints the background process ID. View the log with `Get-Content .\proxy.log -Wait`; stop the process tree with `taskkill /PID <PID> /T /F`.
 
 ### Optional — Allow access from other devices on your LAN
 
