@@ -1,6 +1,6 @@
 <!-- MCP-INTERCEPTOR-README -->
 <div align="center">
-  <img src="docs/assets/logo-horizontal.png" alt="MCP-Interceptor" width="560" />
+  <img src="docs/assets/logo-horizontal.svg" alt="MCP-Interceptor" width="560" />
   <p><strong>Use your MCP tools directly in Gemini, DeepSeek, Grok, ChatGPT and other supported AI chat websites.</strong></p>
   <p>
     <a href="https://github.com/drawdy/MCP-Interceptor/releases/latest">Download latest version</a>

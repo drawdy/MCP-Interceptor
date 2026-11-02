@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-labelledby="title">
+  <title id="title">MCP-Interceptor</title>
+  <rect width="512" height="512" rx="66" fill="#155EEF"/>
+  <g transform="translate(62 132) scale(1.02 1.02)">
+    <path fill="#FFFFFF" d="M40 16 182 77 155 110 104 87 62 211 0 224Z"/>
+    <path fill="#FFFFFF" d="m288 16 72 208h-68l-35-119-45 25-4-50Z"/>
+    <path fill="#FFFFFF" d="m171 82 42-26v168h-42Z"/>
+    <path fill="#FFFFFF" d="M4 221c75-66 149-100 220-106 49-4 89 3 125 18l-1-21 37 29-38 28 1-21c-36-14-76-20-122-16-69 6-140 39-222 89Z"/>
+  </g>
+</svg>
