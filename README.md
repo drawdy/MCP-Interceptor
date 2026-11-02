@@ -12,7 +12,7 @@
 
 ---
 
-MCP-Interceptor connects AI chat websites to MCP tools through a small local Proxy Server. Install the browser extension, start the Proxy Server, add the MCP Servers you want to use, and connect.
+MCP-Interceptor connects AI chat websites to MCP tools through [MCP-Proxy](https://github.com/drawdy/MCP-Proxy), a standalone Go-based proxy. Install the browser extension, start MCP-Proxy with your configured MCP Servers, and connect.
 
 ## How it works
 
@@ -22,12 +22,12 @@ Gemini / DeepSeek / Grok / ChatGPT
        MCP-Interceptor
         Chrome extension
               ⇅
-      Local Proxy Server
+       MCP-Proxy (Go)
               ⇅
    Your configured MCP Servers
 ```
 
-**Important:** You add MCP Servers to the Proxy Server configuration. The browser extension connects to the Proxy Server; you do not add each MCP Server separately in the extension.
+**Important:** Configure MCP Servers in MCP-Proxy. The browser extension connects to MCP-Proxy; you do not add each backend MCP Server separately in the extension.
 
 ## 1. Install the browser extension
 
@@ -43,42 +43,58 @@ The MCP-Interceptor icon should now appear in Chrome. If it is hidden, open Chro
 
 > Keep the extracted folder in the same location. If you move or delete it, Chrome cannot load the extension.
 
-## 2. Install and start the local Proxy Server
+## 2. Install and start MCP-Proxy
 
-The Proxy Server is a separate command-line program. It connects the browser extension to local or remote MCP Servers.
+MCP-Interceptor uses [MCP-Proxy](https://github.com/drawdy/MCP-Proxy), a standalone Go service that aggregates local and remote MCP Servers and exposes them to the browser extension through the traditional SSE transport.
 
-### Step 2.1 — Install Node.js
+**MCP-Proxy replaces the previous Node.js-based Proxy Server. Use the Go-based MCP-Proxy for all new installations.**
 
-1. Download and install the current **Node.js LTS** version from [nodejs.org](https://nodejs.org/).
-2. Close and reopen your terminal (or PowerShell).
-3. Check that Node.js and npx are available:
+### Step 2.1 — Install Docker
+
+Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) on Windows or macOS, or Docker Engine with the Docker Compose plugin on Linux. Make sure Docker is running:
 
 ```bash
-node -v
-npm -v
-npx -v
+docker --version
+docker compose version
 ```
 
-If each command prints a version number, continue.
+You do not need to install Go or Node.js on the host when using Docker Compose. The MCP-Proxy image contains the Go proxy and a Node.js runtime for MCP backends launched with `npx`.
 
-### Step 2.2 — Create a configuration folder
+### Step 2.2 — Download MCP-Proxy
 
-Create a folder to keep your MCP configuration. For example:
+Clone the MCP-Proxy repository. Keep this directory on your computer; it contains the Compose file and your local configuration.
 
-- Windows: `C:\MCP-Interceptor`
-- macOS / Linux: `~/mcp-interceptor`
+**Windows / PowerShell**
 
-Inside this folder, create a file named **config.json**.
+```powershell
+git clone https://github.com/drawdy/MCP-Proxy.git
+cd MCP-Proxy
+Copy-Item config.example.json config.json
+New-Item -ItemType Directory -Force workspace
+notepad config.json
+```
 
-**Windows tip:** Open the folder in File Explorer, right-click an empty area, choose **New → Text Document**, rename it to `config.json`, then open it with Notepad. Make sure Windows has not named it `config.json.txt`.
+**macOS / Linux**
 
-### Step 2.3 — Add your first MCP Server
+```bash
+git clone https://github.com/drawdy/MCP-Proxy.git
+cd MCP-Proxy
+cp config.example.json config.json
+mkdir -p workspace
+vi config.json
+```
 
-Copy this example into `config.json`. It starts the Desktop Commander MCP Server:
+### Step 2.3 — Configure your MCP Servers
+
+Add each MCP Server under the `mcpServers` object in `config.json`. The example configuration already includes a filesystem server that can access the mounted `/workspace` directory. You can add another backend, for example Desktop Commander:
 
 ```json
 {
   "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"]
+    },
     "desktop-commander": {
       "command": "npx",
       "args": ["-y", "@wonderwhy-er/desktop-commander"]
@@ -87,146 +103,66 @@ Copy this example into `config.json`. It starts the Desktop Commander MCP Server
 }
 ```
 
-Save the file.
+The `npx` commands run inside the MCP-Proxy container. You do not need Node.js installed on your host. The container includes Node.js and keeps its npm cache in a Docker volume.
 
-### Step 2.4 — Start the Proxy Server
+Put files you want to expose in the `workspace` directory inside the cloned MCP-Proxy repository. If a backend needs credentials, place the environment variables in a `.env` file beside `compose.yml`, then reference them in `config.json`, for example `"${API_TOKEN}"`. Do not commit `.env` or secrets to source control.
 
-Open a terminal in the configuration folder.
+### Step 2.4 — Start MCP-Proxy
 
-**Windows / PowerShell**
-
-1. Open the `C:\MCP-Interceptor` folder in File Explorer.
-2. Click the address bar, type `powershell`, and press Enter.
-3. Run:
-
-```powershell
-npx -y @srbhptl39/mcp-superassistant-proxy@latest --config .\config.json --outputTransport sse
-```
-
-**macOS / Linux**
-
-Open a terminal and run:
+Run these commands from the cloned `MCP-Proxy` directory:
 
 ```bash
-cd ~/mcp-interceptor
-npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outputTransport sse
+docker compose up -d --build
+docker compose ps
+docker compose logs -f mcp-proxy
 ```
 
-The first run may take a few minutes because npm downloads the Proxy Server and the MCP Server package.
-
-This command runs the Proxy Server in the foreground. Keep this terminal window open while using MCP-Interceptor. To run it without keeping a terminal window open, use the optional background commands below.
-
-The default SSE address is:
+The container runs in the background and restarts automatically unless stopped. The default endpoint is:
 
 ```text
 http://localhost:3006/sse
 ```
 
-The Proxy Server package currently retains its upstream npm name, `@srbhptl39/mcp-superassistant-proxy`. This is expected; it is separate from the MCP-Interceptor browser extension.
-
-### Optional — Run the Proxy Server in the background
-
-Run the command from the directory containing `config.json`. The process writes its output to `proxy.log`.
-
-**macOS / Linux**
+To stop MCP-Proxy:
 
 ```bash
-nohup npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outputTransport sse > ./proxy.log 2>&1 < /dev/null & echo $! > ./proxy.pid
+docker compose down
 ```
 
-View the log with `tail -f ./proxy.log`. Stop the process with `kill "$(cat ./proxy.pid)"`, then remove the PID file with `rm -f ./proxy.pid`.
+After editing `config.json`, restart the service so it reloads the configuration:
 
-**Windows / PowerShell**
-
-```powershell
-Start-Process -FilePath "cmd.exe" -ArgumentList '/c npx -y @srbhptl39/mcp-superassistant-proxy@latest --config .\config.json --outputTransport sse > .\proxy.log 2>&1' -WorkingDirectory (Get-Location).Path -WindowStyle Hidden -PassThru | Select-Object -ExpandProperty Id
+```bash
+docker compose restart mcp-proxy
 ```
-
-The command prints the background process ID. View the log with `Get-Content .\proxy.log -Wait`; stop the process tree with `taskkill /PID <PID> /T /F`.
 
 ### Optional — Allow access from other devices on your LAN
 
-The Proxy Server binds to `localhost` by default, so only applications on the same computer can connect. The proxy package supports the `--host` option. Set it to `0.0.0.0` to listen on all IPv4 network interfaces:
+By default, Compose publishes the service only on host loopback (`127.0.0.1:3006`). To allow other trusted devices on your LAN to connect, create or edit `.env` in the MCP-Proxy directory:
+
+```dotenv
+MCP_PROXY_BIND=0.0.0.0
+MCP_PROXY_PORT=3006
+```
+
+Then apply the setting:
 
 ```bash
-npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outputTransport sse --host 0.0.0.0 --port 3006 --healthEndpoint /healthz
+docker compose up -d
 ```
 
-Then configure the extension with the Proxy Server machine's actual LAN IP, for example:
+In MCP-Interceptor, use the MCP-Proxy machine's actual LAN IP, for example `http://192.168.1.100:3006/sse`. Replace the example address with the machine's real LAN IP and grant Chrome permission when prompted. **Do not use `0.0.0.0` as the extension endpoint**; it is a bind address, not a destination address.
 
-```text
-http://192.168.1.100:3006/sse
-```
+Binding to `0.0.0.0` publishes the service on all host network interfaces. Restrict TCP port `3006` to trusted LAN devices with your firewall. Do not expose MCP-Proxy directly to the public internet or configure router port forwarding. CORS is not authentication or network access control.
 
-Replace `192.168.1.100` with the machine's LAN address. **Do not use `0.0.0.0` in the extension endpoint** — it is a bind address, not a destination address. When Chrome prompts for access to the new host, grant permission.
+### Alternative — Run MCP-Proxy without Docker
 
-The optional `--healthEndpoint /healthz` flag adds a simple health check. From another LAN device, verify reachability with:
+If you prefer a native process, install Go 1.26.8 or newer and Node.js if any configured backend uses `npx`. Clone the repository, create `config.json` as shown above, then run:
 
 ```bash
-curl http://192.168.1.100:3006/healthz
+go run ./cmd/mcp-proxy --config ./config.json --host 127.0.0.1 --port 3006
 ```
 
-A successful response is `ok`. The health endpoint is available only when you start the proxy with the flag.
-
-**Security:** Binding to `0.0.0.0` exposes the listener on every IPv4 interface, not just your private LAN. Allow TCP port `3006` only from trusted LAN devices in your host firewall. Do not expose this service directly to the public internet or configure router port forwarding. The proxy's default CORS policy allows all origins; CORS is not authentication or network access control.
-
-### Optional — Run as a Linux systemd service
-
-For an always-on Linux host, systemd is more reliable than keeping a terminal open or using `nohup`: it starts the proxy at boot, restarts it after failures, and collects logs in the journal.
-
-Install the package in a stable directory owned by a dedicated service account. For example:
-
-```bash
-sudo useradd --system --user-group --create-home --home-dir /opt/mcp-superassistant --shell /usr/sbin/nologin mcp-proxy
-sudo -u mcp-proxy npm install --prefix /opt/mcp-superassistant @srbhptl39/mcp-superassistant-proxy
-```
-
-Place your `config.json` at `/opt/mcp-superassistant/config.json`, then set its ownership:
-
-```bash
-sudo chown mcp-proxy:mcp-proxy /opt/mcp-superassistant/config.json
-sudo chmod 600 /opt/mcp-superassistant/config.json
-```
-
-Create `/etc/systemd/system/mcp-superassistant-proxy.service`:
-
-```ini
-[Unit]
-Description=MCP SuperAssistant Proxy
-Wants=network-online.target
-After=network-online.target
-
-[Service]
-Type=simple
-User=mcp-proxy
-Group=mcp-proxy
-WorkingDirectory=/opt/mcp-superassistant
-Environment=HOME=/opt/mcp-superassistant
-Environment=PATH=/usr/local/bin:/usr/bin:/bin
-Environment=NODE_ENV=production
-UMask=0077
-ExecStart=/opt/mcp-superassistant/node_modules/.bin/mcp-superassistant-proxy --config /opt/mcp-superassistant/config.json --outputTransport sse --host 0.0.0.0 --port 3006 --healthEndpoint /healthz
-Restart=always
-RestartSec=5
-KillMode=control-group
-TimeoutStopSec=20
-NoNewPrivileges=true
-PrivateTmp=true
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start the service:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now mcp-superassistant-proxy
-sudo systemctl status mcp-superassistant-proxy
-```
-
-Follow its logs with `journalctl -u mcp-superassistant-proxy -f`; restart it after changing `config.json` with `sudo systemctl restart mcp-superassistant-proxy`. If Node.js is installed outside the system PATH, add its absolute directory to the unit's `PATH`.
-
+The extension endpoint remains `http://localhost:3006/sse`. See the [MCP-Proxy README](https://github.com/drawdy/MCP-Proxy) for build, configuration and development details.
 
 ## 3. Add more MCP Servers
 
@@ -234,7 +170,7 @@ You can connect several MCP Servers at the same time. Add each one as a separate
 
 ### Example A — Add filesystem access
 
-The following example adds a filesystem MCP Server that can access one folder:
+The Compose setup mounts the local `workspace` directory into the container at `/workspace`. Configure the filesystem MCP Server to use that container path:
 
 ```json
 {
@@ -248,14 +184,14 @@ The following example adds a filesystem MCP Server that can access one folder:
       "args": [
         "-y",
         "@modelcontextprotocol/server-filesystem",
-        "C:/Users/YourName/Documents"
+        "/workspace"
       ]
     }
   }
 }
 ```
 
-Replace `C:/Users/YourName/Documents` with the folder you want to make available. On Windows, use forward slashes in the JSON path.
+Put the files you want to make available in the `workspace` directory inside the cloned MCP-Proxy repository. The path in `config.json` is the container path, not a Windows host path. To expose another host directory, add an additional volume mapping in `compose.yml`.
 
 **Only grant access to folders you trust the AI tools to read or modify.** Do not give a filesystem server access to your entire drive unless you really need it.
 
@@ -300,23 +236,11 @@ Do this after the Proxy Server is running.
 
 You only need to grant permission for the configured host. The extension does not need access to every website or every address on your network.
 
-### Other transport options
+### Transport compatibility
 
-SSE is recommended for the first setup. If you intentionally start the Proxy Server with a different output transport, use the matching setting:
+MCP-Proxy currently exposes the traditional **SSE** transport to MCP-Interceptor. Set **Transport** to **SSE** and use `http://localhost:3006/sse`.
 
-| Proxy Server start option | Extension transport | Endpoint |
-|---|---|---|
-| `--outputTransport sse` | SSE | `http://localhost:3006/sse` |
-| `--outputTransport streamableHttp` | Streamable HTTP | `http://localhost:3006` |
-| `--outputTransport ws` | WebSocket | `ws://localhost:3006/message` |
-
-For example, to start the Proxy Server with Streamable HTTP, use:
-
-```bash
-npx -y @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outputTransport streamableHttp
-```
-
-The extension transport and Proxy Server output transport must match.
+MCP-Proxy can connect to backend MCP Servers over stdio, SSE, and Streamable HTTP. This describes backend connectivity; it does not mean the browser-facing proxy endpoint supports Streamable HTTP or WebSocket. Do not select those output transports in the extension when using MCP-Proxy.
 
 ## 5. Use MCP tools in Gemini, DeepSeek, Grok or ChatGPT
 
@@ -386,12 +310,12 @@ The **Push Content Mode** switch is at the top of the sidebar. It changes the pa
 
 | What you see | What to check |
 |---|---|
-| Popup says **Disconnected** | Make sure the Proxy Server terminal is still running. Check the endpoint and transport in the popup. |
+| Popup says **Disconnected** | Check that the MCP-Proxy container is running with `docker compose ps`. Verify the endpoint and make sure Transport is set to SSE. |
 | Chrome does not show the permission prompt | Click **Grant access and connect** after entering the endpoint. If you changed the host, Chrome may need permission for the new host. |
-| Sidebar says **Disconnected** | Check the foreground terminal, `proxy.log`, or `journalctl -u mcp-superassistant-proxy -f` for a systemd service. Confirm the extension endpoint is correct, then click the refresh icon beside Server. |
-| Connected, but no tools appear | Check that `config.json` contains the server under `mcpServers`. Look for startup errors in the Proxy Server terminal, then restart the Proxy Server and refresh the tools. |
+| Sidebar says **Disconnected** | From the MCP-Proxy directory, run `docker compose logs -f mcp-proxy`. Confirm the extension endpoint is correct and Transport is SSE, then click the refresh icon beside Server. |
+| Connected, but no tools appear | Check that `config.json` contains the server under `mcpServers`. Review `docker compose logs mcp-proxy`, fix any backend errors, then run `docker compose restart mcp-proxy` and refresh the tools. |
 | The AI does not call a tool | Insert the MCP instructions into the current conversation. Ask for a specific tool by name and describe the task clearly. |
-| Tool execution fails | Check the tool arguments and the Proxy Server terminal output. Verify the MCP Server command, arguments, credentials and filesystem permissions. |
+| Tool execution fails | Check the tool arguments and `docker compose logs mcp-proxy`. Verify the backend MCP Server command, arguments, credentials and filesystem permissions. |
 | The extension UI looks stale after an extension update | Refresh the AI chat page to create a fresh extension context. |
 
 ## 7. Security recommendations
@@ -404,7 +328,7 @@ MCP tools may read or modify files, execute commands, or access external service
 - Keep passwords, API keys and tokens out of public repositories. Use environment variables or the MCP Server's supported secret mechanism.
 - Review tool names and arguments before clicking **Run**.
 - Keep **Auto Execute** off unless you intentionally want unattended tool execution.
-- Keep the Proxy Server on the local machine by default. If you expose it to the LAN with `0.0.0.0` or a reverse proxy, restrict access to trusted devices with your firewall. Do not expose it to the public internet or configure router port forwarding.
+- Keep MCP-Proxy bound to `127.0.0.1` by default. If you set `MCP_PROXY_BIND=0.0.0.0` to allow LAN access, restrict port `3006` to trusted devices with your firewall. Do not expose it to the public internet or configure router port forwarding.
 
 ## Supported platforms
 
