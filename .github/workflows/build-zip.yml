@@ -49,7 +49,11 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile --prefer-offline --network-concurrency=4 --fetch-retries=5
+      - run: pnpm test:json-parser
+      - run: pnpm test:mcp-csp-validator
+      - run: pnpm --filter chrome-extension type-check
       - run: pnpm build
+      - run: pnpm scan:mv3-csp
 
       - uses: actions/upload-artifact@v4
         with:

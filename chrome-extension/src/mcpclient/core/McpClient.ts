@@ -222,7 +222,10 @@ export class McpClient extends EventEmitter<AllEvents> {
         {
           capabilities: {},
           // MV3 disallows the dynamic code generation used by the default AJV provider.
-          jsonSchemaValidator: new CfWorkerJsonSchemaValidator(),
+          jsonSchemaValidator: new CfWorkerJsonSchemaValidator({
+            draft: '2020-12',
+            shortcircuit: false,
+          }),
         },
       );
 

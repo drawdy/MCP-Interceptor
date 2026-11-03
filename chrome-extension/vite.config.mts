@@ -21,6 +21,10 @@ export default defineConfig({
       '@root': rootDir,
       '@src': srcDir,
       '@assets': resolve(srcDir, 'assets'),
+      // The MCP SDK imports Ajv's default provider statically even with a custom validator.
+      // These fail-closed shims keep Ajv code generation out of the MV3 service worker.
+      'ajv-formats': resolve(srcDir, 'shims', 'ajv-formats.ts'),
+      ajv: resolve(srcDir, 'shims', 'ajv.ts'),
     },
   },
   plugins: [
