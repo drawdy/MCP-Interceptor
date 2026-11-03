@@ -203,7 +203,13 @@ class McpClient {
     // Listen for tool-list updates (broadcast by background when primitives change)
     contextBridge.onMessage('mcp:tool-update', message => {
       try {
-        const tools = Array.isArray(message.payload) ? message.payload : [];
+        // Background broadcasts tools as { tools }, while legacy senders may
+        // still send the array directly. Accept both payload shapes.
+        const tools = Array.isArray(message.payload)
+          ? message.payload
+          : Array.isArray(message.payload?.tools)
+            ? message.payload.tools
+            : [];
         logMessage(`[McpClient] Received tool update: ${tools.length} tools`);
         this.handleToolUpdate(tools);
       } catch (error) {
