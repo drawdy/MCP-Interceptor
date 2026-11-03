@@ -988,6 +988,7 @@ export const styles = `
 
   .function-result-image img {
     display: block;
+    box-sizing: border-box;
     max-width: 100%;
     max-height: 360px;
     object-fit: contain;

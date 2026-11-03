@@ -1470,9 +1470,6 @@ export const displayResult = (
       },
     }) as HTMLButtonElement;
 
-    // Cache button text element
-    const insertButtonText = insertButton.querySelector('span')!;
-
     // Optimized insert button click handler
     insertButton.onclick = () =>
       runResultAction(async () => {
@@ -1568,18 +1565,19 @@ export const displayResult = (
     }) as HTMLButtonElement;
 
     // Optimized attach button handler
-    attachButton.onclick = async () => {
-      const adapter = getCurrentAdapter();
-      await attachResultAsFile(
-        adapter,
-        functionName,
-        callId,
-        rawResultText,
-        attachButton,
-        null, // No longer need iconSpan parameter
-        true, // Set skipAutoInsertCheck to true to prevent AutomationService from auto-inserting the same file
-      );
-    };
+    attachButton.onclick = () =>
+      runResultAction(async () => {
+        const adapter = getCurrentAdapter();
+        await attachResultAsFile(
+          adapter,
+          functionName,
+          callId,
+          rawResultText,
+          attachButton,
+          null, // No longer need iconSpan parameter
+          true, // Set skipAutoInsertCheck to true to prevent AutomationService from auto-inserting the same file
+        );
+      });
 
     let imageAttachButton: HTMLButtonElement | null = null;
     const resultAdapter = getCurrentAdapter();
