@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 import { runInNewContext } from 'node:vm';
 import { build } from 'esbuild';
@@ -14,8 +14,13 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 const directory = await mkdtemp(join(tmpdir(), 'mcp-csp-'));
 after(() => rm(directory, { recursive: true, force: true }));
 const outfile = join(directory, 'client.mjs');
+// Workspace package mains point to generated dist files, absent on a clean checkout.
+const alias = {
+  '@extension/storage': fileURLToPath(new URL('../../packages/storage/index.mts', import.meta.url)),
+};
 await build({
-  entryPoints: [new URL('../src/mcpclient/core/McpClient.ts', import.meta.url).pathname],
+  entryPoints: [fileURLToPath(new URL('../src/mcpclient/core/McpClient.ts', import.meta.url))],
+  alias,
   outfile,
   bundle: true,
   platform: 'node',
@@ -25,12 +30,20 @@ await build({
 const { McpClient } = await import(pathToFileURL(outfile).href);
 
 const background = await build({
-  entryPoints: [new URL('../src/background/index.ts', import.meta.url).pathname],
+  entryPoints: [fileURLToPath(new URL('../src/background/index.ts', import.meta.url))],
+  alias,
   bundle: true,
   platform: 'browser',
   format: 'iife',
   write: false,
+  metafile: true,
   define: { 'import.meta.env': '{"PROD":true,"DEV":false}', 'process.env': '{}' },
+});
+
+test('background tests compile storage sources without prebuilt workspace packages', () => {
+  const inputs = Object.keys(background.metafile.inputs);
+  assert.ok(inputs.some(path => path.endsWith('packages/storage/index.mts')));
+  assert.ok(!inputs.some(path => path.includes('packages/storage/dist/')));
 });
 
 for (const configured of [false, true]) {
