@@ -244,8 +244,7 @@ export const containsJSONFunctionCalls = (block: HTMLElement): FunctionInfo => {
 
   // Priority 1: Check if this element IS the hidden pre from codemirror-accessor
   // Hidden pre elements have id="cm-hidden-pre-*" or data-cm-source attribute
-  const isHiddenPre = block.id?.startsWith('cm-hidden-pre-') ||
-    block.hasAttribute('data-cm-source');
+  const isHiddenPre = block.id?.startsWith('cm-hidden-pre-') || block.hasAttribute('data-cm-source');
   if (isHiddenPre && block.textContent) {
     content = block.textContent.trim();
     if (CONFIG.debug) {
@@ -262,7 +261,8 @@ export const containsJSONFunctionCalls = (block: HTMLElement): FunctionInfo => {
     const sourceId = cmMonitoredId || blockId || cmSourceId;
 
     if (sourceId) {
-      const hiddenPre = document.getElementById(`cm-hidden-pre-${sourceId}`) ||
+      const hiddenPre =
+        document.getElementById(`cm-hidden-pre-${sourceId}`) ||
         document.querySelector(`pre[data-cm-source="${sourceId}"]`);
       if (hiddenPre?.textContent) {
         content = hiddenPre.textContent.trim();
