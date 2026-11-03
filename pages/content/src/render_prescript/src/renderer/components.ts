@@ -8,6 +8,8 @@ import { extractJSONParameters, stripLanguageTags, extractCleanContent } from '.
 import { createLogger } from '@extension/shared/lib/logger';
 import { buildToolResultInsertionText, normalizeToolResultContent } from './toolResultContent';
 
+import { createResultActionLock, insertResultText, attachPendingResultImages } from './resultActions';
+
 // Add type declarations for the global adapter and mcpClient access
 
 const logger = createLogger('AdapterAccess');
@@ -72,6 +74,14 @@ function adapterSupportsCapability(capability: string): boolean {
     const adapter = getCurrentAdapter();
     if (!adapter) return false;
 
+    if (capability === 'file-attachment') {
+      return (
+        typeof adapter.attachFile === 'function' &&
+        adapter.supportsFileUpload?.() === true &&
+        (!Array.isArray(adapter.capabilities) || adapter.capabilities.includes(capability))
+      );
+    }
+
     // Check capabilities array (new plugin system)
     if (adapter.capabilities && Array.isArray(adapter.capabilities)) {
       return adapter.capabilities.includes(capability);
@@ -80,7 +90,7 @@ function adapterSupportsCapability(capability: string): boolean {
     // Fallback to method existence check (legacy system)
     switch (capability) {
       case 'text-insertion':
-        return typeof adapter.insertText === 'function';
+        return typeof adapter.insertText === 'function' || typeof adapter.insertTextIntoInput === 'function';
       case 'form-submission':
         return typeof adapter.submitForm === 'function';
       case 'file-attachment':
@@ -1266,6 +1276,16 @@ function renderNormalizedToolResultContent(
   normalizedResult: ReturnType<typeof normalizeToolResultContent>,
 ): void {
   const objectUrls: string[] = [];
+  let removalObserver: MutationObserver | null = null;
+  const releaseUrl = (url: string) => {
+    URL.revokeObjectURL(url);
+    const index = objectUrls.indexOf(url);
+    if (index !== -1) objectUrls.splice(index, 1);
+    if (objectUrls.length === 0) {
+      previewObjectUrls.delete(contentArea);
+      removalObserver?.disconnect();
+    }
+  };
 
   for (const segment of normalizedResult.segments) {
     if (segment.kind === 'text') {
@@ -1295,8 +1315,8 @@ function renderNormalizedToolResultContent(
     try {
       const objectUrl = URL.createObjectURL(segment.file);
       objectUrls.push(objectUrl);
-      image.addEventListener('load', () => URL.revokeObjectURL(objectUrl), { once: true });
-      image.addEventListener('error', () => URL.revokeObjectURL(objectUrl), { once: true });
+      image.addEventListener('load', () => releaseUrl(objectUrl), { once: true });
+      image.addEventListener('error', () => releaseUrl(objectUrl), { once: true });
       image.src = objectUrl;
       imageFigure.appendChild(image);
 
@@ -1315,6 +1335,13 @@ function renderNormalizedToolResultContent(
 
   if (objectUrls.length > 0) {
     previewObjectUrls.set(contentArea, objectUrls);
+    removalObserver = new MutationObserver(() => {
+      if (!contentArea.isConnected || objectUrls.length === 0) {
+        releasePreviewObjectUrls(contentArea);
+        removalObserver?.disconnect();
+      }
+    });
+    removalObserver.observe(document, { childList: true, subtree: true });
   }
 }
 
@@ -1403,6 +1430,8 @@ export const displayResult = (
     const normalizedResult = normalizeToolResultContent(result, functionName, callId);
     const attachedImageFiles = new Set<File>();
     let resultTextInserted = false;
+    let imageContextInserted = false;
+    const runResultAction = createResultActionLock();
     let rawResultText = normalizedResult.textForInsertion;
 
     const resultContent = createOptimizedElement('div', {
@@ -1445,182 +1474,83 @@ export const displayResult = (
     const insertButtonText = insertButton.querySelector('span')!;
 
     // Optimized insert button click handler
-    insertButton.onclick = async () => {
-      const adapter = getCurrentAdapter();
+    insertButton.onclick = () =>
+      runResultAction(async () => {
+        const adapter = getCurrentAdapter();
 
-      if (!adapter) {
-        const setErrorState = () => {
-          insertButton.textContent = 'Failed (No Adapter)';
-          insertButton.classList.add('insert-error');
-          setTimeout(() => {
-            insertButton.innerHTML = `${ICONS.INSERT}<span>Insert</span>`;
-            insertButton.classList.remove('insert-error');
-          }, 2000);
-        };
+        if (!adapter) {
+          const setErrorState = () => {
+            insertButton.textContent = 'Failed (No Adapter)';
+            insertButton.classList.add('insert-error');
+            setTimeout(() => {
+              insertButton.innerHTML = `${ICONS.INSERT}<span>Insert</span>`;
+              insertButton.classList.remove('insert-error');
+            }, 2000);
+          };
 
-        setErrorState();
-        logger.error('No adapter available for text insertion.');
-        return;
-      }
-
-      // Check if adapter supports text insertion
-      if (!adapterSupportsCapability('text-insertion')) {
-        const setErrorState = () => {
-          insertButton.textContent = 'Not Supported';
-          insertButton.classList.add('insert-error');
-          setTimeout(() => {
-            insertButton.innerHTML = `${ICONS.INSERT}<span>Insert</span>`;
-            insertButton.classList.remove('insert-error');
-          }, 2000);
-        };
-
-        setErrorState();
-        logger.error('Current adapter does not support text insertion.');
-        return;
-      }
-
-      if (normalizedResult.images.length > 0 && resultTextInserted) {
-        insertButton.textContent = 'Already inserted';
-        insertButton.disabled = true;
-        return;
-      }
-
-      const wrapperText = `<function_result call_id="${callId}">\n${rawResultText}\n</function_result>`;
-
-      // Check result length and handle accordingly
-      if (rawResultText.length > MAX_INSERT_LENGTH && WEBSITE_NAME_FOR_MAX_INSERT_LENGTH_CHECK.includes(websiteName)) {
-        logger.debug(`Result length (${wrapperText.length}) exceeds ${MAX_INSERT_LENGTH}. Attaching as file.`);
-        const attachment = await attachResultAsFile(
-          adapter,
-          functionName,
-          callId,
-          wrapperText,
-          insertButton,
-          insertButton.querySelector('span') as HTMLElement,
-          true,
-        );
-        if (attachment.success) {
-          resultTextInserted = true;
+          setErrorState();
+          logger.error('No adapter available for text insertion.');
+          return;
         }
-      } else {
-        // Try the new plugin system insertText method first
-        if (typeof adapter.insertText === 'function') {
-          try {
-            const success = await adapter.insertText(wrapperText);
 
-            if (success) {
-              resultTextInserted = true;
-              // Optimized success state handling
-              insertButton.textContent = 'Inserted!';
-              insertButton.classList.add('insert-success');
-              insertButton.disabled = true;
+        // Check if adapter supports text insertion
+        if (!adapterSupportsCapability('text-insertion')) {
+          const setErrorState = () => {
+            insertButton.textContent = 'Not Supported';
+            insertButton.classList.add('insert-error');
+            setTimeout(() => {
+              insertButton.innerHTML = `${ICONS.INSERT}<span>Insert</span>`;
+              insertButton.classList.remove('insert-error');
+            }, 2000);
+          };
 
-              setTimeout(() => {
-                insertButton.innerHTML = `${ICONS.INSERT}<span>Insert</span>`;
-                insertButton.classList.remove('insert-success');
-                insertButton.disabled = normalizedResult.images.length > 0 && resultTextInserted;
-              }, 2000);
+          setErrorState();
+          logger.error('Current adapter does not support text insertion.');
+          return;
+        }
 
-              // Efficient event dispatch with requestAnimationFrame
-              requestAnimationFrame(() => {
-                document.dispatchEvent(
-                  new CustomEvent('mcp:tool-execution-complete', {
-                    detail: {
-                      result: wrapperText,
-                      isFileAttachment: false,
-                      fileName: '',
-                      skipAutoInsertCheck: true,
-                    },
-                  }),
-                );
-              });
-            } else {
-              throw new Error('Adapter insertText method returned false');
-            }
-          } catch (error) {
-            logger.error('New adapter insertText method failed:', error);
-
-            // Fallback to legacy method if available
-            if (typeof adapter.insertTextIntoInput === 'function') {
-              logger.debug('Falling back to legacy insertTextIntoInput method');
-
-              // Efficient event dispatch with requestAnimationFrame
-              requestAnimationFrame(() => {
-                document.dispatchEvent(
-                  new CustomEvent('mcp:tool-execution-complete', {
-                    detail: {
-                      result: wrapperText,
-                      isFileAttachment: false,
-                      fileName: '',
-                      skipAutoInsertCheck: true,
-                    },
-                  }),
-                );
-              });
-
-              // Optimized success state handling
-              insertButton.textContent = 'Inserted!';
-              insertButton.classList.add('insert-success');
-              insertButton.disabled = true;
-
-              setTimeout(() => {
-                insertButton.innerHTML = `${ICONS.INSERT}<span>Insert</span>`;
-                insertButton.classList.remove('insert-success');
-                insertButton.disabled = false;
-              }, 2000);
-            } else {
-              // Optimized error state
-              logger.error('No valid insert method found on adapter');
-              insertButton.textContent = 'Failed (No Insert Method)';
-              insertButton.classList.add('insert-error');
-
-              setTimeout(() => {
-                insertButton.innerHTML = `${ICONS.INSERT}<span>Insert</span>`;
-                insertButton.classList.remove('insert-error');
-              }, 2000);
-            }
-          }
-        } else if (typeof adapter.insertTextIntoInput === 'function') {
-          // Legacy method fallback
-          logger.debug('Using legacy insertTextIntoInput method');
-
-          // Efficient event dispatch with requestAnimationFrame
-          requestAnimationFrame(() => {
-            document.dispatchEvent(
-              new CustomEvent('mcp:tool-execution-complete', {
-                detail: {
-                  result: wrapperText,
-                  isFileAttachment: false,
-                  fileName: '',
-                  skipAutoInsertCheck: true,
-                },
-              }),
-            );
-          });
-
-          // Optimized success state handling
-          insertButton.textContent = 'Inserted!';
-          insertButton.classList.add('insert-success');
+        if (resultTextInserted) {
+          insertButton.textContent = 'Already inserted';
           insertButton.disabled = true;
-
-          setTimeout(() => {
-            insertButton.innerHTML = `${ICONS.INSERT}<span>Insert</span>`;
-            insertButton.classList.remove('insert-success');
-            insertButton.disabled = false;
-          }, 2000);
-        } else {
-          // Optimized error state
-          logger.error('Adapter has no insert method available');
-          insertButton.textContent = 'Failed (No Insert Method)';
-          insertButton.classList.add('insert-error');
-
-          setTimeout(() => {
-            insertButton.innerHTML = `${ICONS.INSERT}<span>Insert</span>`;
-            insertButton.classList.remove('insert-error');
-          }, 2000);
+          return;
         }
-      }
-    };
+
+        const wrapperText = `<function_result call_id="${callId}">\n${rawResultText}\n</function_result>`;
+
+        // Check result length and handle accordingly
+        if (
+          rawResultText.length > MAX_INSERT_LENGTH &&
+          WEBSITE_NAME_FOR_MAX_INSERT_LENGTH_CHECK.includes(websiteName)
+        ) {
+          logger.debug(`Result length (${wrapperText.length}) exceeds ${MAX_INSERT_LENGTH}. Attaching as file.`);
+          const attachment = await attachResultAsFile(
+            adapter,
+            functionName,
+            callId,
+            wrapperText,
+            insertButton,
+            insertButton.querySelector('span') as HTMLElement,
+            true,
+          );
+          if (attachment.success) {
+            resultTextInserted = true;
+          }
+        } else {
+          try {
+            if (!(await insertResultText(adapter, wrapperText))) throw new Error('Text insertion failed');
+            resultTextInserted = true;
+            insertButton.textContent = 'Inserted!';
+            insertButton.classList.add('insert-success');
+            insertButton.disabled = true;
+            dispatchToolExecutionComplete({ result: wrapperText, skipAutoInsertCheck: true, callId, functionName });
+          } catch (error) {
+            logger.warn('Result text insertion failed:', error);
+            insertButton.textContent = 'Insert failed · Retry';
+            insertButton.classList.add('insert-error');
+            insertButton.disabled = false;
+          }
+        }
+      });
 
     // Create attach button efficiently
     const attachButton = createOptimizedElement('button', {
@@ -1663,103 +1593,83 @@ export const displayResult = (
         },
       }) as HTMLButtonElement;
 
-      imageAttachButton.onclick = async () => {
-        const adapter = getCurrentAdapter();
-        if (!adapter || !adapterSupportsCapability('file-attachment') || typeof adapter.attachFile !== 'function') {
-          imageAttachButton!.textContent = 'File attachment unavailable';
-          imageAttachButton!.classList.add('attach-error');
-          return;
-        }
-
-        const pendingFiles = normalizedResult.images.filter(file => !attachedImageFiles.has(file));
-        if (pendingFiles.length === 0) return;
-
-        imageAttachButton!.disabled = true;
-        imageAttachButton!.classList.remove('attach-success', 'attach-error');
-        imageAttachButton!.innerHTML = `${ICONS.SPINNER}<span>Attaching images...</span>`;
-
-        let failedCount = 0;
-        for (const file of pendingFiles) {
-          try {
-            const attached = await adapter.attachFile(file);
-            if (!attached) {
-              failedCount += 1;
-              logger.warn(`Adapter did not confirm image attachment: ${file.name}`);
-              continue;
-            }
-
-            attachedImageFiles.add(file);
-            dispatchToolExecutionComplete({
-              file,
-              result: `Image attached: ${file.name}`,
-              isFileAttachment: true,
-              fileName: file.name,
-              skipAutoInsertCheck: true,
-              callId,
-              functionName,
-            });
-          } catch (error) {
-            failedCount += 1;
-            logger.error(`Failed to attach MCP image ${file.name}:`, error);
+      imageAttachButton.onclick = () =>
+        runResultAction(async () => {
+          const adapter = getCurrentAdapter();
+          if (!adapter || !adapterSupportsCapability('file-attachment') || typeof adapter.attachFile !== 'function') {
+            imageAttachButton!.textContent = 'File attachment unavailable';
+            imageAttachButton!.classList.add('attach-error');
+            return;
           }
-        }
 
-        rawResultText = buildToolResultInsertionText(normalizedResult.segments, attachedImageFiles);
+          const pendingFiles = normalizedResult.images.filter(file => !attachedImageFiles.has(file));
+          if (pendingFiles.length === 0 && imageContextInserted) return;
 
-        const allImagesAttached = attachedImageFiles.size === normalizedResult.images.length;
-        let contextInserted = false;
-        if (allImagesAttached) {
-          const contextText = resultTextInserted
-            ? `The following MCP images are now attached: ${normalizedResult.images.map(file => file.name).join(', ')}.`
-            : rawResultText.length > MAX_INSERT_LENGTH && WEBSITE_NAME_FOR_MAX_INSERT_LENGTH_CHECK.includes(websiteName)
-              ? `MCP image output attached: ${normalizedResult.images.map(file => file.name).join(', ')}. The text portion is too long to insert directly; use Attach File to include the full text result.`
-              : `<function_result call_id="${callId}">\n${rawResultText}\n</function_result>`;
-          try {
-            if (typeof adapter.insertText === 'function') {
-              contextInserted = await adapter.insertText(contextText);
-            } else if (typeof adapter.insertTextIntoInput === 'function') {
-              contextInserted = (await adapter.insertTextIntoInput(contextText)) !== false;
-            }
-
-            if (contextInserted) {
-              resultTextInserted = true;
-              dispatchToolExecutionComplete({
-                result: contextText,
-                isFileAttachment: false,
-                fileName: '',
-                skipAutoInsertCheck: true,
-                callId,
-                functionName,
-              });
-              insertButton.textContent = 'Inserted!';
-              insertButton.classList.add('insert-success');
-              insertButton.disabled = true;
-            }
-          } catch (error) {
-            logger.warn('Images were attached, but inserting their text context failed:', error);
-          }
-        }
-
-        const attachedCount = attachedImageFiles.size;
-        if (allImagesAttached) {
-          imageAttachButton!.innerHTML = `${ICONS.ATTACH}<span>Attached ${attachedCount} image${attachedCount === 1 ? '' : 's'}</span>`;
-          imageAttachButton!.classList.add('attach-success');
           imageAttachButton!.disabled = true;
-          if (!contextInserted) {
-            imageAttachButton!.title = 'Images attached. Use Insert to add the result text and image references.';
-          }
-        } else {
-          imageAttachButton!.innerHTML = `${ICONS.ATTACH}<span>Attached ${attachedCount}/${normalizedResult.images.length} · Retry</span>`;
-          imageAttachButton!.classList.add('attach-error');
-          imageAttachButton!.disabled = false;
-        }
+          imageAttachButton!.classList.remove('attach-success', 'attach-error');
+          imageAttachButton!.innerHTML = `${ICONS.SPINNER}<span>Attaching images...</span>`;
 
-        if (failedCount > 0) {
-          logger.warn(
-            `Attached ${attachedCount} of ${normalizedResult.images.length} MCP images; ${failedCount} failed.`,
+          const failedCount = await attachPendingResultImages(pendingFiles, attachedImageFiles, file =>
+            adapter.attachFile(file),
           );
-        }
-      };
+
+          rawResultText = buildToolResultInsertionText(normalizedResult.segments, attachedImageFiles);
+
+          const allImagesAttached = attachedImageFiles.size === normalizedResult.images.length;
+          let contextInserted = false;
+          if (allImagesAttached && !imageContextInserted) {
+            const contextText = resultTextInserted
+              ? `The following MCP images are now attached: ${normalizedResult.images.map(file => file.name).join(', ')}.`
+              : rawResultText.length > MAX_INSERT_LENGTH &&
+                  WEBSITE_NAME_FOR_MAX_INSERT_LENGTH_CHECK.includes(websiteName)
+                ? `MCP image output attached: ${normalizedResult.images.map(file => file.name).join(', ')}. The text portion is too long to insert directly; use Attach File to include the full text result.`
+                : `<function_result call_id="${callId}">\n${rawResultText}\n</function_result>`;
+            try {
+              contextInserted = await insertResultText(adapter, contextText);
+
+              if (contextInserted) {
+                imageContextInserted = true;
+                resultTextInserted = true;
+                dispatchToolExecutionComplete({
+                  result: contextText,
+                  isFileAttachment: false,
+                  fileName: '',
+                  skipAutoInsertCheck: true,
+                  callId,
+                  functionName,
+                });
+                insertButton.textContent = 'Inserted!';
+                insertButton.classList.add('insert-success');
+                insertButton.disabled = true;
+              }
+            } catch (error) {
+              logger.warn('Images were attached, but inserting their text context failed:', error);
+            }
+          }
+
+          const attachedCount = attachedImageFiles.size;
+          if (allImagesAttached && imageContextInserted) {
+            imageAttachButton!.innerHTML = `${ICONS.ATTACH}<span>Attached ${attachedCount} image${attachedCount === 1 ? '' : 's'}</span>`;
+            imageAttachButton!.classList.add('attach-success');
+            imageAttachButton!.disabled = true;
+            if (!contextInserted) {
+              imageAttachButton!.title = 'Images attached. Use Insert to add the result text and image references.';
+            }
+          } else {
+            imageAttachButton!.title = allImagesAttached
+              ? 'Images attached; retry inserting text context.'
+              : 'Retry remaining images.';
+            imageAttachButton!.innerHTML = `${ICONS.ATTACH}<span>Attached ${attachedCount}/${normalizedResult.images.length} · Retry</span>`;
+            imageAttachButton!.classList.add('attach-error');
+            imageAttachButton!.disabled = false;
+          }
+
+          if (failedCount > 0) {
+            logger.warn(
+              `Attached ${attachedCount} of ${normalizedResult.images.length} MCP images; ${failedCount} failed.`,
+            );
+          }
+        });
     }
 
     // Efficiently build button container
@@ -1774,13 +1684,20 @@ export const displayResult = (
       }
     }
 
+    if (normalizedResult.images.length > 0 && !imageAttachButton) {
+      const notice = document.createElement('span');
+      notice.className = 'function-result-notice';
+      notice.textContent = 'Image attachment is unavailable on this page. You can insert the text context.';
+      buttonContainer.appendChild(notice);
+    }
+
     // Batch DOM update
     fragment.appendChild(buttonContainer);
     resultsPanel.parentNode?.insertBefore(fragment, resultsPanel.nextSibling);
 
     // Handle auto-attachment for large results
     if (
-      normalizedResult.images.length === 0 &&
+      !normalizedResult.requiresExplicitAction &&
       rawResultText.length > MAX_INSERT_LENGTH &&
       adapter &&
       adapterSupportsCapability('file-attachment') &&
@@ -1872,7 +1789,7 @@ export const displayResult = (
             detail: {
               result: wrappedResult,
               // Images require explicit attachment; do not auto-insert image placeholders.
-              skipAutoInsertCheck: normalizedResult.images.length > 0,
+              skipAutoInsertCheck: normalizedResult.requiresExplicitAction,
               callId,
               functionName,
             },

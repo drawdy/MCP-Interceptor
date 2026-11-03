@@ -1,4 +1,9 @@
 import assert from 'node:assert/strict';
+import {
+  attachPendingResultImages,
+  createResultActionLock,
+  insertResultText,
+} from '../pages/content/src/render_prescript/src/renderer/resultActions.ts';
 
 import {
   MAX_MCP_IMAGE_BYTES,
@@ -63,6 +68,12 @@ const unsupported = normalizeToolResultContent(
 );
 assert.equal(unsupported.images.length, 0);
 assert.match(unsupported.textForInsertion, /unsupported image MIME type/);
+assert.equal(unsupported.requiresExplicitAction, true);
+assert.equal(mixed.requiresExplicitAction, true);
+assert.equal(
+  normalizeToolResultContent({ content: [{ type: 'text', text: 'plain' }] }, 'text', '1').requiresExplicitAction,
+  false,
+);
 
 const malformed = normalizeToolResultContent(
   { content: [{ type: 'image', mimeType: 'image/png', data: 'not-base64!' }] },
@@ -99,3 +110,113 @@ const structured = normalizeToolResultContent({ structuredContent: { ok: true, c
 assert.equal(structured.textForInsertion, '{\n  "ok": true,\n  "count": 3\n}');
 
 console.log('MCP image output normalization tests: passed');
+
+// Boundary: the missing Base64 padding must not count as decoded bytes.
+const exactLimit = normalizeToolResultContent(
+  {
+    content: [
+      {
+        type: 'image',
+        mimeType: 'image/png',
+        data: Buffer.alloc(MAX_MCP_IMAGE_BYTES).toString('base64').replace(/=+$/, ''),
+      },
+    ],
+  },
+  'boundary',
+  '8',
+);
+assert.equal(exactLimit.images[0]?.size, MAX_MCP_IMAGE_BYTES);
+const totalLimit = normalizeToolResultContent(
+  {
+    content: Array.from({ length: 3 }, () => ({
+      type: 'image',
+      mimeType: 'image/png',
+      data: Buffer.alloc(MAX_MCP_IMAGE_BYTES).toString('base64'),
+    })),
+  },
+  'total',
+  '9',
+);
+assert.equal(totalLimit.images.length, 2);
+assert.match(totalLimit.textForInsertion, /total image limit/);
+
+const confirmed = new Set<File>();
+const attempts: File[] = [];
+let rejectSecond = true;
+const attach = async (file: File) => {
+  attempts.push(file);
+  if (file === mixed.images[1] && rejectSecond) throw new Error('Injected upload failure');
+  return true;
+};
+assert.equal(await attachPendingResultImages(mixed.images, confirmed, attach), 1);
+assert.deepEqual([...confirmed], [mixed.images[0]]);
+rejectSecond = false;
+assert.equal(await attachPendingResultImages(mixed.images, confirmed, attach), 0);
+assert.deepEqual(attempts, [mixed.images[0], mixed.images[1], mixed.images[1]]);
+await attachPendingResultImages(mixed.images, confirmed, attach);
+assert.equal(attempts.length, 3);
+assert.equal(await attachPendingResultImages([mixed.images[0]], new Set(), async () => false), 1);
+
+const lock = createResultActionLock();
+let unlock!: () => void;
+let runs = 0;
+const pending = lock(async () => {
+  runs += 1;
+  await new Promise<void>(resolve => {
+    unlock = resolve;
+  });
+});
+await lock(async () => {
+  runs += 1;
+});
+assert.equal(runs, 1);
+unlock();
+await pending;
+await assert.rejects(
+  lock(async () => {
+    throw new Error('Injected action failure');
+  }),
+);
+await lock(async () => {
+  runs += 1;
+});
+assert.equal(runs, 2);
+
+const inserted: string[] = [];
+assert.equal(
+  await insertResultText(
+    {
+      insertText: async () => false,
+      insertTextIntoInput: async text => {
+        inserted.push(text);
+      },
+    },
+    'legacy',
+  ),
+  true,
+);
+assert.deepEqual(inserted, ['legacy']);
+assert.equal(
+  await insertResultText(
+    {
+      insertText: async () => {
+        throw new Error('modern unavailable');
+      },
+      insertTextIntoInput: async () => false,
+    },
+    'fail',
+  ),
+  false,
+);
+assert.equal(await insertResultText({}, 'unsupported'), false);
+await assert.rejects(
+  insertResultText(
+    {
+      insertTextIntoInput: async () => {
+        throw new Error('legacy unavailable');
+      },
+    },
+    'fail',
+  ),
+);
+console.log('MCP image manual-action regression tests (controlled adapters): passed');

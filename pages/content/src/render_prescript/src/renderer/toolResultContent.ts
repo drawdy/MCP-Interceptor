@@ -33,6 +33,7 @@ export interface NormalizedToolResult {
   segments: ToolResultSegment[];
   images: File[];
   textForInsertion: string;
+  requiresExplicitAction: boolean;
 }
 
 function safeFilenamePart(value: string): string {
@@ -85,7 +86,8 @@ function decodeImageFile(
   }
 
   const paddedBase64 = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
-  const estimatedSize = Math.floor((paddedBase64.length * 3) / 4) - padding;
+  const estimatedSize =
+    Math.floor((paddedBase64.length * 3) / 4) - (paddedBase64.endsWith('==') ? 2 : paddedBase64.endsWith('=') ? 1 : 0);
   if (estimatedSize <= 0) {
     throw new Error('image data is empty');
   }
@@ -230,6 +232,7 @@ export function normalizeToolResultContent(
   const segments: ToolResultSegment[] = [];
   const images: File[] = [];
   const totalImageBytes = { value: 0 };
+  let requiresExplicitAction = false;
 
   if (result && typeof result === 'object' && Array.isArray((result as Record<string, unknown>).content)) {
     const content = (result as Record<string, unknown>).content as unknown[];
@@ -248,9 +251,18 @@ export function normalizeToolResultContent(
           }
           break;
         case 'image':
+          requiresExplicitAction = true;
           appendImageBlock(segments, images, block, functionName, callId, totalImageBytes);
           break;
         case 'resource':
+          if (
+            typeof (block.resource as Record<string, unknown> | undefined)?.mimeType === 'string' &&
+            String((block.resource as Record<string, unknown>).mimeType)
+              .toLowerCase()
+              .startsWith('image/')
+          ) {
+            requiresExplicitAction = true;
+          }
           appendResourceBlock(segments, images, block, functionName, callId, totalImageBytes);
           break;
         case 'resource_link': {
@@ -288,6 +300,7 @@ export function normalizeToolResultContent(
   return {
     segments,
     images,
+    requiresExplicitAction,
     textForInsertion: buildToolResultInsertionText(segments),
   };
 }
