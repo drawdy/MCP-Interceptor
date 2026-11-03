@@ -45,34 +45,27 @@ The MCP-Interceptor icon should now appear in Chrome. If it is hidden, open Chro
 
 ## 2. Install and start MCP-Proxy
 
-MCP-Interceptor uses [MCP-Proxy](https://github.com/drawdy/MCP-Proxy), a standalone Go service that aggregates local and remote MCP Servers and exposes them to the browser extension through the traditional SSE transport.
+MCP-Interceptor uses [MCP-Proxy](https://github.com/drawdy/MCP-Proxy), a standalone Go service that aggregates local and remote MCP Servers and exposes them to the extension through traditional SSE. It replaces the previous Node.js Proxy Server.
 
-**MCP-Proxy replaces the previous Node.js-based Proxy Server. Use the Go-based MCP-Proxy for all new installations.**
+### Choose a long-running deployment
 
-### Step 2.1 — Install Docker
+**For tools that work with your local files and commands, run a compiled MCP-Proxy binary as your normal user, managed by the operating system.** This is the recommended desktop setup.
 
-Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) on Windows or macOS, or Docker Engine with the Docker Compose plugin on Linux. Make sure Docker is running:
+| Environment | Recommended supervisor | Lifetime |
+|---|---|---|
+| Linux | systemd user service | Starts at login; optionally at boot with lingering |
+| macOS | launchd LaunchAgent | Runs in the logged-in user's session |
+| Windows | Task Scheduler, current user | Starts at login |
+| WSL2 | systemd user service inside the intended distribution | Runs while that distribution is running |
+| Isolated workloads or remote backends | Docker Compose | Container lifecycle |
 
-```bash
-docker --version
-docker compose version
-```
+MCP-Proxy launches stdio backends as child processes with its environment and the configured `cwd`. In Docker, filesystem tools see container paths, commands use container executables, credentials and HOME belong to the container, and `localhost` refers to the container. Bind mounts expose selected files but do not provide the host's shell, toolchains, desktop session or permissions. Host networking alone does not solve this. Keep Docker when that isolation is intentional; avoid privileged containers, mounting the entire host or exposing the Docker socket to bypass it.
 
-You do not need to install Go or Node.js on the host when using Docker Compose. The MCP-Proxy image contains the Go proxy and a Node.js runtime for MCP backends launched with `npx`.
+A native process gives tools the permissions of the account running it. Use your normal account, restrict backend access, and keep the proxy on `127.0.0.1`. `go run`, `nohup` and terminal multiplexers are useful for development or temporary sessions; use a compiled binary and a supervisor for automatic startup, restart and logs.
 
-### Step 2.2 — Download MCP-Proxy
+### Step 2.1 — Build and configure a native installation
 
-Clone the MCP-Proxy repository. Keep this directory on your computer; it contains the Compose file and your local configuration.
-
-**Windows / PowerShell**
-
-```powershell
-git clone https://github.com/drawdy/MCP-Proxy.git
-cd MCP-Proxy
-Copy-Item config.example.json config.json
-New-Item -ItemType Directory -Force workspace
-notepad config.json
-```
+Install the Go version required by MCP-Proxy's `go.mod` (currently **1.26.8 or newer**). Install Node.js/npm on the same host if using `npx` backends, and any other runtimes required by your chosen servers.
 
 **macOS / Linux**
 
@@ -80,89 +73,170 @@ notepad config.json
 git clone https://github.com/drawdy/MCP-Proxy.git
 cd MCP-Proxy
 cp config.example.json config.json
-mkdir -p workspace
-vi config.json
+mkdir -p bin workspace
+go build -trimpath -o ./bin/mcp-proxy ./cmd/mcp-proxy
+command -v node npx
 ```
 
-### Step 2.3 — Configure your MCP Servers
+**Windows / PowerShell**
 
-Add each MCP Server under the `mcpServers` object in `config.json`. The example configuration already includes a filesystem server that can access the mounted `/workspace` directory. You can add another backend, for example Desktop Commander:
+```powershell
+git clone https://github.com/drawdy/MCP-Proxy.git
+cd MCP-Proxy
+Copy-Item config.example.json config.json
+New-Item -ItemType Directory -Force bin, workspace
+go build -trimpath -o .\bin\mcp-proxy.exe ./cmd/mcp-proxy
+Get-Command node, npx
+```
+
+Keep the repository in a fixed location. Edit `config.json` before starting: the supplied `/workspace` path is a **container path**, so replace it with an existing absolute host directory. For example, on Linux (replace `alice` and the paths):
 
 ```json
 {
   "mcpServers": {
     "filesystem": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"]
-    },
-    "desktop-commander": {
-      "command": "npx",
-      "args": ["-y", "@wonderwhy-er/desktop-commander@latest"]
+      "command": "/usr/bin/npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/alice/projects"],
+      "cwd": "/home/alice/projects"
     }
   }
 }
 ```
 
-The `npx` commands run inside the MCP-Proxy container. You do not need Node.js installed on your host. The container includes Node.js and keeps its npm cache in a Docker volume. Compose also provides dedicated writable volumes for Desktop Commander's configuration/history and log directories. They are required because the container root filesystem is read-only and persist across container recreation. Desktop Commander records tool arguments and recent result previews, so treat these volumes as sensitive data. It runs inside the container and cannot access the WSL host filesystem by default. To expose a host project, add a narrowly scoped bind mount in `compose.yml` and add its container path to Desktop Commander's `allowedDirectories`.
+Use the actual executable location on your machine. Go launches commands directly, without an interactive shell: aliases, `~`, shell startup files and shell syntax are not expanded. On Windows, npm's `npx.cmd` needs a command interpreter; one explicit configuration is `"command": "C:\\Windows\\System32\\cmd.exe"` with `"args": ["/d", "/s", "/c", "npx -y @modelcontextprotocol/server-filesystem C:\\projects"]`. Ensure Node.js/npm are in the proxy's PATH; use the appropriate quoting if your paths contain spaces.
 
-Put files you want to expose in the `workspace` directory inside the cloned MCP-Proxy repository. If a backend needs credentials, place the environment variables in a `.env` file beside `compose.yml`, then reference them in `config.json`, for example `"${API_TOKEN}"`. Do not commit `.env` or secrets to source control.
+**Service environments need explicit setup.** Set the proxy's PATH to include the real Node.js/npm, Python/uv and other required executable directories, especially for nvm, fnm, mise or Homebrew installations. Even an absolute `npx` path may need PATH to find `node`. Set each backend's `cwd` when it needs a particular project directory. Backends inherit the proxy environment and can override values through `env`; `${API_TOKEN}` is expanded from the **proxy's** environment when configuration is loaded. Native MCP-Proxy does **not** load `.env` automatically. Supply variables through the supervisor or a protected launcher, and keep secrets out of Git. Backend `env.PATH` alone does not control how Go locates its initial command.
 
-### Step 2.4 — Start MCP-Proxy
+For a stable installation, pin backend package versions you have tested instead of relying on `@latest` or unversioned `npx` downloads at every startup. Install/cache them under the service account and test them before enabling automatic startup.
 
-Run these commands from the cloned `MCP-Proxy` directory:
+### Step 2.2 — Verify in the foreground
+
+From the MCP-Proxy directory:
+
+```bash
+./bin/mcp-proxy --config ./config.json --host 127.0.0.1 --port 3006
+```
+
+On PowerShell, use `.\bin\mcp-proxy.exe` with the same arguments. In another terminal, check `http://127.0.0.1:3006/healthz` and `/readyz`, then connect the extension to `http://localhost:3006/sse` with **SSE** selected. `/healthz` checks the process; `/readyz` can succeed when only some backends are connected, so also check the logs and expected tool list. Press **Ctrl+C** before starting a supervised instance.
+
+### Step 2.3 — Enable automatic startup
+
+#### Linux — systemd user service
+
+Create `~/.config/systemd/user/mcp-proxy.service` (create the parent directory first). This example assumes the repository is at `~/code/github/MCP-Proxy`; adjust it and PATH to your installation:
+
+```ini
+[Unit]
+Description=MCP-Proxy
+
+[Service]
+Type=simple
+WorkingDirectory=%h/code/github/MCP-Proxy
+ExecStart="%h/code/github/MCP-Proxy/bin/mcp-proxy" --config "%h/code/github/MCP-Proxy/config.json" --host 127.0.0.1 --port 3006
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=-%h/.config/mcp-proxy/env
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillMode=control-group
+UMask=0077
+
+[Install]
+WantedBy=default.target
+```
+
+The optional `~/.config/mcp-proxy/env` file contains `KEY=value` entries, without `export`; create its parent directory and restrict the file to your user (`chmod 600`). Use literal absolute paths in PATH. The supervisor captures proxy and backend output in the journal and stops the service's process group.
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now mcp-proxy.service
+systemctl --user status mcp-proxy.service
+journalctl --user -u mcp-proxy.service -f
+```
+
+After changing configuration or environment, use `systemctl --user restart mcp-proxy.service`. After changing the unit, also run `daemon-reload`. Stop with `systemctl --user stop mcp-proxy.service`; remove automatic startup with `systemctl --user disable --now mcp-proxy.service`.
+
+For startup at boot and operation after logout, optionally run `loginctl enable-linger "$USER"` (local policy may require administrator authorization). This does not provide a graphical session or an unlocked keyring. See the official [service configuration](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html), [environment configuration](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html) and [lingering documentation](https://www.freedesktop.org/software/systemd/man/latest/loginctl.html).
+
+#### macOS — launchd LaunchAgent
+
+Create `~/Library/LaunchAgents/local.mcp-proxy.plist` and the log directory `~/Library/Logs/MCP-Proxy`. Replace **every** `/Users/alice` path below and adjust PATH for your Node.js installation. Plist strings do not expand `~` or `$HOME`.
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>local.mcp-proxy</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/alice/code/github/MCP-Proxy/bin/mcp-proxy</string>
+    <string>--config</string><string>/Users/alice/code/github/MCP-Proxy/config.json</string>
+    <string>--host</string><string>127.0.0.1</string>
+    <string>--port</string><string>3006</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/alice/code/github/MCP-Proxy</string>
+  <key>EnvironmentVariables</key>
+  <dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>5</integer>
+  <key>ExitTimeOut</key><integer>30</integer>
+  <key>StandardOutPath</key><string>/Users/alice/Library/Logs/MCP-Proxy/stdout.log</string>
+  <key>StandardErrorPath</key><string>/Users/alice/Library/Logs/MCP-Proxy/stderr.log</string>
+</dict>
+</plist>
+```
+
+```bash
+plutil -lint ~/Library/LaunchAgents/local.mcp-proxy.plist
+launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/local.mcp-proxy.plist
+launchctl print "gui/$(id -u)/local.mcp-proxy"
+tail -f ~/Library/Logs/MCP-Proxy/*.log
+```
+
+Restart after a config change with `launchctl kickstart -k "gui/$(id -u)/local.mcp-proxy"`. To stop, use `launchctl bootout "gui/$(id -u)" ~/Library/LaunchAgents/local.mcp-proxy.plist`; bootstrap again to load changed plist settings. To remove automatic startup, boot out and remove the plist. Plan log rotation for these files. macOS privacy permissions still apply to the background process; a successful terminal run does not guarantee access to protected folders. See Apple's [launchd guide](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html).
+
+#### Windows — Task Scheduler
+
+Create a task named **MCP-Proxy** in Task Scheduler:
+
+1. Use your current user, **Run only when user is logged on**, without **Run with highest privileges**; trigger **At log on** for that user.
+2. Set the action to the absolute path of `bin\mcp-proxy.exe`, arguments to `--config "C:\path\MCP-Proxy\config.json" --host 127.0.0.1 --port 3006`, and **Start in** to `C:\path\MCP-Proxy`.
+3. Enable restart on failure (for example every minute, three attempts), select **Do not start a new instance**, disable the execution time limit, and disable battery conditions that would stop or prevent the task if you need it on battery power.
+4. Run the task and check `/healthz`, `/readyz` and the extension's tools. Use Task Scheduler's **End** then **Run** after configuration changes; **Disable** removes automatic startup.
+
+Set required user environment variables before launching the task; after changing PATH, sign out and back in so the scheduler uses the new environment. For file logs, use a PowerShell launcher that sets the environment and runs the executable synchronously with stdout/stderr redirected to protected, rotated log files; do not detach it with `Start-Process`, since the task must track the running process. Ending a task can be abrupt: check for leftover backend processes before restarting. An unattended Windows Service needs a service wrapper and an explicitly configured account/environment; the current Go executable is not itself a Windows Service. See Microsoft's [task principal options](https://learn.microsoft.com/en-us/powershell/module/scheduledtasks/new-scheduledtaskprincipal) and [execution time limit](https://learn.microsoft.com/en-us/windows/win32/taskschd/tasksettings-executiontimelimit).
+
+#### WSL2 — choose the environment you need
+
+If your tools need Linux projects and Linux commands, build and run MCP-Proxy inside that WSL distribution using the Linux instructions, with [systemd enabled](https://learn.microsoft.com/en-us/windows/wsl/systemd). Use Linux paths such as `/home/alice/projects` (or `/mnt/c/projects` for mounted Windows files). This gives access to that distribution, not an equivalent Windows desktop session. For Windows applications and Windows toolchains, prefer a Windows-native proxy. A lingering user service does not start the distribution at Windows boot or keep it alive indefinitely; handle Windows-side WSL startup separately if required, and verify connectivity from the browser before changing network bindings.
+
+### Migrating from Docker Compose
+
+1. Back up `config.json`, `.env` and any backend state you need. Container HOME, npm cache and Desktop Commander history/configuration live separately from your host account; migrate needed state deliberately and review paths, permissions and secrets.
+2. In the old Compose directory, run `docker compose down` to release port `3006`. Do **not** add `-v` if you need the named volumes for migration or rollback.
+3. Install host runtimes; replace `/workspace` and container executable paths with host paths, and transfer required environment variables into the supervisor configuration. Native processes do not read Compose's `.env`, `MCP_PROXY_BIND` or `MCP_PROXY_PORT`; use `--host` and `--port`.
+4. Verify the native binary in the foreground, stop it, then enable one supervisor. Keep the extension endpoint `http://localhost:3006/sse` and check actual file/command tools. To roll back, stop the native service before running `docker compose up -d` again.
+
+For upgrades, stop the native service, back up the binary and configuration, update to a reviewed revision, rebuild with the command above, and start and verify the service. Keep the previous binary/configuration for rollback.
+
+### Optional — Docker Compose for isolated tools
+
+If container isolation fits your workload, follow the [MCP-Proxy Docker instructions](https://github.com/drawdy/MCP-Proxy#docker-compose). The supplied Compose setup mounts `./workspace` as `/workspace`, provides Node.js and persistent npm/Desktop Commander volumes, and publishes `127.0.0.1:3006` by default. Host runtimes are unnecessary for container backends. Use container paths in that configuration; host commands and desktop access remain outside its scope.
 
 ```bash
 docker compose up -d --build
 docker compose ps
 docker compose logs -f mcp-proxy
-```
-
-The container runs in the background and restarts automatically unless stopped. The default endpoint is:
-
-```text
-http://localhost:3006/sse
-```
-
-To stop MCP-Proxy:
-
-```bash
-docker compose down
-```
-
-After editing `config.json`, restart the service so it reloads the configuration:
-
-```bash
 docker compose restart mcp-proxy
 ```
 
-### Optional — Allow access from other devices on your LAN
+### Optional — LAN access
 
-By default, Compose publishes the service only on host loopback (`127.0.0.1:3006`). To allow other trusted devices on your LAN to connect, create or edit `.env` in the MCP-Proxy directory:
+For native deployment, change the supervised command to `--host 0.0.0.0 --port 3006` and restart it. For Compose, set `MCP_PROXY_BIND=0.0.0.0` in its `.env` and run `docker compose up -d`. Use the machine's actual LAN address in the extension, for example `http://192.168.1.100:3006/sse`; `0.0.0.0` is a bind address, not a destination.
 
-```dotenv
-MCP_PROXY_BIND=0.0.0.0
-MCP_PROXY_PORT=3006
-```
-
-Then apply the setting:
-
-```bash
-docker compose up -d
-```
-
-In MCP-Interceptor, use the MCP-Proxy machine's actual LAN IP, for example `http://192.168.1.100:3006/sse`. Replace the example address with the machine's real LAN IP and grant Chrome permission when prompted. **Do not use `0.0.0.0` as the extension endpoint**; it is a bind address, not a destination address.
-
-Binding to `0.0.0.0` publishes the service on all host network interfaces. Restrict TCP port `3006` to trusted LAN devices with your firewall. Do not expose MCP-Proxy directly to the public internet or configure router port forwarding. CORS is not authentication or network access control.
-
-### Alternative — Run MCP-Proxy without Docker
-
-If you prefer a native process, install Go 1.26.8 or newer and Node.js if any configured backend uses `npx`. Clone the repository, create `config.json` as shown above, then run:
-
-```bash
-go run ./cmd/mcp-proxy --config ./config.json --host 127.0.0.1 --port 3006
-```
-
-The extension endpoint remains `http://localhost:3006/sse`. See the [MCP-Proxy README](https://github.com/drawdy/MCP-Proxy) for build, configuration and development details.
+Restrict port `3006` to trusted devices with your firewall. The proxy provides no frontend authentication; CORS is not access control. Do not expose it directly to the public internet or configure router port forwarding.
 
 ## 3. Add more MCP Servers
 
@@ -170,28 +244,28 @@ You can connect several MCP Servers at the same time. Add each one as a separate
 
 ### Example A — Add filesystem access
 
-The Compose setup mounts the local `workspace` directory into the container at `/workspace`. Configure the filesystem MCP Server to use that container path:
+For a native installation, use an existing host directory and the actual backend executable path. This Linux example also adds Desktop Commander; adjust the paths for your system:
 
 ```json
 {
   "mcpServers": {
     "desktop-commander": {
-      "command": "npx",
+      "command": "/usr/bin/npx",
       "args": ["-y", "@wonderwhy-er/desktop-commander@latest"]
     },
     "filesystem": {
-      "command": "npx",
+      "command": "/usr/bin/npx",
       "args": [
         "-y",
         "@modelcontextprotocol/server-filesystem",
-        "/workspace"
+        "/home/alice/projects"
       ]
     }
   }
 }
 ```
 
-Put the files you want to make available in the `workspace` directory inside the cloned MCP-Proxy repository. The path in `config.json` is the container path, not a Windows host path. To expose another host directory, add an additional volume mapping in `compose.yml`.
+For macOS, use a path such as `/Users/alice/projects`; for Windows, use escaped JSON paths such as `C:\\projects` and the command-interpreter setup above. Desktop Commander runs in the proxy account’s environment; configure its `allowedDirectories` separately. File access restrictions do not sandbox arbitrary shell commands. With Docker, use `/workspace` instead and mount each additional host directory explicitly in `compose.yml`.
 
 **Only grant access to folders you trust the AI tools to read or modify.** Do not give a filesystem server access to your entire drive unless you really need it.
 
@@ -213,10 +287,7 @@ Use the URL and authentication settings supplied by that server. If it requires 
 
 ### After changing config.json
 
-1. Return to the terminal running the Proxy Server.
-2. Press **Ctrl+C** to stop it.
-3. Run the Proxy Server start command again.
-4. Reconnect from the MCP-Interceptor extension if it does not reconnect automatically.
+Restart the proxy using its supervisor: `systemctl --user restart mcp-proxy.service` on Linux, `launchctl kickstart -k "gui/$(id -u)/local.mcp-proxy"` on macOS, or **End** then **Run** in Windows Task Scheduler. For a foreground process, press **Ctrl+C** and start it again; for Docker, run `docker compose restart mcp-proxy`. Reconnect the extension if needed. Configuration is loaded at startup, so changes require a restart.
 
 The tools from all configured and successfully started MCP Servers will be available through the Proxy Server.
 
@@ -264,7 +335,7 @@ The MCP-Interceptor sidebar should appear on the page.
 3. Expand a server to see its tools.
 4. Enable the tools you want the AI to use. You can use **Enable All** or **Disable All**.
 
-If a server or its tools are missing, check the foreground terminal or `proxy.log` if the Proxy Server is running in the background, then use the refresh button beside the Server status.
+If a server or its tools are missing, check the foreground output or your supervisor’s logs (journal, LaunchAgent log files, or Windows launcher logs), then use the refresh button beside the Server status.
 
 ### Step 5.3 — Insert MCP instructions into the chat
 
@@ -310,13 +381,15 @@ The **Push Content Mode** switch is at the top of the sidebar. It changes the pa
 
 | What you see | What to check |
 |---|---|
-| Popup says **Disconnected** | Check that the MCP-Proxy container is running with `docker compose ps`. Verify the endpoint and make sure Transport is set to SSE. |
+| Popup says **Disconnected** | Check the native service status (Linux: `systemctl --user status mcp-proxy.service`) and `/healthz`. For Docker, use `docker compose ps`. Verify the endpoint and select SSE. |
 | Chrome does not show the permission prompt | Click **Grant access and connect** after entering the endpoint. If you changed the host, Chrome may need permission for the new host. |
-| Sidebar says **Disconnected** | From the MCP-Proxy directory, run `docker compose logs -f mcp-proxy`. Confirm the extension endpoint is correct and Transport is SSE, then click the refresh icon beside Server. |
-| Connected, but no tools appear | Check that `config.json` contains the server under `mcpServers`. Review `docker compose logs mcp-proxy`, fix any backend errors, then run `docker compose restart mcp-proxy` and refresh the tools. |
+| Sidebar says **Disconnected** | Check the supervisor logs (Linux: `journalctl --user -u mcp-proxy.service -f`), endpoint and SSE setting, then refresh Server. For Docker, use `docker compose logs -f mcp-proxy`. |
+| Connected, but no tools appear | Check `mcpServers` and supervisor logs. Verify executable paths, PATH, credentials and `cwd` under the service account; fix errors, restart the proxy using its supervisor, and refresh tools. |
 | The AI does not call a tool | Insert the MCP instructions into the current conversation. Ask for a specific tool by name and describe the task clearly. |
-| Tool execution fails | Check the tool arguments and `docker compose logs mcp-proxy`. Verify the backend MCP Server command, arguments, credentials and filesystem permissions. |
-| Desktop Commander exits with `ENOENT` or `EROFS` under `/home/mcp/.claude-server-commander` | From the MCP-Proxy directory, run `git pull`, then `docker compose up -d --build` to rebuild the image. If it still fails, run `docker compose exec mcp-proxy sh -c 'id; printf "HOME=%s\\n" "$HOME"; ls -ld "$HOME" "$HOME/.claude-server-commander" "$HOME/.claude-server-commander-logs"'` to inspect HOME, directory existence and permissions. |
+| Tool execution fails | Check tool arguments and supervisor logs. Verify backend commands, runtimes, credentials, directory permissions and OS privacy controls. In Docker, verify bind mounts and container paths. |
+| Works in a terminal but fails as a service | Set the proxy’s PATH and required environment explicitly; services do not load shell profiles or Compose’s `.env`. Check the account, HOME, `cwd`, absolute paths and runtime availability. |
+| Address already in use | Stop the old Compose container or foreground process before starting the native service; run only one instance on port `3006`. |
+| Docker Desktop Commander reports `ENOENT` or `EROFS` | Check writable state/log volumes and their ownership against the current [MCP-Proxy Docker setup](https://github.com/drawdy/MCP-Proxy#docker-compose). |
 | The extension UI looks stale after an extension update | Refresh the AI chat page to create a fresh extension context. |
 
 ## 7. Security recommendations
@@ -329,7 +402,7 @@ MCP tools may read or modify files, execute commands, or access external service
 - Keep passwords, API keys and tokens out of public repositories. Use environment variables or the MCP Server's supported secret mechanism.
 - Review tool names and arguments before clicking **Run**.
 - Keep **Auto Execute** off unless you intentionally want unattended tool execution.
-- Keep MCP-Proxy bound to `127.0.0.1` by default. If you set `MCP_PROXY_BIND=0.0.0.0` to allow LAN access, restrict port `3006` to trusted devices with your firewall. Do not expose it to the public internet or configure router port forwarding.
+- Keep MCP-Proxy bound to `127.0.0.1` by default. If you use `--host 0.0.0.0` (or Compose’s `MCP_PROXY_BIND=0.0.0.0`) for LAN access, restrict port `3006` to trusted devices with your firewall. Do not expose it to the public internet or configure router port forwarding.
 
 ### Chrome Manifest V3 Content Security Policy
 
