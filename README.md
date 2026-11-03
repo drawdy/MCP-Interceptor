@@ -97,13 +97,13 @@ Add each MCP Server under the `mcpServers` object in `config.json`. The example 
     },
     "desktop-commander": {
       "command": "npx",
-      "args": ["-y", "@wonderwhy-er/desktop-commander"]
+      "args": ["-y", "@wonderwhy-er/desktop-commander@latest"]
     }
   }
 }
 ```
 
-The `npx` commands run inside the MCP-Proxy container. You do not need Node.js installed on your host. The container includes Node.js and keeps its npm cache in a Docker volume.
+The `npx` commands run inside the MCP-Proxy container. You do not need Node.js installed on your host. The container includes Node.js and keeps its npm cache in a Docker volume. Compose also provides dedicated writable volumes for Desktop Commander's configuration/history and log directories. They are required because the container root filesystem is read-only and persist across container recreation. Desktop Commander records tool arguments and recent result previews, so treat these volumes as sensitive data. It runs inside the container and cannot access the WSL host filesystem by default. To expose a host project, add a narrowly scoped bind mount in `compose.yml` and add its container path to Desktop Commander's `allowedDirectories`.
 
 Put files you want to expose in the `workspace` directory inside the cloned MCP-Proxy repository. If a backend needs credentials, place the environment variables in a `.env` file beside `compose.yml`, then reference them in `config.json`, for example `"${API_TOKEN}"`. Do not commit `.env` or secrets to source control.
 
@@ -177,7 +177,7 @@ The Compose setup mounts the local `workspace` directory into the container at `
   "mcpServers": {
     "desktop-commander": {
       "command": "npx",
-      "args": ["-y", "@wonderwhy-er/desktop-commander"]
+      "args": ["-y", "@wonderwhy-er/desktop-commander@latest"]
     },
     "filesystem": {
       "command": "npx",
@@ -316,6 +316,7 @@ The **Push Content Mode** switch is at the top of the sidebar. It changes the pa
 | Connected, but no tools appear | Check that `config.json` contains the server under `mcpServers`. Review `docker compose logs mcp-proxy`, fix any backend errors, then run `docker compose restart mcp-proxy` and refresh the tools. |
 | The AI does not call a tool | Insert the MCP instructions into the current conversation. Ask for a specific tool by name and describe the task clearly. |
 | Tool execution fails | Check the tool arguments and `docker compose logs mcp-proxy`. Verify the backend MCP Server command, arguments, credentials and filesystem permissions. |
+| Desktop Commander exits with `ENOENT` or `EROFS` under `/home/mcp/.claude-server-commander` | From the MCP-Proxy directory, run `git pull`, then `docker compose up -d --build` to rebuild the image. If it still fails, run `docker compose exec mcp-proxy sh -c 'id; printf "HOME=%s\\n" "$HOME"; ls -ld "$HOME" "$HOME/.claude-server-commander" "$HOME/.claude-server-commander-logs"'` to inspect HOME, directory existence and permissions. |
 | The extension UI looks stale after an extension update | Refresh the AI chat page to create a fresh extension context. |
 
 ## 7. Security recommendations
