@@ -336,7 +336,7 @@ MCP 工具可能读取或修改文件、执行命令或访问外部服务。请�
 
 ### Chrome Manifest V3 内容安全策略
 
-扩展的 Background Service Worker 使用 MCP SDK 自带的 `CfWorkerJsonSchemaValidator` 校验工具结构化输出。由于 Ajv 的运行时代码生成与 MV3 扩展 CSP 不兼容，构建时通过 fail-closed alias 禁用默认 Ajv Provider。不要在 CSP 中加入 `unsafe-eval`，也不要重新引入 Ajv 动态代码生成。构建工作流会运行 `pnpm test:mcp-csp-validator` 和 `pnpm scan:mv3-csp`，持续检查这一安全边界。
+扩展的 Background Service Worker 使用 MCP SDK 自带的 `CfWorkerJsonSchemaValidator` 校验工具结构化输出。由于 Ajv 的运行时代码生成与 MV3 扩展 CSP 不兼容，构建时通过 fail-closed alias 禁用默认 Ajv Provider。不要在 CSP 中加入 `unsafe-eval`，也不要重新引入 Ajv 动态代码生成。Extension CI 在后台、MCP 客户端、storage 或 shared 代码变更时运行 `pnpm --filter chrome-extension test`，生产构建后运行 `pnpm scan:mv3-csp`。测试直接编译 workspace 源码，不依赖预先生成的包构建产物。
 
 ## 支持的平台
 

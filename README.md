@@ -333,7 +333,7 @@ MCP tools may read or modify files, execute commands, or access external service
 
 ### Chrome Manifest V3 Content Security Policy
 
-The extension's background service worker uses the MCP SDK's `CfWorkerJsonSchemaValidator` for structured tool-output validation. The default Ajv provider is replaced by fail-closed build aliases because Ajv's runtime code generation is incompatible with the MV3 extension CSP. Do not add `unsafe-eval` or reintroduce Ajv code generation. The build workflow runs `pnpm test:mcp-csp-validator` and `pnpm scan:mv3-csp` to guard this boundary.
+The extension's background service worker uses the MCP SDK's `CfWorkerJsonSchemaValidator` for structured tool-output validation. The default Ajv provider is replaced by fail-closed build aliases because Ajv's runtime code generation is incompatible with the MV3 extension CSP. Do not add `unsafe-eval` or reintroduce Ajv code generation. Extension CI runs `pnpm --filter chrome-extension test` for background/client, storage, and shared-code changes, and `pnpm scan:mv3-csp` after production builds. Tests bundle workspace sources directly and need no prebuilt package outputs.
 
 ## Supported platforms
 

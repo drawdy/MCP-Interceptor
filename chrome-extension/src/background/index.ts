@@ -740,10 +740,18 @@ async function handleMcpMessage(
           }
 
           if (!hasConfiguredServer) {
-            throw new Error('Configure an MCP server before reconnecting.');
+            const message = 'Configure an MCP server before reconnecting.';
+            updateConnectionStatus(false);
+            broadcastConnectionStatusToContentScripts(false, message);
+            result = { isConnected: false, error: message };
+            break;
           }
           if (!(await hasMcpHostPermission(getServerUrl()))) {
-            throw new Error(getMcpPermissionRequiredMessage(getServerUrl()));
+            const message = getMcpPermissionRequiredMessage(getServerUrl());
+            updateConnectionStatus(false);
+            broadcastConnectionStatusToContentScripts(false, message);
+            result = { isConnected: false, error: message };
+            break;
           }
 
           // Broadcast reconnection started status

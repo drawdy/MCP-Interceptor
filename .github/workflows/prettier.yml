@@ -6,6 +6,9 @@ on:
     paths:
       - '**/*.js'
       - '**/*.jsx'
+      - '**/*.mjs'
+      - '**/*.cjs'
+      - '**/*.mts'
       - '**/*.ts'
       - '**/*.tsx'
       - '**/*.json'
@@ -17,12 +20,23 @@ on:
     paths:
       - '**/*.js'
       - '**/*.jsx'
+      - '**/*.mjs'
+      - '**/*.cjs'
+      - '**/*.mts'
       - '**/*.ts'
       - '**/*.tsx'
       - '**/*.json'
       - '.prettierrc'
       - '.prettierignore'
+      - '.github/workflows/prettier.yml'
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: formatting-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   prettier:
@@ -54,10 +68,15 @@ jobs:
             BASE_SHA="$(git rev-parse "${HEAD_SHA}^")"
           fi
 
-          mapfile -t files < <(
-            git diff --name-only --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" -- \
-              '*.js' '*.jsx' '*.ts' '*.tsx' '*.json'
-          )
+          patterns=('*.js' '*.jsx' '*.mjs' '*.cjs' '*.ts' '*.tsx' '*.mts' '*.json')
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]] || \
+            ! git diff --quiet "$BASE_SHA" "$HEAD_SHA" -- .prettierrc .prettierignore; then
+            mapfile -d '' -t files < <(git ls-files -z -- "${patterns[@]}")
+          else
+            mapfile -d '' -t files < <(
+              git diff --name-only -z --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" -- "${patterns[@]}"
+            )
+          fi
 
           if [[ ${#files[@]} -eq 0 ]]; then
             echo "No changed JavaScript, TypeScript, or JSON files to format-check."
@@ -66,4 +85,4 @@ jobs:
 
           printf 'Checking %s changed file(s):\n' "${#files[@]}"
           printf '  %s\n' "${files[@]}"
-          npx --yes prettier@3.5.3 --check "${files[@]}"
+          npx --yes prettier@3.9.10 --check "${files[@]}"

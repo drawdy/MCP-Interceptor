@@ -21,7 +21,7 @@
 
 - [ ] Confirm GitHub Actions workflows are enabled for this fork; GitHub may leave workflows disabled after a repository is forked.
 - [ ] Confirm the build and formatting workflows pass on the release commit.
-- [ ] Treat the current E2E workflow as build-only until real browser test tasks are added; retain the manual site checks above.
+- [ ] Confirm affected regression tests and the production CSP scan pass in Extension CI; browser installation and site flows still require the manual checks above.
 
 ## Register and create the store item
 
