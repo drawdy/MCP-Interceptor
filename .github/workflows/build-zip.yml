@@ -49,6 +49,7 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile --prefer-offline --network-concurrency=4 --fetch-retries=5
+      - run: pnpm test:json-parser
       - run: pnpm build
 
       - uses: actions/upload-artifact@v4
