@@ -29,6 +29,10 @@ Gemini / DeepSeek / Grok / ChatGPT
 
 **Important:** Configure MCP Servers in MCP-Proxy. The browser extension connects to MCP-Proxy; you do not add each backend MCP Server separately in the extension.
 
+MCP tools that return supported raster images (PNG, JPEG, GIF, WebP, AVIF or BMP) are previewed in the result panel. Click **Attach Images** to add them to the current chat together with their text context. Image results are not automatically inserted or submitted. Per result, the extension accepts up to 8 images, 10 MiB per image and 20 MiB total; SVG is intentionally not accepted.
+
+Attachment availability depends on the website adapter and the current page. Unsupported pages show a notice. If an attachment fails, retry keeps confirmed images and does not insert the text context twice. ChatGPT's MCP button appears beside the upload control in the active composer, including after switching between the home page and a conversation.
+
 ## 1. Install the browser extension
 
 1. Open the [latest release](https://github.com/drawdy/MCP-Interceptor/releases/latest).

@@ -91,6 +91,8 @@ jobs:
       - run: pnpm install --frozen-lockfile --prefer-offline --network-concurrency=4 --fetch-retries=5
       - if: matrix.suite == 'csp'
         run: pnpm --filter chrome-extension test
+      - if: matrix.suite == 'image'
+        run: pnpm test:mcp-image-output
       - if: matrix.suite == 'parser'
         run: pnpm test:json-parser
 

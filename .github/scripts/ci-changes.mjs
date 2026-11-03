@@ -46,7 +46,16 @@ export function selectChecks(paths, all = false) {
         path === 'tests/json-function-parser-multiline.test.ts' ||
         path === 'tests/run-json-function-parser-multiline.js',
     );
-  return { build, tests: [...(csp ? ['csp'] : []), ...(parser ? ['parser'] : [])] };
+  const image =
+    global ||
+    code.some(path =>
+      path.startsWith('pages/content/src/render_prescript/src/renderer/') ||
+      path.startsWith('pages/content/src/plugins/adapters/') ||
+      path === 'pages/content/src/services/automation.service.ts' ||
+      path === 'tests/mcp-image-output.test.ts' ||
+      path === 'tests/run-mcp-image-output.js'
+    );
+  return { build, tests: [...(csp ? ['csp'] : []), ...(parser ? ['parser'] : []), ...(image ? ['image'] : [])] };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

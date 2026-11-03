@@ -37,7 +37,8 @@
     "module-manager": "pnpm -F module-manager start",
     "test:json-parser": "node tests/run-json-function-parser-multiline.js",
     "test:mcp-csp-validator": "node chrome-extension/tests/mcp-csp-validator.test.mjs",
-    "scan:mv3-csp": "node scripts/check-mv3-csp.js"
+    "scan:mv3-csp": "node scripts/check-mv3-csp.js",
+    "test:mcp-image-output": "node tests/run-mcp-image-output.js"
   },
   "dependencies": {
     "react": "19.3.1",

@@ -619,11 +619,7 @@ export const monitorNode = (node: HTMLElement, blockId: string): void => {
       }
 
       // Find the nearest element that contains our monitored node
-      let target = node;
-      while (target && !CONFIG.targetSelectors.includes(target.tagName.toLowerCase())) {
-        target = target.parentElement as HTMLElement;
-        if (!target) break;
-      }
+      const target = node.closest<HTMLElement>(CONFIG.targetSelectors.join(','));
 
       if (target) {
         // Log significant changes if debugging is enabled
