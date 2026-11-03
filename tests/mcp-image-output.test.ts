@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict';
 import {
+  findChatGPTComposer,
+  findChatGPTButtonInsertionPoint,
+  findChatGPTFileInput,
+  findChatGPTFilePreviews,
+} from '../pages/content/src/plugins/adapters/chatgpt-composer.ts';
+import {
   attachPendingResultImages,
   createResultActionLock,
   insertResultText,
@@ -220,3 +226,44 @@ await assert.rejects(
   ),
 );
 console.log('MCP image manual-action regression tests (controlled adapters): passed');
+
+// ChatGPT retains both home and thread forms. Hidden home fields and unrelated
+// previews must never satisfy an insertion or a second-file upload check.
+const previousComputedStyle = globalThis.getComputedStyle;
+globalThis.getComputedStyle = (() => ({ display: 'block', visibility: 'visible' })) as typeof getComputedStyle;
+try {
+  const input = {} as HTMLInputElement;
+  const previews: HTMLElement[] = [];
+  let plus: HTMLElement | null = null;
+  const form = {
+    querySelector: (selector: string) => (selector.startsWith('input') ? input : plus),
+    querySelectorAll: () => previews,
+  };
+  const element = (visible: boolean, filename = '') =>
+    ({
+      isConnected: true,
+      getBoundingClientRect: () => ({ width: visible ? 400 : 0, height: visible ? 30 : 0 }),
+      closest: (selector: string) => (selector === 'form' ? form : null),
+      getAttribute: (name: string) => (name === 'alt' ? filename : null),
+      textContent: '',
+    }) as unknown as HTMLElement;
+  const hiddenHome = element(false);
+  const activeThread = element(true);
+  const root = { querySelectorAll: () => [hiddenHome, activeThread] } as unknown as ParentNode;
+  assert.equal(findChatGPTComposer(root), activeThread);
+  assert.equal(findChatGPTComposer({ querySelectorAll: () => [hiddenHome] } as unknown as ParentNode), null);
+  assert.equal(findChatGPTFileInput(activeThread), input);
+  const toolbar = {} as Element;
+  plus = Object.assign(element(true), { parentElement: toolbar });
+  assert.deepEqual(findChatGPTButtonInsertionPoint(activeThread), { container: toolbar, insertAfter: plus });
+  plus = element(false);
+  assert.equal(findChatGPTButtonInsertionPoint(activeThread), null);
+  previews.push(element(true, 'first.png'), element(false, 'second.jpg'));
+  assert.equal(findChatGPTFilePreviews(activeThread, 'second.jpg').length, 0);
+  const second = element(true, 'second.jpg');
+  previews.push(second);
+  assert.deepEqual(findChatGPTFilePreviews(activeThread, 'second.jpg'), [second]);
+} finally {
+  globalThis.getComputedStyle = previousComputedStyle;
+}
+console.log('ChatGPT active-composer regression tests: passed');

@@ -32,6 +32,8 @@ Gemini / DeepSeek / Grok / ChatGPT
 
 MCP 工具返回受支持的位图图片（PNG、JPEG、GIF、WebP、AVIF、BMP）时，扩展会在结果面板中显示预览。点击 **Attach Images** 可将图片及其文本上下文一起添加到当前聊天；图片结果不会自动插入或提交。单次结果最多 8 张图片、每张 10 MiB、总计 20 MiB；出于安全考虑不接受 SVG。
 
+附件功能取决于网站 Adapter 和当前页面的实际支持情况，不支持时会显示提示。附件失败后可重试，已确认的图片不会重复添加，文本上下文也不会重复插入。ChatGPT 的 MCP 按钮位于当前输入框的上传按钮旁，切换首页和对话时会跟随可见输入框移动。
+
 ## 一、安装 Chrome 扩展
 
 1. 打开 [最新 Release](https://github.com/drawdy/MCP-Interceptor/releases/latest)。

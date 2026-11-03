@@ -1,4 +1,12 @@
 import { BaseAdapterPlugin } from './base.adapter';
+import {
+  CHATGPT_COMPOSER_SELECTOR,
+  findChatGPTComposer,
+  findChatGPTButtonInsertionPoint,
+  findChatGPTFileInput,
+  findChatGPTFilePreviews,
+  isVisibleChatGPTElement,
+} from './chatgpt-composer';
 import type { AdapterCapability, PluginContext } from '../plugin-types';
 import { createLogger } from '@extension/shared/lib/logger';
 
@@ -29,8 +37,7 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
   // Updated selectors based on current ChatGPT interface
   private readonly selectors = {
     // Primary chat input selector (ProseMirror contenteditable)
-    CHAT_INPUT:
-      '#prompt-textarea, .ProseMirror[contenteditable="true"], div[contenteditable="true"][data-id*="prompt"]',
+    CHAT_INPUT: CHATGPT_COMPOSER_SELECTOR,
     // Submit button selectors (multiple fallbacks)
     SUBMIT_BUTTON:
       'button[data-testid="send-button"], button[aria-label*="Send"], button[data-testid="fruitjuice-send-button"], button:has(svg) + button:has(svg[viewBox="0 0 20 20"])',
@@ -192,24 +199,10 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
       `Attempting to insert text into ChatGPT chat input: ${text.substring(0, 50)}${text.length > 50 ? '...' : ''}`,
     );
 
-    let targetElement: HTMLElement | null = null;
+    const targetElement = options?.targetElement ?? findChatGPTComposer();
 
-    if (options?.targetElement) {
-      targetElement = options.targetElement;
-    } else {
-      // Try multiple selectors for better compatibility
-      const selectors = this.selectors.CHAT_INPUT.split(', ');
-      for (const selector of selectors) {
-        targetElement = document.querySelector(selector.trim()) as HTMLElement;
-        if (targetElement) {
-          this.context.logger.debug(`Found chat input using selector: ${selector.trim()}`);
-          break;
-        }
-      }
-    }
-
-    if (!targetElement) {
-      this.context.logger.error('Could not find ChatGPT chat input element');
+    if (!targetElement || !isVisibleChatGPTElement(targetElement)) {
+      this.context.logger.error('Could not find visible ChatGPT chat input element');
       this.emitExecutionFailed('insertText', 'Chat input element not found');
       return false;
     }
@@ -364,12 +357,11 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
         return false;
       }
 
-      // Try to find file input element
-      let fileInput: HTMLInputElement | null = options?.inputElement || null;
-
-      if (!fileInput) {
-        fileInput = document.querySelector(this.selectors.FILE_INPUT) as HTMLInputElement;
-      }
+      const composer = findChatGPTComposer();
+      if (!composer) return false;
+      // A timed-out preview may arrive before a retry; do not upload it again.
+      if (findChatGPTFilePreviews(composer, file.name).length > 0) return true;
+      const fileInput = options?.inputElement ?? findChatGPTFileInput(composer);
 
       if (fileInput) {
         // Use the direct file input approach
@@ -389,7 +381,7 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
       }
 
       // Check for file preview to confirm success
-      const previewFound = await this.checkFilePreview();
+      const previewFound = await this.checkFilePreview(file);
 
       if (previewFound) {
         this.emitExecutionCompleted(
@@ -409,22 +401,8 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
         this.context.logger.debug(`File attached successfully: ${file.name}`);
         return true;
       } else {
-        // Still consider it successful even if preview not found (optimistic)
-        this.emitExecutionCompleted(
-          'attachFile',
-          {
-            fileName: file.name,
-            fileType: file.type,
-            fileSize: file.size,
-          },
-          {
-            success: true,
-            previewFound: false,
-            method: fileInput ? 'file-input' : 'drag-drop-simulation',
-          },
-        );
-        this.context.logger.debug(`File attachment initiated (preview not confirmed): ${file.name}`);
-        return true;
+        this.emitExecutionFailed('attachFile', `Could not confirm attachment in the active composer: ${file.name}`);
+        return false;
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -482,37 +460,8 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
    * Enhanced with multiple selector checking and better detection
    */
   supportsFileUpload(): boolean {
-    this.context.logger.debug('Checking file upload support for ChatGPT');
-
-    // Check for drop zones
-    const dropZoneSelectors = this.selectors.DROP_ZONE.split(', ');
-    for (const selector of dropZoneSelectors) {
-      const dropZone = document.querySelector(selector.trim());
-      if (dropZone) {
-        this.context.logger.debug(`Found drop zone with selector: ${selector.trim()}`);
-        return true;
-      }
-    }
-
-    // Check for file upload buttons
-    const uploadButtonSelectors = this.selectors.FILE_UPLOAD_BUTTON.split(', ');
-    for (const selector of uploadButtonSelectors) {
-      const uploadButton = document.querySelector(selector.trim());
-      if (uploadButton) {
-        this.context.logger.debug(`Found upload button with selector: ${selector.trim()}`);
-        return true;
-      }
-    }
-
-    // Check for file input elements
-    const fileInput = document.querySelector(this.selectors.FILE_INPUT);
-    if (fileInput) {
-      this.context.logger.debug('Found file input element');
-      return true;
-    }
-
-    this.context.logger.debug('No file upload support detected');
-    return false;
+    const composer = findChatGPTComposer();
+    return !!composer && !!findChatGPTFileInput(composer);
   }
 
   // Private helper methods
@@ -763,6 +712,7 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
           }
 
           this.lastUrl = currentUrl;
+          this.injectMCPPopoverWithRetry();
         }
       }, 1000); // Check every second
     }
@@ -803,24 +753,13 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
 
     // Set up mutation observer to detect page changes and re-inject UI if needed
     this.mutationObserver = new MutationObserver(mutations => {
-      let shouldReinject = false;
-
-      mutations.forEach(mutation => {
-        if (mutation.type === 'childList') {
-          // Check if our MCP popover was removed
-          if (!document.getElementById('mcp-popover-container')) {
-            shouldReinject = true;
-          }
-        }
-      });
-
-      if (shouldReinject) {
-        // Only attempt re-injection if we can find an insertion point
-        const insertionPoint = this.findButtonInsertionPoint();
-        if (insertionPoint) {
-          this.context.logger.debug('MCP popover removed, attempting to re-inject');
-          this.setupUIIntegration();
-        }
+      if (!mutations.some(mutation => mutation.type === 'childList')) return;
+      const insertionPoint = this.findButtonInsertionPoint();
+      if (
+        insertionPoint &&
+        document.getElementById('mcp-popover-container')?.parentElement !== insertionPoint.container
+      ) {
+        this.injectMCPPopover(insertionPoint);
       }
     });
 
@@ -884,12 +823,6 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
   private injectMCPPopoverWithRetry(maxRetries: number = 5): void {
     const attemptInjection = (attempt: number) => {
       this.context.logger.debug(`Attempting MCP popover injection (attempt ${attempt}/${maxRetries})`);
-
-      // Check if popover already exists
-      if (document.getElementById('mcp-popover-container')) {
-        this.context.logger.debug('MCP popover already exists');
-        return;
-      }
 
       // Find insertion point
       const insertionPoint = this.findButtonInsertionPoint();
@@ -995,66 +928,19 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
   }
 
   private findButtonInsertionPoint(): { container: Element; insertAfter: Element | null } | null {
-    this.context.logger.debug('Finding button insertion point for MCP popover next to plus button');
-
-    // Try to find the plus button first
-    const plusButton = document.querySelector(
-      '[data-testid="composer-plus-btn"], button[aria-label="Add files and more"]',
-    );
-    if (plusButton && plusButton.parentElement) {
-      this.context.logger.debug('Found plus button, inserting MCP button after it');
-      return { container: plusButton.parentElement, insertAfter: plusButton };
-    }
-
-    // Try to find the leading area container
-    const leadingArea = document.querySelector('[grid-area="leading"]');
-    if (leadingArea) {
-      this.context.logger.debug('Found leading area, looking for plus button within it');
-      const plusButtonInLeading = leadingArea.querySelector('button');
-      if (plusButtonInLeading) {
-        return { container: leadingArea, insertAfter: plusButtonInLeading };
-      }
-      // If no button found in leading area, append to the end
-      return { container: leadingArea, insertAfter: null };
-    }
-
-    // Fallback to original trailing area selectors if leading area not found
-    const fallbackSelectors = [
-      '[data-testid="composer-footer-actions"]',
-      '.composer-footer-actions',
-      '.flex.items-center[data-testid*="composer"]',
-      '.relative.flex.w-full.items-end',
-      '[data-testid="composer-trailing-actions"]',
-    ];
-
-    for (const selector of fallbackSelectors) {
-      const container = document.querySelector(selector);
-      if (container) {
-        this.context.logger.debug(`Found fallback insertion point: ${selector}`);
-        const buttons = container.querySelectorAll('button');
-        const lastButton = buttons.length > 0 ? buttons[buttons.length - 1] : null;
-        return { container, insertAfter: lastButton };
-      }
-    }
-
-    this.context.logger.debug('Could not find suitable insertion point for MCP popover');
-    return null;
+    return findChatGPTButtonInsertionPoint();
   }
 
   private injectMCPPopover(insertionPoint: { container: Element; insertAfter: Element | null }): void {
     this.context.logger.debug('Injecting MCP popover into ChatGPT interface');
 
     try {
-      // Check if popover already exists
-      if (document.getElementById('mcp-popover-container')) {
-        this.context.logger.debug('MCP popover already exists, skipping injection');
-        return;
-      }
-
-      // Create container for the popover
-      const reactContainer = document.createElement('div');
+      const existingContainer = document.getElementById('mcp-popover-container');
+      const reactContainer = existingContainer ?? document.createElement('div');
       reactContainer.id = 'mcp-popover-container';
-      reactContainer.style.display = 'inline-block';
+      reactContainer.style.display = 'inline-flex';
+      reactContainer.style.alignItems = 'center';
+      reactContainer.style.flexShrink = '0';
 
       // Adjust margin based on container type
       const { container, insertAfter } = insertionPoint;
@@ -1065,6 +951,7 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
       }
 
       // Insert at appropriate location
+      if (reactContainer.parentElement === container) return;
       if (insertAfter && insertAfter.parentNode === container) {
         container.insertBefore(reactContainer, insertAfter.nextSibling);
         this.context.logger.debug('Inserted popover container after specified element');
@@ -1077,7 +964,7 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
       this.mcpPopoverContainer = reactContainer;
 
       // Render the React MCP Popover using the new architecture
-      this.renderMCPPopover(reactContainer);
+      if (!existingContainer) this.renderMCPPopover(reactContainer);
 
       this.context.logger.debug('MCP popover injected and rendered successfully');
     } catch (error) {
@@ -1317,14 +1204,7 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
 
   private async simulateFileDrop(file: File): Promise<boolean> {
     try {
-      // Find drop zone
-      const dropZoneSelectors = this.selectors.DROP_ZONE.split(', ');
-      let dropZone: Element | null = null;
-
-      for (const selector of dropZoneSelectors) {
-        dropZone = document.querySelector(selector.trim());
-        if (dropZone) break;
-      }
+      const dropZone = findChatGPTComposer();
 
       if (!dropZone) {
         this.context.logger.error('No drop zone found for file simulation');
@@ -1361,19 +1241,14 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
     }
   }
 
-  private async checkFilePreview(): Promise<boolean> {
-    return new Promise(resolve => {
-      setTimeout(() => {
-        const filePreview = document.querySelector(this.selectors.FILE_PREVIEW);
-        if (filePreview) {
-          this.context.logger.debug('File preview element found after attachment');
-          resolve(true);
-        } else {
-          this.context.logger.warn('File preview element not found after attachment');
-          resolve(false);
-        }
-      }, 500);
-    });
+  private async checkFilePreview(file: File): Promise<boolean> {
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      const composer = findChatGPTComposer();
+      if (composer && findChatGPTFilePreviews(composer, file.name).length > 0) return true;
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    this.context.logger.warn(`Attachment preview not confirmed: ${file.name}`);
+    return false;
   }
 
   private emitExecutionCompleted(toolName: string, parameters: any, result: any): void {
