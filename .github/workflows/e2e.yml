@@ -51,6 +51,7 @@ jobs:
           node-version-file: '.nvmrc'
           cache: pnpm
       - run: pnpm install --frozen-lockfile --prefer-offline --network-concurrency=4 --fetch-retries=5
+      - run: pnpm --filter chrome-extension test
       - run: pnpm e2e
 
   firefox:
