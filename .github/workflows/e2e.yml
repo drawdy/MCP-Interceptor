@@ -40,7 +40,7 @@ on:
 jobs:
   chrome:
     name: E2E tests for Chrome
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       CEB_CI: true
     steps:
@@ -50,12 +50,12 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: pnpm
-      - run: pnpm install --frozen-lockfile --prefer-offline
+      - run: pnpm install --frozen-lockfile --prefer-offline --network-concurrency=4 --fetch-retries=5
       - run: pnpm e2e
 
   firefox:
     name: E2E tests for Firefox
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       CEB_CI: true
     steps:
@@ -65,5 +65,5 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: pnpm
-      - run: pnpm install --frozen-lockfile --prefer-offline
+      - run: pnpm install --frozen-lockfile --prefer-offline --network-concurrency=4 --fetch-retries=5
       - run: pnpm e2e:firefox

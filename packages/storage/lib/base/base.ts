@@ -65,7 +65,12 @@ export function createStorage<D = string>(key: string, fallback: D, config?: Sto
   const liveUpdate = config?.liveUpdate ?? false;
 
   const serialize = config?.serialization?.serialize ?? ((v: D) => v);
-  const deserialize = config?.serialization?.deserialize ?? (v => v as D);
+  const deserialize = (value: unknown): D => {
+    if (config?.serialization?.deserialize) {
+      return config.serialization.deserialize(value as string);
+    }
+    return value as D;
+  };
 
   // Set global session storage access level for StoryType.Session, only when not already done but needed.
   if (

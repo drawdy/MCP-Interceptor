@@ -3,6 +3,10 @@ import { LogLevel } from './types.js';
 
 const STORAGE_KEY = 'mcp_logger_config';
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 /**
  * Chrome Storage-based logger persistence
  */
@@ -25,7 +29,7 @@ export class LoggerStorage implements ILoggerStorage {
       const result = await chrome.storage.local.get(this.storageKey);
       const config = result[this.storageKey];
 
-      if (config && typeof config.level === 'number') {
+      if (isRecord(config) && typeof config.level === 'number') {
         return config.level as LogLevel;
       }
 
@@ -46,7 +50,8 @@ export class LoggerStorage implements ILoggerStorage {
       }
 
       const existing = await chrome.storage.local.get(this.storageKey);
-      const config = existing[this.storageKey] || {};
+      const stored = existing[this.storageKey];
+      const config = isRecord(stored) ? stored : {};
 
       config.level = level;
 
@@ -68,8 +73,8 @@ export class LoggerStorage implements ILoggerStorage {
       const result = await chrome.storage.local.get(this.storageKey);
       const config = result[this.storageKey];
 
-      if (config && config.componentLevels) {
-        return config.componentLevels;
+      if (isRecord(config) && isRecord(config.componentLevels)) {
+        return config.componentLevels as Record<string, LogLevel>;
       }
 
       return {};
@@ -89,13 +94,12 @@ export class LoggerStorage implements ILoggerStorage {
       }
 
       const existing = await chrome.storage.local.get(this.storageKey);
-      const config = existing[this.storageKey] || {};
+      const stored = existing[this.storageKey];
+      const config = isRecord(stored) ? stored : {};
+      const componentLevels = isRecord(config.componentLevels) ? config.componentLevels : {};
 
-      if (!config.componentLevels) {
-        config.componentLevels = {};
-      }
-
-      config.componentLevels[component] = level;
+      componentLevels[component] = level;
+      config.componentLevels = componentLevels;
 
       await chrome.storage.local.set({ [this.storageKey]: config });
     } catch (error) {
