@@ -1,4 +1,5 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/cfworker';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { LoggingMessageNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
 
@@ -218,7 +219,13 @@ export class McpClient extends EventEmitter<AllEvents> {
           name: `mcp-client-${type}`,
           version: '1.0.0',
         },
-        { capabilities: {} },
+        {
+          capabilities: {},
+          jsonSchemaValidator: new CfWorkerJsonSchemaValidator({
+            draft: '2020-12',
+            shortcircuit: false,
+          }),
+        },
       );
 
       // Set up logging notification handler

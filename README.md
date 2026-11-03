@@ -331,6 +331,10 @@ MCP tools may read or modify files, execute commands, or access external service
 - Keep **Auto Execute** off unless you intentionally want unattended tool execution.
 - Keep MCP-Proxy bound to `127.0.0.1` by default. If you set `MCP_PROXY_BIND=0.0.0.0` to allow LAN access, restrict port `3006` to trusted devices with your firewall. Do not expose it to the public internet or configure router port forwarding.
 
+### Chrome Manifest V3 Content Security Policy
+
+The extension's background service worker uses the MCP SDK's `CfWorkerJsonSchemaValidator` for structured tool-output validation. The default Ajv provider is replaced by fail-closed build aliases because Ajv's runtime code generation is incompatible with the MV3 extension CSP. Do not add `unsafe-eval` or reintroduce Ajv code generation. The build workflow runs `pnpm test:mcp-csp-validator` and `pnpm scan:mv3-csp` to guard this boundary.
+
 ## Supported platforms
 
 MCP-Interceptor currently includes adapters for Gemini, DeepSeek, Grok, ChatGPT and other supported chat websites. These websites may change their interfaces at any time. If an integration stops working, [open an issue](https://github.com/drawdy/MCP-Interceptor/issues) and include the website, browser version and steps to reproduce. Do not include API keys, private URLs or other secrets.
