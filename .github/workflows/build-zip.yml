@@ -1,8 +1,8 @@
-name: Build And Upload Extension Zip Via Artifact
+name: Extension CI
 
 on:
   push:
-    branches: [ main, dev ]
+    branches: [main, dev]
     paths:
       - '.example.env'
       - '.npmrc'
@@ -16,12 +16,13 @@ on:
       - 'chrome-extension/**'
       - 'pages/**'
       - 'packages/**'
-      - 'tests/**'
       - 'scripts/**'
-      - '!docs/**'
+      - 'tests/**'
+      - '.github/workflows/build-zip.yml'
+      - '.github/scripts/**'
       - '!**/*.md'
   pull_request:
-    branches: [ main, dev ]
+    branches: [main, dev]
     paths:
       - '.example.env'
       - '.npmrc'
@@ -35,14 +36,70 @@ on:
       - 'chrome-extension/**'
       - 'pages/**'
       - 'packages/**'
-      - 'tests/**'
       - 'scripts/**'
-      - '!docs/**'
+      - 'tests/**'
+      - '.github/workflows/build-zip.yml'
+      - '.github/scripts/**'
       - '!**/*.md'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: extension-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  changes:
+    name: Select affected checks
+    runs-on: ubuntu-24.04
+    outputs:
+      build: ${{ steps.changes.outputs.build }}
+      tests: ${{ steps.changes.outputs.tests }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      - run: node .github/scripts/ci-changes.test.mjs
+      - id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: node .github/scripts/ci-changes.mjs
+
+  tests:
+    name: Regression tests (${{ matrix.suite }})
+    needs: changes
+    if: needs.changes.outputs.tests != '[]'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: ${{ fromJSON(needs.changes.outputs.tests) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --prefer-offline --network-concurrency=4 --fetch-retries=5
+      - if: matrix.suite == 'csp'
+        run: pnpm --filter chrome-extension test
+      - if: matrix.suite == 'image'
+        run: pnpm test:mcp-image-output
+      - if: matrix.suite == 'parser'
+        run: pnpm test:json-parser
+
   build:
+    name: Production build and CSP scan
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -51,15 +108,14 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: pnpm
-
       - run: pnpm install --frozen-lockfile --prefer-offline --network-concurrency=4 --fetch-retries=5
-      - run: pnpm test:json-parser
-      - run: pnpm test:mcp-csp-validator
-      - run: pnpm test:mcp-image-output
       - run: pnpm --filter chrome-extension type-check
       - run: pnpm build
       - run: pnpm scan:mv3-csp
-
       - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
         with:
-          path: dist/*
+          name: chrome-extension
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
