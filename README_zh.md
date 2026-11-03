@@ -98,13 +98,13 @@ vi config.json
     },
     "desktop-commander": {
       "command": "npx",
-      "args": ["-y", "@wonderwhy-er/desktop-commander"]
+      "args": ["-y", "@wonderwhy-er/desktop-commander@latest"]
     }
   }
 }
 ```
 
-这里的 `npx` 命令运行在 MCP-Proxy 容器内部，宿主机不需要安装 Node.js。容器自带 Node.js，npm 缓存保存在独立 Docker volume 中。
+这里的 `npx` 命令运行在 MCP-Proxy 容器内部，宿主机不需要安装 Node.js。容器自带 Node.js，npm 缓存保存在独立 Docker volume 中。 Compose 还为 Desktop Commander 的配置/历史目录和日志目录提供独立可写 volume，这是只读容器根文件系统下正常运行所必需的，并会跨容器重建保留。Desktop Commander 会在本地历史中记录工具参数和近期结果预览，请将这些 volume 视为敏感数据。Desktop Commander 运行在容器内，默认不能直接访问 WSL 宿主机文件；需要访问宿主机项目时，应在 `compose.yml` 中显式挂载受限目录，并将容器内路径加入 Desktop Commander 的 `allowedDirectories`。
 
 将希望开放给工具访问的文件放入克隆仓库目录下的 `workspace` 文件夹。如果后端需要认证凭据，可以将环境变量放在 MCP-Proxy 目录下的 `.env` 文件中，然后在 `config.json` 中通过 `"${API_TOKEN}"` 引用。不要将 `.env` 或密钥提交到代码仓库。
 
@@ -178,7 +178,7 @@ Compose 会将本地 `workspace` 目录挂载到容器内的 `/workspace`。文�
   "mcpServers": {
     "desktop-commander": {
       "command": "npx",
-      "args": ["-y", "@wonderwhy-er/desktop-commander"]
+      "args": ["-y", "@wonderwhy-er/desktop-commander@latest"]
     },
     "filesystem": {
       "command": "npx",
@@ -319,6 +319,7 @@ AI 需要先获得调用工具的说明，才能按照 MCP-Interceptor 支持的
 | 已连接，但没有显示工具 | 检查 `config.json` 中是否正确配置了 `mcpServers`，使用 `docker compose logs mcp-proxy` 查看后端错误，修复后执行 `docker compose restart mcp-proxy` 并刷新工具列表。 |
 | AI 不调用工具 | 将 MCP Instructions 插入当前对话，明确指定工具名称和任务。 |
 | 工具执行失败 | 检查工具参数和 `docker compose logs mcp-proxy` 输出，并核对后端 MCP Server 命令、参数、认证信息及文件系统权限。 |
+| Desktop Commander 在 `/home/mcp/.claude-server-commander` 报 `ENOENT` 或 `EROFS` 并退出 | 在 MCP-Proxy 目录执行 `git pull`，然后运行 `docker compose up -d --build` 重建镜像。仍有问题时，执行 `docker compose exec mcp-proxy sh -c 'id; printf "HOME=%s\\n" "$HOME"; ls -ld "$HOME" "$HOME/.claude-server-commander" "$HOME/.claude-server-commander-logs"'` 检查 HOME、目录和权限。 |
 | 扩展更新后网页中的 UI 异常 | 刷新 AI 聊天页面，让扩展重新初始化。 |
 
 ## 七、安全建议
