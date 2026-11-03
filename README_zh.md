@@ -30,6 +30,8 @@ Gemini / DeepSeek / Grok / ChatGPT
 
 **请注意：** MCP Server 配置在 MCP-Proxy 的配置文件中。浏览器扩展只需要连接 MCP-Proxy，不需要在扩展中逐个添加后端 MCP Server。
 
+MCP 工具返回受支持的位图图片（PNG、JPEG、GIF、WebP、AVIF、BMP）时，扩展会在结果面板中显示预览。点击 **Attach Images** 可将图片及其文本上下文一起添加到当前聊天；图片结果不会自动插入或提交。单次结果最多 8 张图片、每张 10 MiB、总计 20 MiB；出于安全考虑不接受 SVG。
+
 ## 一、安装 Chrome 扩展
 
 1. 打开 [最新 Release](https://github.com/drawdy/MCP-Interceptor/releases/latest)。

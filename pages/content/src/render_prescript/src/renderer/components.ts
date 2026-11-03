@@ -6,6 +6,7 @@ import { storeExecutedFunction, generateContentSignature } from '../mcpexecute/s
 import { checkAndDisplayFunctionHistory, createHistoryPanel, updateHistoryPanel } from './functionHistory';
 import { extractJSONParameters, stripLanguageTags, extractCleanContent } from '../parser/jsonFunctionParser';
 import { createLogger } from '@extension/shared/lib/logger';
+import { buildToolResultInsertionText, normalizeToolResultContent } from './toolResultContent';
 
 // Add type declarations for the global adapter and mcpClient access
 
@@ -102,6 +103,8 @@ const websiteName = window.location.hostname
   .toLowerCase()
   .replace(/^www\./i, '')
   .split('.')[0];
+
+const previewObjectUrls = new WeakMap<HTMLElement, string[]>();
 
 // Pre-compiled regexes for better performance
 const INVOKE_REGEX = /<invoke name="([^"]+)"(?:\s+call_id="([^"]+)")?>/;
@@ -765,7 +768,6 @@ export const addExecuteButton = (blockDiv: HTMLDivElement, rawContent: string): 
 
         // Update history panel with mcpClient reference
         updateHistoryPanel(historyPanel, executionData, mcpClient);
-
       } catch (toolError: any) {
         resetButtonState();
 
@@ -783,7 +785,6 @@ export const addExecuteButton = (blockDiv: HTMLDivElement, rawContent: string): 
 
         displayResult(resultsPanel, loadingIndicator, false, errorMessage);
       }
-
     } catch (error: any) {
       resetButtonState();
       resultsPanel.style.display = 'block';
@@ -791,12 +792,7 @@ export const addExecuteButton = (blockDiv: HTMLDivElement, rawContent: string): 
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error('Execute button error:', error);
 
-      displayResult(
-        resultsPanel,
-        loadingIndicator,
-        false,
-        `Unexpected error: ${errorMessage}`,
-      );
+      displayResult(resultsPanel, loadingIndicator, false, `Unexpected error: ${errorMessage}`);
     }
   };
 
@@ -906,8 +902,10 @@ export const extractFunctionParameters = (rawContent: string): Record<string, an
         } else {
           // Try to parse as JSON if it looks like JSON (starts with { or [)
           const trimmedValue = value.trim();
-          if ((trimmedValue.startsWith('{') && trimmedValue.endsWith('}')) ||
-            (trimmedValue.startsWith('[') && trimmedValue.endsWith(']'))) {
+          if (
+            (trimmedValue.startsWith('{') && trimmedValue.endsWith('}')) ||
+            (trimmedValue.startsWith('[') && trimmedValue.endsWith(']'))
+          ) {
             try {
               value = JSON.parse(trimmedValue);
               if (CONFIG.debug) logger.debug(`Auto-parsed JSON for parameter ${name}:`, value);
@@ -1255,6 +1253,77 @@ const attachResultAsFile = async (
   return { success: false, message: null };
 };
 
+function releasePreviewObjectUrls(resultElement: HTMLElement): void {
+  const objectUrls = previewObjectUrls.get(resultElement);
+  if (!objectUrls) return;
+
+  objectUrls.forEach(url => URL.revokeObjectURL(url));
+  previewObjectUrls.delete(resultElement);
+}
+
+function renderNormalizedToolResultContent(
+  contentArea: HTMLElement,
+  normalizedResult: ReturnType<typeof normalizeToolResultContent>,
+): void {
+  const objectUrls: string[] = [];
+
+  for (const segment of normalizedResult.segments) {
+    if (segment.kind === 'text') {
+      const textElement = document.createElement('div');
+      textElement.className = 'function-result-text';
+      textElement.textContent = segment.text;
+      contentArea.appendChild(textElement);
+      continue;
+    }
+
+    if (segment.kind === 'notice') {
+      const noticeElement = document.createElement('div');
+      noticeElement.className = 'function-result-notice';
+      noticeElement.textContent = segment.text;
+      contentArea.appendChild(noticeElement);
+      continue;
+    }
+
+    const imageFigure = document.createElement('figure');
+    imageFigure.className = 'function-result-image';
+
+    const image = document.createElement('img');
+    image.alt = segment.alt;
+    image.loading = 'lazy';
+    image.decoding = 'async';
+
+    try {
+      const objectUrl = URL.createObjectURL(segment.file);
+      objectUrls.push(objectUrl);
+      image.addEventListener('load', () => URL.revokeObjectURL(objectUrl), { once: true });
+      image.addEventListener('error', () => URL.revokeObjectURL(objectUrl), { once: true });
+      image.src = objectUrl;
+      imageFigure.appendChild(image);
+
+      const caption = document.createElement('figcaption');
+      caption.textContent = `${segment.file.name} (${(segment.file.size / 1024).toFixed(1)} KB)`;
+      imageFigure.appendChild(caption);
+    } catch (error) {
+      const noticeElement = document.createElement('div');
+      noticeElement.className = 'function-result-notice';
+      noticeElement.textContent = `Image preview unavailable: ${error instanceof Error ? error.message : String(error)}`;
+      imageFigure.appendChild(noticeElement);
+    }
+
+    contentArea.appendChild(imageFigure);
+  }
+
+  if (objectUrls.length > 0) {
+    previewObjectUrls.set(contentArea, objectUrls);
+  }
+}
+
+function dispatchToolExecutionComplete(detail: Record<string, unknown>): void {
+  requestAnimationFrame(() => {
+    document.dispatchEvent(new CustomEvent('mcp:tool-execution-complete', { detail }));
+  });
+}
+
 /**
  * Optimized result display with efficient DOM operations and batch processing
  * Performance improvements: reduce DOM queries, batch operations, efficient element creation
@@ -1283,7 +1352,10 @@ export const displayResult = (
 
     // Batch remove existing result content
     const existingResults = resultsPanel.querySelectorAll('.function-result-success, .function-result-error');
-    existingResults.forEach(el => resultsPanel.removeChild(el));
+    existingResults.forEach(el => {
+      releasePreviewObjectUrls(el as HTMLElement);
+      resultsPanel.removeChild(el);
+    });
 
     // Remove previous button container
     const existingButtonContainer = resultsPanel.nextElementSibling;
@@ -1328,67 +1400,16 @@ export const displayResult = (
   loadingIndicator.style.display = 'none';
 
   if (success) {
-    // Optimized success result processing
-    let rawResultText = '';
+    const normalizedResult = normalizeToolResultContent(result, functionName, callId);
+    const attachedImageFiles = new Set<File>();
+    let resultTextInserted = false;
+    let rawResultText = normalizedResult.textForInsertion;
 
-    // Create result content efficiently
     const resultContent = createOptimizedElement('div', {
       className: 'function-result-success',
     });
 
-    // Process result data efficiently
-    if (typeof result === 'object') {
-      try {
-        // Check if result has the new format with content array
-        if (result && result.content && Array.isArray(result.content)) {
-          // Extract text from content array
-          const textParts = result.content
-            .filter((item: any) => item.type === 'text' && item.text)
-            .map((item: any) => item.text);
-
-          if (textParts.length > 0) {
-            rawResultText = textParts.join('\n');
-            resultContent.textContent = rawResultText;
-          } else {
-            // Fallback to full JSON if no text content found
-            rawResultText = JSON.stringify(result, null, 2);
-            const pre = createOptimizedElement('pre', {
-              textContent: rawResultText,
-              styles: {
-                fontFamily: 'inherit',
-                fontSize: '13px',
-                lineHeight: '1.5',
-                padding: '0',
-                margin: '0',
-              },
-            });
-            resultContent.appendChild(pre);
-          }
-        } else {
-          // Original object handling for backward compatibility
-          rawResultText = JSON.stringify(result, null, 2);
-          const pre = createOptimizedElement('pre', {
-            textContent: rawResultText,
-            styles: {
-              fontFamily: 'inherit',
-              fontSize: '13px',
-              lineHeight: '1.5',
-              padding: '0',
-              margin: '0',
-            },
-          });
-          resultContent.appendChild(pre);
-        }
-      } catch (e) {
-        rawResultText = String(result);
-        resultContent.textContent = rawResultText;
-      }
-    } else {
-      rawResultText = String(result);
-      resultContent.textContent = rawResultText;
-    }
-
-    // Add result to panel
+    renderNormalizedToolResultContent(resultContent, normalizedResult);
     resultsPanel.appendChild(resultContent);
 
     // Create button container efficiently using DocumentFragment
@@ -1398,6 +1419,8 @@ export const displayResult = (
       styles: {
         display: 'flex',
         justifyContent: 'flex-end',
+        flexWrap: 'wrap',
+        gap: '8px',
         marginTop: '10px',
         marginBottom: '10px',
       },
@@ -1456,12 +1479,18 @@ export const displayResult = (
         return;
       }
 
+      if (normalizedResult.images.length > 0 && resultTextInserted) {
+        insertButton.textContent = 'Already inserted';
+        insertButton.disabled = true;
+        return;
+      }
+
       const wrapperText = `<function_result call_id="${callId}">\n${rawResultText}\n</function_result>`;
 
       // Check result length and handle accordingly
       if (rawResultText.length > MAX_INSERT_LENGTH && WEBSITE_NAME_FOR_MAX_INSERT_LENGTH_CHECK.includes(websiteName)) {
         logger.debug(`Result length (${wrapperText.length}) exceeds ${MAX_INSERT_LENGTH}. Attaching as file.`);
-        await attachResultAsFile(
+        const attachment = await attachResultAsFile(
           adapter,
           functionName,
           callId,
@@ -1470,6 +1499,9 @@ export const displayResult = (
           insertButton.querySelector('span') as HTMLElement,
           true,
         );
+        if (attachment.success) {
+          resultTextInserted = true;
+        }
       } else {
         // Try the new plugin system insertText method first
         if (typeof adapter.insertText === 'function') {
@@ -1477,6 +1509,7 @@ export const displayResult = (
             const success = await adapter.insertText(wrapperText);
 
             if (success) {
+              resultTextInserted = true;
               // Optimized success state handling
               insertButton.textContent = 'Inserted!';
               insertButton.classList.add('insert-success');
@@ -1485,7 +1518,7 @@ export const displayResult = (
               setTimeout(() => {
                 insertButton.innerHTML = `${ICONS.INSERT}<span>Insert</span>`;
                 insertButton.classList.remove('insert-success');
-                insertButton.disabled = false;
+                insertButton.disabled = normalizedResult.images.length > 0 && resultTextInserted;
               }, 2000);
 
               // Efficient event dispatch with requestAnimationFrame
@@ -1618,13 +1651,127 @@ export const displayResult = (
       );
     };
 
+    let imageAttachButton: HTMLButtonElement | null = null;
+    const resultAdapter = getCurrentAdapter();
+
+    if (normalizedResult.images.length > 0 && resultAdapter && adapterSupportsCapability('file-attachment')) {
+      imageAttachButton = createOptimizedElement('button', {
+        className: 'attach-file-button attach-images-button',
+        innerHTML: `${ICONS.ATTACH}<span>Attach ${normalizedResult.images.length} image${normalizedResult.images.length === 1 ? '' : 's'}</span>`,
+        attributes: {
+          'data-result-id': `attach-images-${callId}-${Date.now()}`,
+        },
+      }) as HTMLButtonElement;
+
+      imageAttachButton.onclick = async () => {
+        const adapter = getCurrentAdapter();
+        if (!adapter || !adapterSupportsCapability('file-attachment') || typeof adapter.attachFile !== 'function') {
+          imageAttachButton!.textContent = 'File attachment unavailable';
+          imageAttachButton!.classList.add('attach-error');
+          return;
+        }
+
+        const pendingFiles = normalizedResult.images.filter(file => !attachedImageFiles.has(file));
+        if (pendingFiles.length === 0) return;
+
+        imageAttachButton!.disabled = true;
+        imageAttachButton!.classList.remove('attach-success', 'attach-error');
+        imageAttachButton!.innerHTML = `${ICONS.SPINNER}<span>Attaching images...</span>`;
+
+        let failedCount = 0;
+        for (const file of pendingFiles) {
+          try {
+            const attached = await adapter.attachFile(file);
+            if (!attached) {
+              failedCount += 1;
+              logger.warn(`Adapter did not confirm image attachment: ${file.name}`);
+              continue;
+            }
+
+            attachedImageFiles.add(file);
+            dispatchToolExecutionComplete({
+              file,
+              result: `Image attached: ${file.name}`,
+              isFileAttachment: true,
+              fileName: file.name,
+              skipAutoInsertCheck: true,
+              callId,
+              functionName,
+            });
+          } catch (error) {
+            failedCount += 1;
+            logger.error(`Failed to attach MCP image ${file.name}:`, error);
+          }
+        }
+
+        rawResultText = buildToolResultInsertionText(normalizedResult.segments, attachedImageFiles);
+
+        const allImagesAttached = attachedImageFiles.size === normalizedResult.images.length;
+        let contextInserted = false;
+        if (allImagesAttached) {
+          const contextText = resultTextInserted
+            ? `The following MCP images are now attached: ${normalizedResult.images.map(file => file.name).join(', ')}.`
+            : rawResultText.length > MAX_INSERT_LENGTH && WEBSITE_NAME_FOR_MAX_INSERT_LENGTH_CHECK.includes(websiteName)
+              ? `MCP image output attached: ${normalizedResult.images.map(file => file.name).join(', ')}. The text portion is too long to insert directly; use Attach File to include the full text result.`
+              : `<function_result call_id="${callId}">\n${rawResultText}\n</function_result>`;
+          try {
+            if (typeof adapter.insertText === 'function') {
+              contextInserted = await adapter.insertText(contextText);
+            } else if (typeof adapter.insertTextIntoInput === 'function') {
+              contextInserted = (await adapter.insertTextIntoInput(contextText)) !== false;
+            }
+
+            if (contextInserted) {
+              resultTextInserted = true;
+              dispatchToolExecutionComplete({
+                result: contextText,
+                isFileAttachment: false,
+                fileName: '',
+                skipAutoInsertCheck: true,
+                callId,
+                functionName,
+              });
+              insertButton.textContent = 'Inserted!';
+              insertButton.classList.add('insert-success');
+              insertButton.disabled = true;
+            }
+          } catch (error) {
+            logger.warn('Images were attached, but inserting their text context failed:', error);
+          }
+        }
+
+        const attachedCount = attachedImageFiles.size;
+        if (allImagesAttached) {
+          imageAttachButton!.innerHTML = `${ICONS.ATTACH}<span>Attached ${attachedCount} image${attachedCount === 1 ? '' : 's'}</span>`;
+          imageAttachButton!.classList.add('attach-success');
+          imageAttachButton!.disabled = true;
+          if (!contextInserted) {
+            imageAttachButton!.title = 'Images attached. Use Insert to add the result text and image references.';
+          }
+        } else {
+          imageAttachButton!.innerHTML = `${ICONS.ATTACH}<span>Attached ${attachedCount}/${normalizedResult.images.length} · Retry</span>`;
+          imageAttachButton!.classList.add('attach-error');
+          imageAttachButton!.disabled = false;
+        }
+
+        if (failedCount > 0) {
+          logger.warn(
+            `Attached ${attachedCount} of ${normalizedResult.images.length} MCP images; ${failedCount} failed.`,
+          );
+        }
+      };
+    }
+
     // Efficiently build button container
     buttonContainer.appendChild(insertButton);
 
     // Only add attach button if supported
-    const adapter = getCurrentAdapter();
+    const adapter = resultAdapter;
     if (adapter && adapterSupportsCapability('file-attachment')) {
       buttonContainer.appendChild(attachButton);
+      if (imageAttachButton) {
+        buttonContainer.appendChild(imageAttachButton);
+      }
     }
 
     // Batch DOM update
@@ -1633,8 +1780,10 @@ export const displayResult = (
 
     // Handle auto-attachment for large results
     if (
+      normalizedResult.images.length === 0 &&
       rawResultText.length > MAX_INSERT_LENGTH &&
-      adapter && adapterSupportsCapability('file-attachment') &&
+      adapter &&
+      adapterSupportsCapability('file-attachment') &&
       WEBSITE_NAME_FOR_MAX_INSERT_LENGTH_CHECK.includes(websiteName)
     ) {
       logger.debug(`Auto-attaching file: Result length (${rawResultText.length}) exceeds ${MAX_INSERT_LENGTH}`);
@@ -1722,7 +1871,10 @@ export const displayResult = (
           new CustomEvent('mcp:tool-execution-complete', {
             detail: {
               result: wrappedResult,
-              skipAutoInsertCheck: false
+              // Images require explicit attachment; do not auto-insert image placeholders.
+              skipAutoInsertCheck: normalizedResult.images.length > 0,
+              callId,
+              functionName,
             },
           }),
         );

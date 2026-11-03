@@ -827,7 +827,8 @@ export const styles = `
   .raw-toggle,
   .execute-button,
   .insert-result-button,
-  .attach-file-button {
+  .attach-file-button,
+  .attach-images-button {
     padding: var(--spacing-sm) var(--spacing-lg);
     border-radius: var(--border-radius-sm);
     font-size: 13px;
@@ -969,6 +970,42 @@ export const styles = `
     padding: 10px;
     white-space: pre-wrap;
     word-break: break-word;
+  }
+
+  .function-result-text {
+    margin: 0 0 8px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .function-result-image {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+    margin: 10px 0;
+  }
+
+  .function-result-image img {
+    display: block;
+    max-width: 100%;
+    max-height: 360px;
+    object-fit: contain;
+    border: 1px solid rgba(127, 127, 127, 0.35);
+    border-radius: 6px;
+  }
+
+  .function-result-image figcaption,
+  .function-result-notice {
+    font-size: 11px;
+    line-height: 1.4;
+    opacity: 0.75;
+    overflow-wrap: anywhere;
+  }
+
+  .function-result-notice {
+    margin: 6px 0;
+    white-space: pre-wrap;
   }
   
   /* Consolidated error theme styles */
@@ -1122,18 +1159,21 @@ export const styles = `
   
   /* Optimized button state styles */
   .insert-result-button.insert-success,
-  .attach-file-button.attach-success {
+  .attach-file-button.attach-success,
+  .attach-images-button.attach-success {
     background: var(--light-success) !important;
     color: white !important;
   }
   
   .insert-result-button.insert-error,
-  .attach-file-button.attach-error {
+  .attach-file-button.attach-error,
+  .attach-images-button.attach-error {
     background: var(--light-error) !important;
     color: white !important;
   }
   
-  .attach-file-button {
+  .attach-file-button,
+  .attach-images-button {
     padding: var(--spacing-xs) var(--spacing-md);
     margin-left: 6px;
   }

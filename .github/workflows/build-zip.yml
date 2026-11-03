@@ -16,6 +16,8 @@ on:
       - 'chrome-extension/**'
       - 'pages/**'
       - 'packages/**'
+      - 'tests/**'
+      - 'scripts/**'
       - '!docs/**'
       - '!**/*.md'
   pull_request:
@@ -33,6 +35,8 @@ on:
       - 'chrome-extension/**'
       - 'pages/**'
       - 'packages/**'
+      - 'tests/**'
+      - 'scripts/**'
       - '!docs/**'
       - '!**/*.md'
   workflow_dispatch:
@@ -51,6 +55,7 @@ jobs:
       - run: pnpm install --frozen-lockfile --prefer-offline --network-concurrency=4 --fetch-retries=5
       - run: pnpm test:json-parser
       - run: pnpm test:mcp-csp-validator
+      - run: pnpm test:mcp-image-output
       - run: pnpm --filter chrome-extension type-check
       - run: pnpm build
       - run: pnpm scan:mv3-csp
