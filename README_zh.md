@@ -334,6 +334,10 @@ MCP 工具可能读取或修改文件、执行命令或访问外部服务。请�
 - 除非确实需要无人值守执行，否则保持 **Auto Execute** 关闭。
 - MCP-Proxy 默认只绑定 `127.0.0.1`。如设置 `MCP_PROXY_BIND=0.0.0.0` 开放局域网访问，请通过防火墙将 `3006` 端口限制为可信设备。不要将它暴露到公网，也不要配置路由器公网端口转发。
 
+### Chrome Manifest V3 内容安全策略
+
+扩展的 Background Service Worker 使用 MCP SDK 自带的 `CfWorkerJsonSchemaValidator` 校验工具结构化输出。由于 Ajv 的运行时代码生成与 MV3 扩展 CSP 不兼容，构建时通过 fail-closed alias 禁用默认 Ajv Provider。不要在 CSP 中加入 `unsafe-eval`，也不要重新引入 Ajv 动态代码生成。构建工作流会运行 `pnpm test:mcp-csp-validator` 和 `pnpm scan:mv3-csp`，持续检查这一安全边界。
+
 ## 支持的平台
 
 MCP-Interceptor 当前包含 Gemini、DeepSeek、Grok、ChatGPT 等聊天网站的适配器。由于这些网站可能随时调整页面结构，集成能力可能受到影响。

@@ -37,7 +37,9 @@
     "set-global-env": "bash bash-scripts/set_global_env.sh",
     "postinstall": "pnpm build:eslint && pnpm copy_env",
     "module-manager": "pnpm -F module-manager start",
-    "test:json-parser": "node tests/run-json-function-parser-multiline.js"
+    "test:json-parser": "node tests/run-json-function-parser-multiline.js",
+    "test:mcp-csp-validator": "node chrome-extension/tests/mcp-csp-validator.test.mjs",
+    "scan:mv3-csp": "node scripts/check-mv3-csp.js"
   },
   "dependencies": {
     "react": "19.3.1",
