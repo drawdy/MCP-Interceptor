@@ -122,9 +122,11 @@ export const WEBSITE_CONFIGS: Array<{
     {
       urlPattern: 'chatgpt.com',
       config: {
-        targetSelectors: ['pre'],
-        streamingContainerSelectors: ['pre'],
-        function_result_selector: ['div[data-message-author-role="user"]'],
+        // ChatGPT now renders JSONL tool calls as code elements inside data-code-block.
+        // Keep legacy pre selectors as fallbacks for older conversations and layouts.
+        targetSelectors: ['div[data-code-block] code', 'pre'],
+        streamingContainerSelectors: ['div[data-code-block] code', 'pre'],
+        function_result_selector: ['div[data-user-message-bubble]', 'div[data-message-author-role="user"]'],
       },
     },
     {

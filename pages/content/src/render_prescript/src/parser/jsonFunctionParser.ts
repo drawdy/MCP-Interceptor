@@ -562,17 +562,27 @@ export const extractJSONParameters = (content: string): Record<string, any> => {
 
   const lines = content.split('\n');
 
-  // First pass: Extract from complete, parseable JSON lines
-  for (const line of lines) {
-    const parsed = parseJSONLine(line);
-    if (!parsed) continue;
-
-    if (parsed.type === 'parameter' && parsed.key) {
-      parameters[parsed.key] = parsed.value ?? ''; // Ensure value is never undefined
+  // Parse complete JSON objects first so multiline arrays and nested objects retain
+  // their native JSON types instead of being lost by physical-line parsing.
+  for (const jsonObject of extractJSONObjects(content)) {
+    const parsed = parseJSONLine(jsonObject);
+    if (parsed?.type === 'parameter' && parsed.key) {
+      parameters[parsed.key] = parsed.value;
     }
   }
 
-  // Second pass: Fallback regex extraction for incomplete/streaming parameter lines
+  // Keep the line parser for compact JSONL records and partial streaming output.
+  // Never overwrite a complete value already recovered from a whole JSON object.
+  for (const line of lines) {
+    const parsed = parseJSONLine(line);
+    if (!parsed || parsed.type !== 'parameter' || !parsed.key) continue;
+
+    if (!Object.prototype.hasOwnProperty.call(parameters, parsed.key)) {
+      parameters[parsed.key] = parsed.value;
+    }
+  }
+
+  // Final fallback: extract incomplete/streaming parameter lines with regex.
   // This handles cases where parameter values are long and arrive in chunks
   // Pattern matches: {"type": "parameter", "key": "keyname", "value": "partial content...
   // Even if the closing quote and brace are missing (streaming incomplete JSON)
@@ -586,7 +596,7 @@ export const extractJSONParameters = (content: string): Record<string, any> => {
 
     // Only use regex-extracted value if we don't already have this parameter
     // (prefer complete values from successfully parsed JSON lines)
-    if (!parameters.hasOwnProperty(key)) {
+    if (!Object.prototype.hasOwnProperty.call(parameters, key)) {
       // Unescape the value (handle \n, \t, \", etc.)
       const unescapedValue = value
         .replace(/\\n/g, '\n')
