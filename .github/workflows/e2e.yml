@@ -50,7 +50,7 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: pnpm
-      - run: pnpm install --frozen-lockfile --prefer-offline
+      - run: pnpm install --frozen-lockfile --prefer-offline --network-concurrency=4 --fetch-retries=5
       - run: pnpm e2e
 
   firefox:
@@ -65,5 +65,5 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: pnpm
-      - run: pnpm install --frozen-lockfile --prefer-offline
+      - run: pnpm install --frozen-lockfile --prefer-offline --network-concurrency=4 --fetch-retries=5
       - run: pnpm e2e:firefox
