@@ -11,6 +11,7 @@ on:
       - '**/*.json'
       - '.prettierrc'
       - '.prettierignore'
+      - '.github/workflows/prettier.yml'
   push:
     branches: [main, dev]
     paths:
