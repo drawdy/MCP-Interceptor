@@ -10,14 +10,15 @@
     <main class="panel">
       <header class="header">
         <img src="icon-34.png" alt="" width="34" height="34" />
-        <div>
+        <div class="header-text">
           <h1>MCP-Interceptor</h1>
-          <p>Configure and connect to your MCP server.</p>
+          <p id="header-subtitle">Configure and connect to your MCP server.</p>
         </div>
+        <button id="lang-toggle" class="lang-toggle" type="button" title="Switch language">中文</button>
       </header>
 
       <section class="server">
-        <label for="server-url" class="eyebrow">MCP SERVER ENDPOINT</label>
+        <label id="label-server-url" for="server-url" class="eyebrow">MCP SERVER ENDPOINT</label>
         <input
           id="server-url"
           type="url"
@@ -27,19 +28,34 @@
           placeholder="http://localhost:3006/sse"
           required />
 
-        <label for="connection-type" class="eyebrow">TRANSPORT</label>
+        <label id="label-transport" for="connection-type" class="eyebrow">TRANSPORT</label>
         <select id="connection-type">
-          <option value="sse">SSE</option>
+          <option value="sse">Server-Sent Events (SSE)</option>
           <option value="streamable-http">Streamable HTTP</option>
           <option value="websocket">WebSocket</option>
         </select>
         <p id="server-host" class="muted"></p>
+        <p id="proxy-doc-hint" class="muted">
+          To run the Proxy Server, see the
+          <a id="proxy-doc-link" href="https://github.com/drawdy/MCP-Interceptor/blob/main/README.md" target="_blank" rel="noopener noreferrer">documentation</a>.
+        </p>
       </section>
 
       <button id="grant-connect" type="button" disabled>Grant access and connect</button>
       <p id="status" class="status" role="status" aria-live="polite"> Loading server configuration… </p>
 
-      <footer>
+      <section class="sites-section">
+        <div class="sites-header">
+          <span id="label-sites-title" class="eyebrow">ENABLED WEBSITES</span>
+          <span id="sites-summary" class="muted"></span>
+        </div>
+        <p id="sites-desc" class="muted">
+          Disable on websites where you don't need MCP tools (e.g., chatgpt.com) to avoid interference.
+        </p>
+        <div id="sites-list" class="sites-list"></div>
+      </section>
+
+      <footer id="footer-note">
         On supported AI chat pages, this extension reads visible responses to detect tool calls. Tool names and
         arguments are sent only to the MCP server configured here; results can be inserted into the chat. Chrome grants
         access only to the configured server host.

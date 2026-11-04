@@ -7,7 +7,7 @@ import { Typography, Icon, Button } from '../ui';
 import { cn } from '@src/lib/utils';
 import { Card, CardHeader, CardContent } from '@src/components/ui/card';
 import { createLogger } from '@extension/shared/lib/logger';
-
+import { useLanguage } from '@src/utils/i18n';
 
 const logger = createLogger('AvailableTools');
 
@@ -15,7 +15,6 @@ interface ExtendedTool extends Tool {
   displayName?: string;
   originalName?: string;
 }
-
 
 interface AvailableToolsProps {
   tools: Tool[];
@@ -25,10 +24,20 @@ interface AvailableToolsProps {
 }
 
 const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRefresh, isRefreshing }) => {
+  const { isZh, t } = useLanguage();
   // Use Zustand hooks for tool management
   const { tools: storeTools } = useAvailableTools();
   const { executions, isExecuting } = useToolExecution();
-  const { enabledTools, enableTool, disableTool, enableAllTools, disableAllTools, isToolEnabled, loadToolEnablementState, isLoadingEnablement } = useToolEnablement();
+  const {
+    enabledTools,
+    enableTool,
+    disableTool,
+    enableAllTools,
+    disableAllTools,
+    isToolEnabled,
+    loadToolEnablementState,
+    isLoadingEnablement,
+  } = useToolEnablement();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
@@ -101,14 +110,14 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
       if (dotIndex > 0) {
         const serverName = tool.name.substring(0, dotIndex);
         const toolName = tool.name.substring(dotIndex + 1);
-        
+
         if (!grouped[serverName]) {
           grouped[serverName] = [];
         }
         grouped[serverName].push({
           ...tool,
           displayName: toolName, // Store the short name for display
-          originalName: tool.name // Keep original for functionality
+          originalName: tool.name, // Keep original for functionality
         } as ExtendedTool);
       } else {
         ungrouped.push(tool as ExtendedTool);
@@ -121,11 +130,11 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
         if (!hasUnsavedChanges) {
           const aEnabled = isToolEnabled(a.originalName || a.name);
           const bEnabled = isToolEnabled(b.originalName || b.name);
-          
+
           if (aEnabled && !bEnabled) return -1;
           if (!aEnabled && bEnabled) return 1;
         }
-        
+
         const aName = a.displayName || a.name;
         const bName = b.displayName || b.name;
         return aName.localeCompare(bName);
@@ -137,11 +146,11 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
       if (!hasUnsavedChanges) {
         const aEnabled = isToolEnabled(a.name);
         const bEnabled = isToolEnabled(b.name);
-        
+
         if (aEnabled && !bEnabled) return -1;
         if (!aEnabled && bEnabled) return 1;
       }
-      
+
       return a.name.localeCompare(b.name);
     });
 
@@ -169,7 +178,7 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
       }
       return newPending;
     });
-    
+
     if (isToolEnabled(toolName)) {
       disableTool(toolName);
       logMessage(`[AvailableTools] Tool disabled: ${toolName}`);
@@ -194,7 +203,7 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
         enableTool(toolName);
       }
     });
-    
+
     setHasUnsavedChanges(false);
     setPendingChanges(new Set());
     logMessage('[AvailableTools] Tool changes discarded');
@@ -216,7 +225,7 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
   const handleToggleGroup = (serverName: string, tools: ExtendedTool[]) => {
     setHasUnsavedChanges(true);
     const allEnabled = tools.every(tool => isToolEnabled(tool.originalName || tool.name));
-    
+
     tools.forEach(tool => {
       const toolName = tool.originalName || tool.name;
       if (allEnabled) {
@@ -225,7 +234,7 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
         enableTool(toolName);
       }
     });
-    
+
     logMessage(`[AvailableTools] Group ${serverName} ${allEnabled ? 'disabled' : 'enabled'}`);
   };
 
@@ -252,14 +261,14 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
             <button
               onClick={toggleComponentExpansion}
               className="p-1 mr-2 rounded transition-colors bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600"
-              aria-label={isExpanded ? 'Collapse tools' : 'Expand tools'}>
+              aria-label={isExpanded ? t('Collapse tools', '收起工具列表') : t('Expand tools', '展开工具列表')}>
               <Icon
                 name="chevron-right"
                 size="sm"
                 className={cn('text-slate-600 dark:text-slate-300 transition-transform', isExpanded ? 'rotate-90' : '')}
               />
             </button>
-            <Typography variant="h3">Available Tools</Typography>
+            <Typography variant="h3">{t('Available Tools', '可用工具')}</Typography>
           </div>
           <Button
             onClick={handleRefresh}
@@ -270,7 +279,8 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
               'h-9 w-9 p-0',
               isRefreshing ? 'opacity-50' : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600',
             )}
-            aria-label="Refresh tools">
+            aria-label={t('Refresh tools', '刷新工具')}
+            title={t('Refresh tools', '刷新工具')}>
             <Icon
               name="refresh"
               size="sm"
@@ -278,30 +288,58 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
             />
           </Button>
         </div>
-        
+
         {isExpanded && (
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
-            <div className="flex items-center gap-2">
-              <Typography variant="small" className="text-slate-600 dark:text-slate-400">
-                {enabledTools.size} of {totalToolsCount} tools enabled
+            <div className="flex items-center mr-2">
+              <Typography
+                variant="small"
+                className="text-slate-600 dark:text-slate-400 whitespace-nowrap flex-shrink-0 text-xs font-medium">
+                {isZh
+                  ? `已启用 ${enabledTools.size} / ${totalToolsCount} 个工具`
+                  : `${enabledTools.size} of ${totalToolsCount} tools enabled`}
               </Typography>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 flex-shrink-0">
               <Button
                 onClick={handleEnableAll}
                 size="sm"
                 variant="outline"
                 disabled={isRefreshing || isLoadingEnablement || totalToolsCount === 0}
-                className="h-8 px-3 text-xs bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800">
-                Enable All
+                aria-label={t('Enable All', '全部启用')}
+                title={t('Enable All', '全部启用')}
+                className="h-auto py-1 px-2.5 text-[11px] leading-tight flex flex-col items-center justify-center text-center bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800 flex-shrink-0 rounded-md">
+                {isZh ? (
+                  <>
+                    <span>全部</span>
+                    <span>启用</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Enable</span>
+                    <span>All</span>
+                  </>
+                )}
               </Button>
               <Button
                 onClick={handleDisableAll}
                 size="sm"
                 variant="outline"
                 disabled={isRefreshing || isLoadingEnablement || totalToolsCount === 0}
-                className="h-8 px-3 text-xs bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800">
-                Disable All
+                aria-label={t('Disable All', '全部禁用')}
+                title={t('Disable All', '全部禁用')}
+                className="h-auto py-1 px-2.5 text-[11px] leading-tight flex flex-col items-center justify-center text-center bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800 flex-shrink-0 rounded-md">
+                {isZh ? (
+                  <>
+                    <span>全部</span>
+                    <span>禁用</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Disable</span>
+                    <span>All</span>
+                  </>
+                )}
               </Button>
               {hasUnsavedChanges && (
                 <>
@@ -309,15 +347,39 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
                     onClick={handleSaveChanges}
                     size="sm"
                     variant="outline"
-                    className="h-8 px-3 text-xs bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800">
-                    Save Changes
+                    aria-label={t('Save Changes', '保存更改')}
+                    title={t('Save Changes', '保存更改')}
+                    className="h-auto py-1 px-2.5 text-[11px] leading-tight flex flex-col items-center justify-center text-center bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 flex-shrink-0 rounded-md">
+                    {isZh ? (
+                      <>
+                        <span>保存</span>
+                        <span>更改</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Save</span>
+                        <span>All</span>
+                      </>
+                    )}
                   </Button>
                   <Button
                     onClick={handleDiscardChanges}
                     size="sm"
                     variant="outline"
-                    className="h-8 px-3 text-xs bg-orange-50 hover:bg-orange-100 dark:bg-orange-900/20 dark:hover:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800">
-                    Discard
+                    aria-label={t('Discard', '放弃更改')}
+                    title={t('Discard', '放弃更改')}
+                    className="h-auto py-1 px-2.5 text-[11px] leading-tight flex flex-col items-center justify-center text-center bg-orange-50 hover:bg-orange-100 dark:bg-orange-900/20 dark:hover:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800 flex-shrink-0 rounded-md">
+                    {isZh ? (
+                      <>
+                        <span>放弃</span>
+                        <span>更改</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Discard</span>
+                        <span>All</span>
+                      </>
+                    )}
                   </Button>
                 </>
               )}
@@ -332,7 +394,7 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
             <div className="relative">
               <input
                 type="text"
-                placeholder="Search tools..."
+                placeholder={t('Search tools...', '搜索工具...')}
                 value={searchTerm}
                 onChange={handleSearchChange}
                 className="w-full px-3 py-2 pl-10 border border-slate-300 dark:border-slate-600 rounded text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
@@ -347,7 +409,9 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
             <div className="flex items-center justify-center py-8 text-slate-500 dark:text-slate-400">
               <Icon name="refresh" className="w-8 h-8 animate-spin mr-3" />
               <Typography variant="body" className="text-lg">
-                {isRefreshing ? 'Refreshing tools...' : 'Loading tool preferences...'}
+                {isRefreshing
+                  ? t('Refreshing tools...', '正在刷新工具...')
+                  : t('Loading tool preferences...', '正在加载工具配置...')}
               </Typography>
             </div>
           )}
@@ -358,10 +422,10 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
                 <>
                   <Icon name="search" className="w-12 h-12 mx-auto mb-3" />
                   <Typography variant="body" className="text-lg">
-                    No tools match your search
+                    {t('No tools match your search', '未找到匹配的工具')}
                   </Typography>
                   <Typography variant="small" className="mt-1">
-                    Try a different search term
+                    {t('Try a different search term', '请尝试其他搜索关键词')}
                   </Typography>
                 </>
               ) : (
@@ -380,20 +444,31 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
                     />
                   </svg>
                   <Typography variant="body" className="text-lg">
-                    {!isLoaded ? 'Loading tools...' : 'No tools available'}
+                    {!isLoaded ? t('Loading tools...', '正在加载工具...') : t('No tools available', '暂无可用工具')}
                   </Typography>
                   <Typography variant="small" className="mt-1">
                     {isLoaded ? (
-                      <>
-                        Check your server connection or{' '}
-                        <button
-                          onClick={handleRefresh}
-                          className="text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100">
-                          refresh
-                        </button>
-                      </>
+                      isZh ? (
+                        <>
+                          请检查服务器连接或{' '}
+                          <button
+                            onClick={handleRefresh}
+                            className="text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100 underline">
+                            刷新
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          Check your server connection or{' '}
+                          <button
+                            onClick={handleRefresh}
+                            className="text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100 underline">
+                            refresh
+                          </button>
+                        </>
+                      )
                     ) : (
-                      'Please wait while we connect to the server'
+                      t('Please wait while we connect to the server', '正在连接服务器，请稍候...')
                     )}
                   </Typography>
                 </>
@@ -408,51 +483,57 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
                 const groupEnabled = isGroupEnabled(tools);
                 const groupPartiallyEnabled = isGroupPartiallyEnabled(tools);
                 const groupExpanded = expandedTools.has(serverName);
-                
+
                 return (
-                  <div key={serverName} className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                  <div
+                    key={serverName}
+                    className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
                     {/* Group Header */}
                     <div className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-3">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center">
+                        <div className="flex items-center min-w-0 flex-1 mr-2">
                           <button
                             onClick={() => toggleToolExpansion(serverName)}
-                            className="p-1 mr-2 rounded transition-colors hover:bg-slate-200 dark:hover:bg-slate-700"
+                            className="p-1 mr-1.5 rounded transition-colors hover:bg-slate-200 dark:hover:bg-slate-700 flex-shrink-0"
                             aria-label={groupExpanded ? 'Collapse group' : 'Expand group'}>
                             <Icon
                               name="chevron-right"
                               size="sm"
                               className={cn(
                                 'text-slate-600 dark:text-slate-400 transition-transform',
-                                groupExpanded ? 'rotate-90' : ''
+                                groupExpanded ? 'rotate-90' : '',
                               )}
                             />
                           </button>
                           <input
                             type="checkbox"
                             checked={groupEnabled}
-                            ref={(el) => {
+                            ref={el => {
                               if (el) el.indeterminate = groupPartiallyEnabled;
                             }}
                             onChange={() => handleToggleGroup(serverName, tools)}
-                            className="w-4 h-4 mr-3 text-blue-600 bg-white border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 focus:ring-2 dark:bg-slate-700 dark:border-slate-600"
+                            className="w-4 h-4 mr-2 text-blue-600 bg-white border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 focus:ring-2 dark:bg-slate-700 dark:border-slate-600 flex-shrink-0"
                           />
-                          <Typography variant="subtitle" className="text-slate-800 dark:text-slate-200 font-semibold">
+                          <Typography
+                            variant="subtitle"
+                            className="text-slate-800 dark:text-slate-200 font-semibold truncate text-sm">
                             {serverName}
                           </Typography>
-                          <Typography variant="small" className="ml-2 text-slate-500 dark:text-slate-400">
-                            ({tools.length} tools)
+                          <Typography
+                            variant="small"
+                            className="ml-1.5 text-slate-500 dark:text-slate-400 whitespace-nowrap flex-shrink-0 text-xs">
+                            {isZh ? `（${tools.length} 个工具）` : `(${tools.length} tools)`}
                           </Typography>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-shrink-0">
                           {groupPartiallyEnabled && (
                             <span className="px-2 py-1 text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded">
-                              Partial
+                              {t('Partial', '部分启用')}
                             </span>
                           )}
                           {!groupEnabled && !groupPartiallyEnabled && (
                             <span className="px-2 py-1 text-xs bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded">
-                              Disabled
+                              {t('Disabled', '已禁用')}
                             </span>
                           )}
                         </div>
@@ -467,15 +548,17 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
                           const displayName = tool.displayName || tool.name;
                           const isEnabled = isToolEnabled(toolName);
                           const toolExpanded = expandedTools.has(toolName);
-                          
+
                           return (
-                            <div key={toolName} className="border-b border-slate-100 dark:border-slate-800 last:border-b-0">
+                            <div
+                              key={toolName}
+                              className="border-b border-slate-100 dark:border-slate-800 last:border-b-0">
                               <div
                                 className={cn(
-                                  "flex items-center justify-between p-3 cursor-pointer transition-colors",
-                                  isEnabled 
-                                    ? "hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                                    : "hover:bg-slate-50 dark:hover:bg-slate-800/30 opacity-60"
+                                  'flex items-center justify-between p-3 cursor-pointer transition-colors',
+                                  isEnabled
+                                    ? 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                                    : 'hover:bg-slate-50 dark:hover:bg-slate-800/30 opacity-60',
                                 )}
                                 onClick={() => toggleToolExpansion(toolName)}>
                                 <div className="flex items-center">
@@ -490,78 +573,78 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
                                   <input
                                     type="checkbox"
                                     checked={isEnabled}
-                                    onChange={(e) => {
+                                    onChange={e => {
                                       e.stopPropagation();
                                       handleToggleTool(toolName);
                                     }}
-                                    onClick={(e) => {
+                                    onClick={e => {
                                       e.stopPropagation();
                                     }}
                                     className="w-4 h-4 mr-3 text-blue-600 bg-white border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 focus:ring-2 dark:bg-slate-700 dark:border-slate-600"
                                   />
-                                  <Typography 
-                                    variant="body" 
+                                  <Typography
+                                    variant="body"
                                     className={cn(
-                                      "font-medium transition-colors",
-                                      isEnabled 
-                                        ? "text-slate-800 dark:text-slate-200"
-                                        : "text-slate-500 dark:text-slate-400"
+                                      'font-medium transition-colors',
+                                      isEnabled
+                                        ? 'text-slate-800 dark:text-slate-200'
+                                        : 'text-slate-500 dark:text-slate-400',
                                     )}>
                                     {displayName}
                                   </Typography>
                                   {!isEnabled && (
                                     <span className="ml-2 px-2 py-0.5 text-xs bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded">
-                                      Disabled
+                                      {t('Disabled', '已禁用')}
                                     </span>
                                   )}
                                 </div>
                               </div>
 
                               {toolExpanded && (
-                                <div className={cn(
-                                  "p-3 bg-slate-50 dark:bg-slate-800/50",
-                                  !isEnabled && "opacity-60"
-                                )}>
+                                <div className={cn('p-3 bg-slate-50 dark:bg-slate-800/50', !isEnabled && 'opacity-60')}>
                                   {tool.description && (
-                                    <Typography 
-                                      variant="body" 
+                                    <Typography
+                                      variant="body"
                                       className={cn(
-                                        "mb-2",
-                                        isEnabled 
-                                          ? "text-slate-600 dark:text-slate-300"
-                                          : "text-slate-500 dark:text-slate-400"
+                                        'mb-2',
+                                        isEnabled
+                                          ? 'text-slate-600 dark:text-slate-300'
+                                          : 'text-slate-500 dark:text-slate-400',
                                       )}>
                                       {tool.description}
                                     </Typography>
                                   )}
                                   <div className="mt-2">
-                                    <Typography 
-                                      variant="caption" 
+                                    <Typography
+                                      variant="caption"
                                       className={cn(
-                                        "mb-1",
-                                        isEnabled 
-                                          ? "text-slate-500 dark:text-slate-400"
-                                          : "text-slate-400 dark:text-slate-500"
+                                        'mb-1',
+                                        isEnabled
+                                          ? 'text-slate-500 dark:text-slate-400'
+                                          : 'text-slate-400 dark:text-slate-500',
                                       )}>
-                                      Schema
+                                      {t('Schema', '参数定义 (Schema)')}
                                     </Typography>
-                                    <pre className={cn(
-                                      "text-xs p-2 whitespace-pre-wrap max-h-60 overflow-y-auto rounded border",
-                                      isEnabled 
-                                        ? "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
-                                        : "bg-slate-100 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-600"
-                                    )}>
+                                    <pre
+                                      className={cn(
+                                        'text-xs p-2 whitespace-pre-wrap max-h-60 overflow-y-auto rounded border',
+                                        isEnabled
+                                          ? 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                                          : 'bg-slate-100 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-600',
+                                      )}>
                                       {(() => {
                                         try {
                                           const schema = (tool as any).schema || (tool as any).input_schema;
-                                          if (!schema) return 'No schema available';
+                                          if (!schema) return t('No schema available', '无参数定义');
 
                                           const schemaObject = typeof schema === 'string' ? JSON.parse(schema) : schema;
                                           return JSON.stringify(schemaObject, null, 2);
                                         } catch (error) {
                                           logger.error('Error processing tool schema:', error);
                                           const schema = (tool as any).schema || (tool as any).input_schema;
-                                          return typeof schema === 'string' ? schema : 'Invalid schema format';
+                                          return typeof schema === 'string'
+                                            ? schema
+                                            : t('Invalid schema format', '参数定义格式无效');
                                         }
                                       })()}
                                     </pre>
@@ -582,25 +665,27 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
                 <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
                   <div className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-3">
                     <Typography variant="body" className="text-slate-800 dark:text-slate-200 font-semibold">
-                      Individual Tools
+                      {t('Individual Tools', '独立工具')}
                     </Typography>
                     <Typography variant="small" className="text-slate-500 dark:text-slate-400">
-                      ({ungroupedTools.length} tools)
+                      {isZh ? `（${ungroupedTools.length} 个工具）` : `(${ungroupedTools.length} tools)`}
                     </Typography>
                   </div>
                   <div className="bg-white dark:bg-slate-900">
                     {ungroupedTools.map(tool => {
                       const isEnabled = isToolEnabled(tool.name);
                       const toolExpanded = expandedTools.has(tool.name);
-                      
+
                       return (
-                        <div key={tool.name} className="border-b border-slate-100 dark:border-slate-800 last:border-b-0">
+                        <div
+                          key={tool.name}
+                          className="border-b border-slate-100 dark:border-slate-800 last:border-b-0">
                           <div
                             className={cn(
-                              "flex items-center justify-between p-3 cursor-pointer transition-colors",
-                              isEnabled 
-                                ? "hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                                : "hover:bg-slate-50 dark:hover:bg-slate-800/30 opacity-60"
+                              'flex items-center justify-between p-3 cursor-pointer transition-colors',
+                              isEnabled
+                                ? 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                                : 'hover:bg-slate-50 dark:hover:bg-slate-800/30 opacity-60',
                             )}
                             onClick={() => toggleToolExpansion(tool.name)}>
                             <div className="flex items-center">
@@ -615,78 +700,78 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
                               <input
                                 type="checkbox"
                                 checked={isEnabled}
-                                onChange={(e) => {
+                                onChange={e => {
                                   e.stopPropagation();
                                   handleToggleTool(tool.name);
                                 }}
-                                onClick={(e) => {
+                                onClick={e => {
                                   e.stopPropagation();
                                 }}
                                 className="w-4 h-4 mr-3 text-blue-600 bg-white border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 focus:ring-2 dark:bg-slate-700 dark:border-slate-600"
                               />
-                              <Typography 
-                                variant="body" 
+                              <Typography
+                                variant="body"
                                 className={cn(
-                                  "font-medium transition-colors",
-                                  isEnabled 
-                                    ? "text-slate-800 dark:text-slate-200"
-                                    : "text-slate-500 dark:text-slate-400"
+                                  'font-medium transition-colors',
+                                  isEnabled
+                                    ? 'text-slate-800 dark:text-slate-200'
+                                    : 'text-slate-500 dark:text-slate-400',
                                 )}>
                                 {tool.name}
                               </Typography>
                               {!isEnabled && (
                                 <span className="ml-2 px-2 py-0.5 text-xs bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded">
-                                  Disabled
+                                  {t('Disabled', '已禁用')}
                                 </span>
                               )}
                             </div>
                           </div>
 
                           {toolExpanded && (
-                            <div className={cn(
-                              "p-3 bg-slate-50 dark:bg-slate-800/50",
-                              !isEnabled && "opacity-60"
-                            )}>
+                            <div className={cn('p-3 bg-slate-50 dark:bg-slate-800/50', !isEnabled && 'opacity-60')}>
                               {tool.description && (
-                                <Typography 
-                                  variant="body" 
+                                <Typography
+                                  variant="body"
                                   className={cn(
-                                    "mb-2",
-                                    isEnabled 
-                                      ? "text-slate-600 dark:text-slate-300"
-                                      : "text-slate-500 dark:text-slate-400"
+                                    'mb-2',
+                                    isEnabled
+                                      ? 'text-slate-600 dark:text-slate-300'
+                                      : 'text-slate-500 dark:text-slate-400',
                                   )}>
                                   {tool.description}
                                 </Typography>
                               )}
                               <div className="mt-2">
-                                <Typography 
-                                  variant="caption" 
+                                <Typography
+                                  variant="caption"
                                   className={cn(
-                                    "mb-1",
-                                    isEnabled 
-                                      ? "text-slate-500 dark:text-slate-400"
-                                      : "text-slate-400 dark:text-slate-500"
+                                    'mb-1',
+                                    isEnabled
+                                      ? 'text-slate-500 dark:text-slate-400'
+                                      : 'text-slate-400 dark:text-slate-500',
                                   )}>
-                                  Schema
+                                  {t('Schema', '参数定义 (Schema)')}
                                 </Typography>
-                                <pre className={cn(
-                                  "text-xs p-2 whitespace-pre-wrap max-h-60 overflow-y-auto rounded border",
-                                  isEnabled 
-                                    ? "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
-                                    : "bg-slate-100 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-600"
-                                )}>
+                                <pre
+                                  className={cn(
+                                    'text-xs p-2 whitespace-pre-wrap max-h-60 overflow-y-auto rounded border',
+                                    isEnabled
+                                      ? 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                                      : 'bg-slate-100 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-600',
+                                  )}>
                                   {(() => {
                                     try {
                                       const schema = (tool as any).schema || (tool as any).input_schema;
-                                      if (!schema) return 'No schema available';
+                                      if (!schema) return t('No schema available', '无参数定义');
 
                                       const schemaObject = typeof schema === 'string' ? JSON.parse(schema) : schema;
                                       return JSON.stringify(schemaObject, null, 2);
                                     } catch (error) {
                                       logger.error('Error processing tool schema:', error);
                                       const schema = (tool as any).schema || (tool as any).input_schema;
-                                      return typeof schema === 'string' ? schema : 'Invalid schema format';
+                                      return typeof schema === 'string'
+                                        ? schema
+                                        : t('Invalid schema format', '参数定义格式无效');
                                     }
                                   })()}
                                 </pre>
