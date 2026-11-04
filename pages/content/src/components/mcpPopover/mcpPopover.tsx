@@ -8,6 +8,7 @@ import { AutomationService } from '../../services/automation.service';
 import { createLogger } from '@extension/shared/lib/logger';
 import { getExtensionAssetUrl } from '../../utils/extensionUrl';
 import { MCPPopoverErrorBoundary } from './MCPPopoverErrorBoundary';
+import { useLanguage } from '../../utils/i18n';
 
 const logger = createLogger('mcpPopover');
 const mcpIconUrl = getExtensionAssetUrl('icon-34.png') || undefined;
@@ -627,6 +628,7 @@ const ToggleItem: React.FC<ToggleItemProps> = ({ id, label, checked, disabled, o
 
 const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adapterButtonConfig, adapterName }) => {
   const isDarkMode = useThemeDetector();
+  const { isZh, toggleLanguage, t } = useLanguage();
 
   // Use Zustand hooks for adapter and user preferences
   const { plugin: activePlugin, insertText, attachFile, isReady: isAdapterActive } = useCurrentAdapter();
@@ -1174,6 +1176,47 @@ const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adap
     </>
   );
 
+  const getCopyButtonLabel = () => {
+    switch (copyStatus) {
+      case 'Copied!':
+        return t('Copied!', '已复制！');
+      case 'Error':
+        return t('Error', '复制失败');
+      default:
+        return t('Copy', '复制');
+    }
+  };
+
+  const getInsertButtonLabel = () => {
+    switch (insertStatus) {
+      case 'Inserted!':
+        return t('Inserted!', '已插入！');
+      case 'No Adapter':
+        return t('No Adapter', '无适配器');
+      case 'No Content':
+        return t('No Content', '无内容');
+      case 'Failed':
+        return t('Failed', '插入失败');
+      default:
+        return t('Insert', '插入');
+    }
+  };
+
+  const getAttachButtonLabel = () => {
+    switch (attachStatus) {
+      case 'Attached!':
+        return t('Attached!', '已添加！');
+      case 'No File':
+        return t('No File', '无文件');
+      case 'Not Supported':
+        return t('Not Supported', '不支持附件');
+      case 'Error':
+        return t('Error', '添加失败');
+      default:
+        return t('Attach', '添加附件');
+    }
+  };
+
   return (
     <div className="mcp-popover-container" ref={containerRef}>
       <div
@@ -1182,8 +1225,16 @@ const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adap
         onMouseLeave={handleMouseLeave}>
         <button
           className={buttonClassName}
-          aria-label={`MCP Settings - ${state.mcpEnabled ? 'Active' : 'Inactive'}`}
-          title={`MCP Settings - ${state.mcpEnabled ? 'Sidebar Visible' : 'Sidebar Hidden'}`}
+          aria-label={
+            isZh
+              ? `MCP 设置 - ${state.mcpEnabled ? '已启用' : '未启用'}`
+              : `MCP Settings - ${state.mcpEnabled ? 'Active' : 'Inactive'}`
+          }
+          title={
+            isZh
+              ? `MCP 设置 - ${state.mcpEnabled ? '侧边栏可见' : '侧边栏已隐藏'}`
+              : `MCP Settings - ${state.mcpEnabled ? 'Sidebar Visible' : 'Sidebar Hidden'}`
+          }
           type="button"
           ref={buttonRef}
           onClick={() => setIsPopoverOpen(!isPopoverOpen)}>
@@ -1203,26 +1254,30 @@ const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adap
               left: `${hoverOverlayPosition.x}px`,
               top: `${hoverOverlayPosition.y}px`,
             }}>
-            <button className="mcp-hover-button" onClick={handleInsert} title="Insert instructions" type="button">
+            <button
+              className="mcp-hover-button"
+              onClick={handleInsert}
+              title={t('Insert instructions', '插入提示词指令')}
+              type="button">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
                 <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
               </svg>
-              Insert
+              {t('Insert', '插入指令')}
             </button>
             <button
               className="mcp-hover-button"
               onClick={handleAttach}
-              title="Attach instructions as file"
+              title={t('Attach instructions as file', '将提示词作为附件上传')}
               type="button">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
                 <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z" />
               </svg>
-              Attach
+              {t('Attach', '添加附件')}
             </button>
             <button
               className="mcp-hover-button"
               onClick={handleToggleSidebar}
-              title={isSidebarVisible ? 'Hide sidebar' : 'Show sidebar'}
+              title={isSidebarVisible ? t('Hide sidebar', '隐藏侧边栏') : t('Show sidebar', '显示侧边栏')}
               type="button">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
                 {isSidebarVisible ? (
@@ -1233,17 +1288,17 @@ const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adap
                   <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
                 )}
               </svg>
-              {isSidebarVisible ? 'Hide Sidebar' : 'Show Sidebar'}
+              {isSidebarVisible ? t('Hide Sidebar', '隐藏侧边栏') : t('Show Sidebar', '显示侧边栏')}
             </button>
             <button
               className="mcp-hover-button"
               onClick={() => setIsPopoverOpen(!isPopoverOpen)}
-              title="Configure MCP settings"
+              title={t('Configure MCP settings', '配置 MCP 设置')}
               type="button">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
                 <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.82,11.69,4.82,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z" />
               </svg>
-              Configure
+              {t('Configure', '配置')}
             </button>
           </div>,
           document.body,
@@ -1268,8 +1323,8 @@ const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adap
           <button
             className="mcp-close-button"
             onClick={() => setIsPopoverOpen(false)}
-            aria-label="Close"
-            title="Close"
+            aria-label={t('Close', '关闭')}
+            title={t('Close', '关闭')}
             type="button"
             style={{
               color: theme.secondaryText,
@@ -1291,21 +1346,21 @@ const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adap
             <ToggleItem id="mcp-toggle" label="MCP" checked={state.mcpEnabled} disabled={false} onChange={handleMCP} />
             <ToggleItem
               id="auto-insert-toggle"
-              label="Auto Insert"
+              label={t('Auto Insert', '自动插入')}
               checked={state.autoInsert}
               disabled={autoInsertDisabled}
               onChange={handleAutoInsert}
             />
             <ToggleItem
               id="auto-submit-toggle"
-              label="Auto Submit"
+              label={t('Auto Submit', '自动提交')}
               checked={state.autoSubmit}
               disabled={autoSubmitDisabled}
               onChange={handleAutoSubmit}
             />
             <ToggleItem
               id="auto-execute-toggle"
-              label="Auto Execute"
+              label={t('Auto Execute', '自动执行')}
               checked={state.autoExecute}
               disabled={autoExecuteDisabled}
               onChange={handleAutoExecute}
@@ -1324,15 +1379,39 @@ const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adap
             }}>
             <div
               style={{
-                fontWeight: '600',
-                fontSize: 16,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
                 marginBottom: 16,
-                letterSpacing: 0.5,
-                color: theme.primaryText,
-                paddingBottom: 4,
+                paddingBottom: 6,
+                paddingRight: 28,
                 borderBottom: `1px solid ${theme.dividerColor}`,
               }}>
-              Instructions
+              <span
+                style={{
+                  fontWeight: '600',
+                  fontSize: 16,
+                  letterSpacing: 0.5,
+                  color: theme.primaryText,
+                }}>
+                {t('Instructions', '指令提示词')}
+              </span>
+              <button
+                type="button"
+                onClick={toggleLanguage}
+                title={t('Switch to Chinese (切换到中文)', '切换到英文 (Switch to English)')}
+                style={{
+                  padding: '3px 8px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  borderRadius: 6,
+                  border: `1px solid ${theme.borderColor}`,
+                  background: theme.secondaryBackground,
+                  color: theme.primaryText,
+                  cursor: 'pointer',
+                }}>
+                {isZh ? 'EN' : '中文'}
+              </button>
             </div>
             <div
               className="mcp-instructions-container"
@@ -1359,7 +1438,9 @@ const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adap
                     padding: '10px',
                     textAlign: 'center',
                   }}>
-                  {!instructionsState.instructions ? 'Loading instructions...' : 'Generating instructions...'}
+                  {!instructionsState.instructions
+                    ? t('Loading instructions...', '正在加载指令提示词...')
+                    : t('Generating instructions...', '正在生成指令提示词...')}
                 </div>
               )}
             </div>
@@ -1390,7 +1471,7 @@ const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adap
                 onMouseEnter={e => (e.currentTarget.style.background = theme.buttonBackground)}
                 onMouseLeave={e => (e.currentTarget.style.background = theme.secondaryBackground)}
                 type="button">
-                {copyStatus}
+                {getCopyButtonLabel()}
               </button>
               <button
                 className="mcp-instruction-btn"
@@ -1409,7 +1490,7 @@ const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adap
                 onMouseEnter={e => (e.currentTarget.style.background = theme.buttonBackground)}
                 onMouseLeave={e => (e.currentTarget.style.background = theme.secondaryBackground)}
                 type="button">
-                {insertStatus}
+                {getInsertButtonLabel()}
               </button>
               <button
                 className="mcp-instruction-btn"
@@ -1428,7 +1509,7 @@ const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adap
                 onMouseEnter={e => (e.currentTarget.style.background = theme.buttonBackground)}
                 onMouseLeave={e => (e.currentTarget.style.background = theme.secondaryBackground)}
                 type="button">
-                {attachStatus}
+                {getAttachButtonLabel()}
               </button>
             </div>
           </div>

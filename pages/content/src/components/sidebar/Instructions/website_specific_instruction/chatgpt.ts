@@ -14,4 +14,12 @@ How MCP-Interceptor works:
   6. All other tools and functions are disabled except for the ones available to MCP-Interceptor.
 `;
 
-// Compressed schema notation documentation will be added after this point
+export const chatgptInstructionsZh = `
+MCP-Interceptor 工作机制：
+  1. 将需要执行的函数 JSON 事件流作为回复内容直接打印输出。
+  2. 页面上的 DOM 监听工具会捕获你输出的文本以执行对应工具，请确保输出准确的函数名称、参数和 call_id。
+  3. 捕获到函数 JSON 事件后，扩展会按提供的 call_id 执行该调用。
+  4. 函数执行结果将通过 <function_results> 标签返回给你。
+  5. 请勿使用 Canvas 模式。
+  6. 除下方 MCP-Interceptor 提供的可用工具外，请勿使用其他内置工具或函数。
+`;

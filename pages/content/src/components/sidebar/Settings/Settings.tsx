@@ -5,6 +5,7 @@ import { Typography } from '../ui';
 import { AutomationService } from '@src/services/automation.service';
 import { cn } from '@src/lib/utils';
 import { createLogger } from '@extension/shared/lib/logger';
+import { useLanguage, type AppLanguage } from '@src/utils/i18n';
 
 // Default delay values in seconds
 
@@ -18,6 +19,7 @@ const DEFAULT_DELAYS = {
 
 const Settings: React.FC = () => {
   const { preferences, updatePreferences } = useUserPreferences();
+  const { language, setLanguage, t } = useLanguage();
 
   // Handle delay input changes
   const handleDelayChange = (type: 'autoInsert' | 'autoSubmit' | 'autoExecute', value: string) => {
@@ -67,7 +69,44 @@ const Settings: React.FC = () => {
       <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
         <CardContent className="p-4">
           <Typography variant="h4" className="mb-4 text-slate-700 dark:text-slate-300">
-            Automation Delay Settings
+            {t('Language Settings', '语言设置')}
+          </Typography>
+
+          <div>
+            <label
+              htmlFor="app-language-select"
+              className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
+            >
+              {t('Interface & Prompt Language', '界面与提示词语言')}
+            </label>
+            <select
+              id="app-language-select"
+              value={language}
+              onChange={e => setLanguage(e.target.value as AppLanguage)}
+              className={cn(
+                'w-full p-2 text-sm border rounded-md',
+                'bg-white dark:bg-slate-900',
+                'border-slate-300 dark:border-slate-600',
+                'text-slate-900 dark:text-slate-100',
+              )}
+            >
+              <option value="en">English</option>
+              <option value="zh">简体中文</option>
+            </select>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              {t(
+                'Switches UI labels, status messages, and generated MCP prompt instructions.',
+                '同时切换侧边栏、MCP 弹窗界面文案及自动生成的 MCP 提示词语言。',
+              )}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+        <CardContent className="p-4">
+          <Typography variant="h4" className="mb-4 text-slate-700 dark:text-slate-300">
+            {t('Automation Delay Settings', '自动化延迟设置')}
           </Typography>
           
           <div className="space-y-4">
@@ -77,7 +116,7 @@ const Settings: React.FC = () => {
                 htmlFor="auto-insert-delay"
                 className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
               >
-                Auto Insert Delay (seconds)
+                {t('Auto Insert Delay (seconds)', '自动插入延迟（秒）')}
               </label>
               <input
                 id="auto-insert-delay"
@@ -94,7 +133,7 @@ const Settings: React.FC = () => {
                 )}
               />
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Delay before auto-inserting content
+                {t('Delay before auto-inserting content', '工具执行完成后自动插入结果到输入框前的等待时间')}
               </p>
             </div>
 
@@ -104,7 +143,7 @@ const Settings: React.FC = () => {
                 htmlFor="auto-submit-delay"
                 className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
               >
-                Auto Submit Delay (seconds)
+                {t('Auto Submit Delay (seconds)', '自动提交延迟（秒）')}
               </label>
               <input
                 id="auto-submit-delay"
@@ -121,7 +160,7 @@ const Settings: React.FC = () => {
                 )}
               />
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Delay before auto-submitting form
+                {t('Delay before auto-submitting form', '自动插入结果后自动发送消息前的等待时间')}
               </p>
             </div>
 
@@ -131,7 +170,7 @@ const Settings: React.FC = () => {
                 htmlFor="auto-execute-delay"
                 className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
               >
-                Auto Execute Delay (seconds)
+                {t('Auto Execute Delay (seconds)', '自动执行延迟（秒）')}
               </label>
               <input
                 id="auto-execute-delay"
@@ -148,7 +187,7 @@ const Settings: React.FC = () => {
                 )}
               />
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Delay before auto-executing functions
+                {t('Delay before auto-executing functions', '检测到工具调用后自动执行前的等待时间')}
               </p>
             </div>
           </div>

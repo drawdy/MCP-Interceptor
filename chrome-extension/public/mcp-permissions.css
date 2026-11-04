@@ -34,6 +34,30 @@ body {
   margin-bottom: 22px;
 }
 
+.header-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.lang-toggle {
+  width: auto;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid #cbd2dc;
+  border-radius: 6px;
+  background: #fff;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.lang-toggle:hover {
+  background: #eff4ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
 .header img {
   flex: 0 0 auto;
   border-radius: 8px;
@@ -152,6 +176,16 @@ footer {
     background: #161b22;
     border-color: #303a47;
     color: #e6edf3;
+  }
+  .lang-toggle {
+    background: #1f2630;
+    border-color: #303a47;
+    color: #e6edf3;
+  }
+  .lang-toggle:hover {
+    background: #1e3a8a;
+    border-color: #3b82f6;
+    color: #93c5fd;
   }
   .header p,
   .muted,

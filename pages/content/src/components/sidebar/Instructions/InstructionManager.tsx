@@ -8,6 +8,7 @@ import { Typography } from '../ui';
 import { cn } from '@src/lib/utils';
 import { logMessage } from '@src/utils/helpers';
 import { createLogger } from '@extension/shared/lib/logger';
+import { useLanguage } from '@src/utils/i18n';
 
 // Create a global shared state for instructions
 
@@ -108,6 +109,7 @@ const InstructionManager: React.FC<InstructionManagerProps> = ({ adapter, tools 
   // Use Zustand hooks for user preferences and tool enablement
   const { preferences, updatePreferences } = useUserPreferences();
   const { enabledTools: enabledToolsSet, isToolEnabled } = useToolEnablement();
+  const { language, t } = useLanguage();
 
   const [instructions, setInstructions] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -162,8 +164,8 @@ const InstructionManager: React.FC<InstructionManagerProps> = ({ adapter, tools 
     //   return generateInstructions(enabledTools, customInstructions, customInstructionsEnabled);
     // }
 
-    return generateInstructionsJson(enabledTools, customInstructions, customInstructionsEnabled);
-  }, [enabledTools, customInstructions, customInstructionsEnabled]);
+    return generateInstructionsJson(enabledTools, customInstructions, customInstructionsEnabled, language);
+  }, [enabledTools, customInstructions, customInstructionsEnabled, language]);
 
   // Memoize the actual current instructions to prevent unnecessary re-calculations
   const currentInstructions = useMemo(() => {
@@ -364,7 +366,7 @@ const InstructionManager: React.FC<InstructionManagerProps> = ({ adapter, tools 
         <div className="p-3 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <Typography variant="h4" className="text-slate-700 dark:text-slate-300">
-              Custom Instructions
+              {t('Custom Instructions', '自定义指令')}
             </Typography>
             <label className="flex items-center gap-1.5">
               <input
@@ -373,20 +375,20 @@ const InstructionManager: React.FC<InstructionManagerProps> = ({ adapter, tools 
                 onChange={e => handleCustomInstructionsToggle(e.target.checked)}
                 className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
               />
-              <span className="text-xs text-slate-600 dark:text-slate-400">Enable</span>
+              <span className="text-xs text-slate-600 dark:text-slate-400">{t('Enable', '启用')}</span>
             </label>
           </div>
           <div className="flex items-center gap-1.5">
             {isEditingCustom ? (
               <>
-                <ActionButton onClick={handleCustomInstructionsSave} color="green" label="Save" />
-                <ActionButton onClick={handleCustomInstructionsCancel} color="red" label="Cancel" />
+                <ActionButton onClick={handleCustomInstructionsSave} color="green" label={t('Save', '保存')} />
+                <ActionButton onClick={handleCustomInstructionsCancel} color="red" label={t('Cancel', '取消')} />
               </>
             ) : (
               <ActionButton
                 onClick={() => setIsEditingCustom(true)}
                 color="blue"
-                label="Edit"
+                label={t('Edit', '编辑')}
                 disabled={!customInstructionsEnabled}
               />
             )}
@@ -398,7 +400,7 @@ const InstructionManager: React.FC<InstructionManagerProps> = ({ adapter, tools 
             <textarea
               value={customInstructions}
               onChange={e => setCustomInstructions(e.target.value)}
-              placeholder="Enter your custom instructions here..."
+              placeholder={t('Enter your custom instructions here...', '在此输入自定义指令...')}
               className="w-full h-32 p-2 text-sm border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200"
             />
           ) : (
@@ -409,7 +411,9 @@ const InstructionManager: React.FC<InstructionManagerProps> = ({ adapter, tools 
                 </pre>
               ) : (
                 <div className="text-xs text-slate-500 dark:text-slate-400 italic p-3">
-                  {customInstructionsEnabled ? 'No custom instructions set' : 'Custom instructions disabled'}
+                  {customInstructionsEnabled
+                    ? t('No custom instructions set', '暂未设置自定义指令')
+                    : t('Custom instructions disabled', '自定义指令未启用')}
                 </div>
               )}
             </div>
@@ -421,39 +425,17 @@ const InstructionManager: React.FC<InstructionManagerProps> = ({ adapter, tools 
       <div className="rounded-lg bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-800 sidebar-card">
         <div className="p-3 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
           <Typography variant="h4" className="text-slate-700 dark:text-slate-300">
-            Instructions
+            {t('Instructions', '指令提示词')}
           </Typography>
           <div className="flex items-center gap-1.5">
             {isEditing ? (
               <>
-                <ActionButton onClick={handleSave} color="green" label="Save" />
-                <ActionButton onClick={handleCancel} color="red" label="Cancel" />
+                <ActionButton onClick={handleSave} color="green" label={t('Save', '保存')} />
+                <ActionButton onClick={handleCancel} color="red" label={t('Cancel', '取消')} />
               </>
             ) : (
               <>
-                <ActionButton onClick={() => setIsEditing(true)} color="blue" label="Edit" />
-                {/* <ActionButton 
-                  onClick={handleCopyToClipboard} 
-                  loading={isCopying}
-                  success={copySuccess}
-                  color="amber" 
-                  label="Copy" 
-                />
-                <ActionButton 
-                  onClick={handleInsertInChat} 
-                  loading={isInserting}
-                  success={insertSuccess}
-                  color="green" 
-                  label="Insert" 
-                />
-                <ActionButton 
-                  onClick={handleAttachAsFile} 
-                  loading={isAttaching}
-                  success={attachSuccess}
-                  disabled={!adapter.supportsFileUpload()} 
-                  color="purple" 
-                  label="Attach" 
-                /> */}
+                <ActionButton onClick={() => setIsEditing(true)} color="blue" label={t('Edit', '编辑')} />
               </>
             )}
           </div>
