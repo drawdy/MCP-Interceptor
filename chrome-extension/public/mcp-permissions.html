@@ -44,6 +44,17 @@
       <button id="grant-connect" type="button" disabled>Grant access and connect</button>
       <p id="status" class="status" role="status" aria-live="polite"> Loading server configuration… </p>
 
+      <section class="sites-section">
+        <div class="sites-header">
+          <span id="label-sites-title" class="eyebrow">ENABLED WEBSITES</span>
+          <span id="sites-summary" class="muted"></span>
+        </div>
+        <p id="sites-desc" class="muted">
+          Disable on websites where you don't need MCP tools (e.g., chatgpt.com) to avoid interference.
+        </p>
+        <div id="sites-list" class="sites-list"></div>
+      </section>
+
       <footer id="footer-note">
         On supported AI chat pages, this extension reads visible responses to detect tool calls. Tool names and
         arguments are sent only to the MCP server configured here; results can be inserted into the chat. Chrome grants

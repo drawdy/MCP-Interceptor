@@ -10,9 +10,46 @@
   const labelTransport = document.getElementById('label-transport');
   const proxyDocHint = document.getElementById('proxy-doc-hint');
   const footerNote = document.getElementById('footer-note');
+  const labelSitesTitle = document.getElementById('label-sites-title');
+  const sitesSummary = document.getElementById('sites-summary');
+  const sitesDesc = document.getElementById('sites-desc');
+  const sitesListElement = document.getElementById('sites-list');
 
   let connectionType = 'sse';
   let currentLang = 'en';
+  let disabledSites = [];
+  let activeTabSiteId = '';
+
+  const SUPPORTED_SITES = [
+    { id: 'chatgpt.com', labelEn: 'ChatGPT (chatgpt.com)', labelZh: 'ChatGPT (chatgpt.com)', hosts: ['chatgpt.com', 'chat.openai.com'] },
+    { id: 'gemini.google.com', labelEn: 'Google Gemini (gemini.google.com)', labelZh: 'Google Gemini (gemini.google.com)', hosts: ['gemini.google.com'] },
+    { id: 'aistudio.google.com', labelEn: 'Google AI Studio (aistudio.google.com)', labelZh: 'Google AI Studio (aistudio.google.com)', hosts: ['aistudio.google.com'] },
+    { id: 'chat.deepseek.com', labelEn: 'DeepSeek (chat.deepseek.com)', labelZh: 'DeepSeek (chat.deepseek.com)', hosts: ['chat.deepseek.com'] },
+    { id: 'perplexity.ai', labelEn: 'Perplexity (perplexity.ai)', labelZh: 'Perplexity (perplexity.ai)', hosts: ['perplexity.ai'] },
+    { id: 'grok.com', labelEn: 'Grok (grok.com / x.com)', labelZh: 'Grok (grok.com / x.com)', hosts: ['grok.com', 'x.com', 'twitter.com'] },
+    { id: 'kimi.com', labelEn: 'Kimi (kimi.com)', labelZh: 'Kimi (kimi.com)', hosts: ['kimi.com'] },
+    { id: 'chat.qwen.ai', labelEn: 'Qwen Chat (chat.qwen.ai)', labelZh: '通义千问 Qwen (chat.qwen.ai)', hosts: ['chat.qwen.ai'] },
+    { id: 'chat.z.ai', labelEn: 'Z.ai / GLM (chat.z.ai)', labelZh: '智谱 Z.ai (chat.z.ai)', hosts: ['chat.z.ai', 'z.ai'] },
+    { id: 'openrouter.ai', labelEn: 'OpenRouter (openrouter.ai)', labelZh: 'OpenRouter (openrouter.ai)', hosts: ['openrouter.ai'] },
+    { id: 'chat.mistral.ai', labelEn: 'Mistral Chat (chat.mistral.ai)', labelZh: 'Mistral Chat (chat.mistral.ai)', hosts: ['chat.mistral.ai'] },
+    { id: 't3.chat', labelEn: 'T3 Chat (t3.chat)', labelZh: 'T3 Chat (t3.chat)', hosts: ['t3.chat'] },
+    { id: 'github.com/copilot', labelEn: 'GitHub Copilot (github.com/copilot)', labelZh: 'GitHub Copilot (github.com/copilot)', hosts: ['copilot.github.com', 'github.com'] },
+    { id: 'kagi.com', labelEn: 'Kagi (kagi.com)', labelZh: 'Kagi (kagi.com)', hosts: ['kagi.com'] },
+  ];
+
+  function resolveSiteId(hostname) {
+    const raw = (hostname || '').trim().toLowerCase().replace(/^www\./, '');
+    if (!raw) return '';
+    for (const site of SUPPORTED_SITES) {
+      if (site.id === raw) return site.id;
+      for (const h of site.hosts) {
+        if (raw === h || raw.endsWith('.' + h)) {
+          return site.id;
+        }
+      }
+    }
+    return raw;
+  }
 
   const I18N = {
     en: {
@@ -45,6 +82,13 @@
       statusConnected: 'Connected. You can close this window and return to your AI chat.',
       statusUnreachable:
         'Permission granted, but the MCP server is not reachable. Check the URL and server status.',
+      sitesTitle: 'WEBSITE ACCESS',
+      sitesDesc:
+        "Disable on websites where you don't need MCP tools (e.g., chatgpt.com) to avoid interference.",
+      sitesSummary: (enabled, total) => `${enabled}/${total} enabled`,
+      currentBadge: 'Current',
+      enabledBtn: 'Enabled',
+      disabledBtn: 'Disabled',
     },
     zh: {
       toggleLabel: 'EN',
@@ -75,6 +119,12 @@
       errStartConnection: '无法启动 MCP 连接。',
       statusConnected: '已成功连接！您可以关闭此窗口并返回 AI 对话页面。',
       statusUnreachable: '权限已授予，但无法连接到 MCP 服务器，请检查 URL 与服务运行状态。',
+      sitesTitle: '网站启用管理',
+      sitesDesc: '可在不需要 MCP 工具的网站（如 chatgpt.com）禁用插件，避免界面与功能干扰。',
+      sitesSummary: (enabled, total) => `已启用 ${enabled}/${total}`,
+      currentBadge: '当前页面',
+      enabledBtn: '已启用',
+      disabledBtn: '已禁用',
     },
   };
 
@@ -94,6 +144,8 @@
     if (labelTransport) labelTransport.textContent = d.transport;
     if (grantButton) grantButton.textContent = d.grantConnect;
     if (footerNote) footerNote.textContent = d.footer;
+    if (labelSitesTitle) labelSitesTitle.textContent = d.sitesTitle;
+    if (sitesDesc) sitesDesc.textContent = d.sitesDesc;
     if (proxyDocHint) {
       proxyDocHint.textContent = '';
       proxyDocHint.appendChild(document.createTextNode(d.docPrefix));
@@ -105,6 +157,69 @@
       a.textContent = d.docLinkText;
       proxyDocHint.appendChild(a);
       proxyDocHint.appendChild(document.createTextNode(d.docSuffix));
+    }
+    renderSitesList();
+  }
+
+  function renderSitesList() {
+    if (!sitesListElement) return;
+    const d = dict();
+    sitesListElement.textContent = '';
+
+    const disabledSet = new Set(disabledSites.map(resolveSiteId));
+    const enabledCount = SUPPORTED_SITES.filter(s => !disabledSet.has(s.id)).length;
+    if (sitesSummary) {
+      sitesSummary.textContent = d.sitesSummary(enabledCount, SUPPORTED_SITES.length);
+    }
+
+    // Sort so activeTabSiteId appears at the top if matched
+    const sortedSites = [...SUPPORTED_SITES].sort((a, b) => {
+      if (a.id === activeTabSiteId && b.id !== activeTabSiteId) return -1;
+      if (b.id === activeTabSiteId && a.id !== activeTabSiteId) return 1;
+      return 0;
+    });
+
+    for (const site of sortedSites) {
+      const isEnabled = !disabledSet.has(site.id);
+      const isCurrent = site.id === activeTabSiteId;
+
+      const row = document.createElement('div');
+      row.className = 'site-row' + (isCurrent ? ' current' : '');
+
+      const nameWrap = document.createElement('div');
+      nameWrap.className = 'site-name';
+      nameWrap.textContent = currentLang === 'zh' ? site.labelZh : site.labelEn;
+
+      if (isCurrent) {
+        const badge = document.createElement('span');
+        badge.className = 'site-badge';
+        badge.textContent = d.currentBadge;
+        nameWrap.appendChild(badge);
+      }
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'site-switch ' + (isEnabled ? 'enabled' : 'disabled');
+      btn.textContent = isEnabled ? d.enabledBtn : d.disabledBtn;
+      btn.addEventListener('click', async () => {
+        const nextSet = new Set(disabledSites.map(resolveSiteId));
+        if (isEnabled) {
+          nextSet.add(site.id);
+        } else {
+          nextSet.delete(site.id);
+        }
+        disabledSites = Array.from(nextSet);
+        renderSitesList();
+        try {
+          await chrome.storage.local.set({ mcpDisabledSites: disabledSites });
+        } catch {
+          // Ignore storage error
+        }
+      });
+
+      row.appendChild(nameWrap);
+      row.appendChild(btn);
+      sitesListElement.appendChild(row);
     }
   }
 
@@ -185,11 +300,31 @@
 
   async function loadConfiguration() {
     try {
-      const stored = await chrome.storage.local.get(['mcpServerUrl', 'mcpConnectionType', 'mcpLanguage']);
+      if (chrome.tabs && typeof chrome.tabs.query === 'function') {
+        try {
+          const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (tabs && tabs[0] && tabs[0].url) {
+            const tabUrl = new URL(tabs[0].url);
+            activeTabSiteId = resolveSiteId(tabUrl.hostname);
+          }
+        } catch {
+          // Ignore tab URL read error
+        }
+      }
+
+      const stored = await chrome.storage.local.get([
+        'mcpServerUrl',
+        'mcpConnectionType',
+        'mcpLanguage',
+        'mcpDisabledSites',
+      ]);
       if (stored.mcpLanguage === 'zh' || stored.mcpLanguage === 'en') {
         currentLang = stored.mcpLanguage;
       } else if (navigator.language && navigator.language.toLowerCase().startsWith('zh')) {
         currentLang = 'zh';
+      }
+      if (Array.isArray(stored.mcpDisabledSites)) {
+        disabledSites = stored.mcpDisabledSites.filter(item => typeof item === 'string');
       }
       applyStaticTranslations();
 

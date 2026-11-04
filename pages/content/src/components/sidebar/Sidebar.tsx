@@ -665,74 +665,49 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
       )}
 
       {/* Header - Adjust content based on isMinimized */}
-      <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-4 flex items-center justify-between flex-shrink-0 shadow-sm sidebar-header">
+      <div
+        className={cn(
+          'bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex-shrink-0 shadow-sm sidebar-header',
+          isMinimized ? 'p-3 flex items-center justify-center' : 'px-4 py-3 flex flex-col w-full',
+        )}>
         {!isMinimized ? (
           <>
-            <div className="flex items-center space-x-2">
-              {/* Always show the header content immediately */}
-              <a
-                href="https://github.com/drawdy/MCP-Interceptor"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Visit MCP-Interceptor Repository"
-                className="block">
-                {' '}
-                {/* Make link block for sizing */}
-                <img
-                  src={mcpIconUrl}
-                  alt="MCP Logo"
-                  className="w-8 h-8 rounded-md " // Increase size & add rounded corners
-                />
-              </a>
-              <>
-                {/* Wrap title in link */}
+            {/* Row 1: Logo + Extension Name on the left, Minimize button on the right */}
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center space-x-2.5 min-w-0">
                 <a
                   href="https://github.com/drawdy/MCP-Interceptor"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-slate-800 dark:text-slate-100 hover:text-slate-600 dark:hover:text-slate-300 transition-colors duration-150 no-underline"
-                  aria-label="Visit MCP-Interceptor Repository">
-                  <Typography variant="h4" className="font-semibold">
-                    MCP-Interceptor
-                  </Typography>
+                  aria-label="Visit MCP-Interceptor Repository"
+                  className="block flex-shrink-0">
+                  <img
+                    src={mcpIconUrl}
+                    alt="MCP Logo"
+                    className="w-7 h-7 rounded-md"
+                  />
                 </a>
-                {/* Existing icon link */}
-                <a
-                  href="https://github.com/drawdy/MCP-Interceptor"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="ml-1 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 transition-colors duration-150"
-                  aria-label="Visit MCP-Interceptor Repository">
-                  <Icon name="arrow-up-right" size="xs" className="inline-block align-baseline" />
-                </a>
-              </>
-            </div>
-            <div className="flex items-center space-x-1.5 pr-1">
-              {/* Language Toggle Button */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={toggleLanguage}
-                aria-label={t('Switch to Chinese', '切换为英文')}
-                title={t('Switch to Chinese (切换中文)', '切换为英文 (Switch to English)')}
-                className="h-8 px-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-all duration-200">
-                {isZh ? 'EN' : '中文'}
-              </Button>
-              {/* Theme Toggle Button */}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleThemeToggle}
-                aria-label={t(`Toggle theme (current: ${theme})`, `切换主题（当前：${theme}）`)}
-                title={t(`Toggle theme (current: ${theme})`, `切换主题（当前：${theme}）`)}
-                className="hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all duration-200 hover:scale-105">
-                <Icon
-                  name={getCurrentThemeIcon()}
-                  size="sm"
-                  className="transition-all text-indigo-600 dark:text-indigo-400"
-                />
-                <span className="sr-only">{t('Toggle theme', '切换主题')}</span>
-              </Button>
+                <div className="flex items-center space-x-1 min-w-0">
+                  <a
+                    href="https://github.com/drawdy/MCP-Interceptor"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-slate-800 dark:text-slate-100 hover:text-slate-600 dark:hover:text-slate-300 transition-colors duration-150 no-underline"
+                    aria-label="Visit MCP-Interceptor Repository">
+                    <Typography variant="h4" className="font-bold text-base whitespace-nowrap">
+                      MCP-Interceptor
+                    </Typography>
+                  </a>
+                  <a
+                    href="https://github.com/drawdy/MCP-Interceptor"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors duration-150 flex-shrink-0"
+                    aria-label="Visit MCP-Interceptor Repository">
+                    <Icon name="arrow-up-right" size="xs" className="inline-block" />
+                  </a>
+                </div>
+              </div>
               {/* Minimize Button */}
               <Button
                 variant="ghost"
@@ -740,9 +715,91 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
                 onClick={handleToggleMinimize}
                 aria-label={t('Minimize sidebar', '收起侧边栏')}
                 title={t('Minimize sidebar', '收起侧边栏')}
-                className="hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all duration-200 hover:scale-105">
+                className="h-7 w-7 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all duration-200 hover:scale-105 flex-shrink-0 -mr-1 ml-auto">
                 <Icon name="chevron-right" className="h-4 w-4 text-slate-700 dark:text-slate-300" />
               </Button>
+            </div>
+
+            {/* Row 2: Language Switch & Theme Switch */}
+            <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between w-full text-xs">
+              {/* Language Switch */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                  {t('Language', '语言')}
+                </span>
+                <div className="inline-flex items-center p-0.5 bg-slate-100 dark:bg-slate-700/60 rounded-md border border-slate-200/60 dark:border-slate-600/40">
+                  <button
+                    type="button"
+                    onClick={() => !isZh && toggleLanguage()}
+                    className={cn(
+                      'px-2 py-0.5 text-xs rounded transition-all font-medium',
+                      isZh
+                        ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs font-semibold'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200',
+                    )}>
+                    中文
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => isZh && toggleLanguage()}
+                    className={cn(
+                      'px-2 py-0.5 text-xs rounded transition-all font-medium',
+                      !isZh
+                        ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs font-semibold'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200',
+                    )}>
+                    EN
+                  </button>
+                </div>
+              </div>
+
+              {/* Theme Switch */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                  {t('Theme', '皮肤')}
+                </span>
+                <div className="inline-flex items-center p-0.5 bg-slate-100 dark:bg-slate-700/60 rounded-md border border-slate-200/60 dark:border-slate-600/40">
+                  <button
+                    type="button"
+                    onClick={() => setTheme('light')}
+                    aria-label={t('Light theme', '浅色模式')}
+                    title={t('Light theme', '浅色模式')}
+                    className={cn(
+                      'p-1 text-xs rounded transition-all flex items-center justify-center',
+                      theme === 'light'
+                        ? 'bg-white dark:bg-slate-800 text-amber-500 dark:text-amber-400 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200',
+                    )}>
+                    <Icon name="sun" size="xs" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTheme('dark')}
+                    aria-label={t('Dark theme', '深色模式')}
+                    title={t('Dark theme', '深色模式')}
+                    className={cn(
+                      'p-1 text-xs rounded transition-all flex items-center justify-center',
+                      theme === 'dark'
+                        ? 'bg-white dark:bg-slate-800 text-indigo-400 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200',
+                    )}>
+                    <Icon name="moon" size="xs" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTheme('system')}
+                    aria-label={t('Follow system', '跟随系统')}
+                    title={t('Follow system', '跟随系统')}
+                    className={cn(
+                      'p-1 text-xs rounded transition-all flex items-center justify-center',
+                      theme === 'system'
+                        ? 'bg-white dark:bg-slate-800 text-blue-500 dark:text-blue-400 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200',
+                    )}>
+                    <Icon name="laptop" size="xs" />
+                  </button>
+                </div>
+              </div>
             </div>
           </>
         ) : (

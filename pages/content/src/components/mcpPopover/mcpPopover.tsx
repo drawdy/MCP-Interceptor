@@ -9,6 +9,7 @@ import { createLogger } from '@extension/shared/lib/logger';
 import { getExtensionAssetUrl } from '../../utils/extensionUrl';
 import { MCPPopoverErrorBoundary } from './MCPPopoverErrorBoundary';
 import { useLanguage } from '../../utils/i18n';
+import { useSiteControl } from '../../utils/siteControl';
 
 const logger = createLogger('mcpPopover');
 const mcpIconUrl = getExtensionAssetUrl('icon-34.png') || undefined;
@@ -629,6 +630,7 @@ const ToggleItem: React.FC<ToggleItemProps> = ({ id, label, checked, disabled, o
 const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adapterButtonConfig, adapterName }) => {
   const isDarkMode = useThemeDetector();
   const { isZh, toggleLanguage, t } = useLanguage();
+  const { currentSiteId, setSiteEnabled } = useSiteControl();
 
   // Use Zustand hooks for adapter and user preferences
   const { plugin: activePlugin, insertText, attachFile, isReady: isAdapterActive } = useCurrentAdapter();
@@ -1365,6 +1367,32 @@ const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adap
               disabled={autoExecuteDisabled}
               onChange={handleAutoExecute}
             />
+            {currentSiteId && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPopoverOpen(false);
+                  setSiteEnabled(currentSiteId, false);
+                }}
+                title={t(
+                  `Disable MCP-Interceptor on ${currentSiteId} (re-enable via toolbar icon)`,
+                  `在 ${currentSiteId} 禁用插件（可通过浏览器工具栏图标重新开启）`,
+                )}
+                style={{
+                  marginTop: 'auto',
+                  padding: '8px 10px',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  borderRadius: 8,
+                  border: `1px solid ${theme.borderColor}`,
+                  background: theme.secondaryBackground,
+                  color: isDarkMode ? '#f28b82' : '#d93025',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                }}>
+                {t('Disable on this site', '在此网站禁用')}
+              </button>
+            )}
           </div>
           {/* Instruction panel column */}
           <div

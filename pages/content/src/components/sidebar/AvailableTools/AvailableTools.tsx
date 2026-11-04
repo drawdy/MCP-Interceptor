@@ -284,29 +284,53 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
         
         {isExpanded && (
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
-            <div className="flex items-center gap-2">
-              <Typography variant="small" className="text-slate-600 dark:text-slate-400">
+            <div className="flex items-center mr-2">
+              <Typography variant="small" className="text-slate-600 dark:text-slate-400 whitespace-nowrap flex-shrink-0 text-xs font-medium">
                 {isZh
                   ? `已启用 ${enabledTools.size} / ${totalToolsCount} 个工具`
                   : `${enabledTools.size} of ${totalToolsCount} tools enabled`}
               </Typography>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 flex-shrink-0">
               <Button
                 onClick={handleEnableAll}
                 size="sm"
                 variant="outline"
                 disabled={isRefreshing || isLoadingEnablement || totalToolsCount === 0}
-                className="h-8 px-3 text-xs bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800">
-                {t('Enable All', '全部启用')}
+                aria-label={t('Enable All', '全部启用')}
+                title={t('Enable All', '全部启用')}
+                className="h-auto py-1 px-2.5 text-[11px] leading-tight flex flex-col items-center justify-center text-center bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800 flex-shrink-0 rounded-md">
+                {isZh ? (
+                  <>
+                    <span>全部</span>
+                    <span>启用</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Enable</span>
+                    <span>All</span>
+                  </>
+                )}
               </Button>
               <Button
                 onClick={handleDisableAll}
                 size="sm"
                 variant="outline"
                 disabled={isRefreshing || isLoadingEnablement || totalToolsCount === 0}
-                className="h-8 px-3 text-xs bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800">
-                {t('Disable All', '全部禁用')}
+                aria-label={t('Disable All', '全部禁用')}
+                title={t('Disable All', '全部禁用')}
+                className="h-auto py-1 px-2.5 text-[11px] leading-tight flex flex-col items-center justify-center text-center bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800 flex-shrink-0 rounded-md">
+                {isZh ? (
+                  <>
+                    <span>全部</span>
+                    <span>禁用</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Disable</span>
+                    <span>All</span>
+                  </>
+                )}
               </Button>
               {hasUnsavedChanges && (
                 <>
@@ -314,15 +338,39 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
                     onClick={handleSaveChanges}
                     size="sm"
                     variant="outline"
-                    className="h-8 px-3 text-xs bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800">
-                    {t('Save Changes', '保存更改')}
+                    aria-label={t('Save Changes', '保存更改')}
+                    title={t('Save Changes', '保存更改')}
+                    className="h-auto py-1 px-2.5 text-[11px] leading-tight flex flex-col items-center justify-center text-center bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 flex-shrink-0 rounded-md">
+                    {isZh ? (
+                      <>
+                        <span>保存</span>
+                        <span>更改</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Save</span>
+                        <span>All</span>
+                      </>
+                    )}
                   </Button>
                   <Button
                     onClick={handleDiscardChanges}
                     size="sm"
                     variant="outline"
-                    className="h-8 px-3 text-xs bg-orange-50 hover:bg-orange-100 dark:bg-orange-900/20 dark:hover:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800">
-                    {t('Discard', '放弃')}
+                    aria-label={t('Discard', '放弃更改')}
+                    title={t('Discard', '放弃更改')}
+                    className="h-auto py-1 px-2.5 text-[11px] leading-tight flex flex-col items-center justify-center text-center bg-orange-50 hover:bg-orange-100 dark:bg-orange-900/20 dark:hover:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800 flex-shrink-0 rounded-md">
+                    {isZh ? (
+                      <>
+                        <span>放弃</span>
+                        <span>更改</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Discard</span>
+                        <span>All</span>
+                      </>
+                    )}
                   </Button>
                 </>
               )}
@@ -432,10 +480,10 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
                     {/* Group Header */}
                     <div className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-3">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center">
+                        <div className="flex items-center min-w-0 flex-1 mr-2">
                           <button
                             onClick={() => toggleToolExpansion(serverName)}
-                            className="p-1 mr-2 rounded transition-colors hover:bg-slate-200 dark:hover:bg-slate-700"
+                            className="p-1 mr-1.5 rounded transition-colors hover:bg-slate-200 dark:hover:bg-slate-700 flex-shrink-0"
                             aria-label={groupExpanded ? 'Collapse group' : 'Expand group'}>
                             <Icon
                               name="chevron-right"
@@ -453,16 +501,16 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
                               if (el) el.indeterminate = groupPartiallyEnabled;
                             }}
                             onChange={() => handleToggleGroup(serverName, tools)}
-                            className="w-4 h-4 mr-3 text-blue-600 bg-white border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 focus:ring-2 dark:bg-slate-700 dark:border-slate-600"
+                            className="w-4 h-4 mr-2 text-blue-600 bg-white border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 focus:ring-2 dark:bg-slate-700 dark:border-slate-600 flex-shrink-0"
                           />
-                          <Typography variant="subtitle" className="text-slate-800 dark:text-slate-200 font-semibold">
+                          <Typography variant="subtitle" className="text-slate-800 dark:text-slate-200 font-semibold truncate text-sm">
                             {serverName}
                           </Typography>
-                          <Typography variant="small" className="ml-2 text-slate-500 dark:text-slate-400">
+                          <Typography variant="small" className="ml-1.5 text-slate-500 dark:text-slate-400 whitespace-nowrap flex-shrink-0 text-xs">
                             {isZh ? `（${tools.length} 个工具）` : `(${tools.length} tools)`}
                           </Typography>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-shrink-0">
                           {groupPartiallyEnabled && (
                             <span className="px-2 py-1 text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded">
                               {t('Partial', '部分启用')}
