@@ -208,9 +208,11 @@ async function teardownExtensionForCurrentSite(): Promise<void> {
     document.documentElement.style.removeProperty('--sidebar-width-mcp');
     document.documentElement.style.removeProperty('margin-right');
     document.documentElement.style.removeProperty('width');
-    document.querySelectorAll('.mcp-popover-container, #mcp-popover-portal, #mcp-button-wrapper, #mcp-sidebar-shadow-host').forEach(el => {
-      el.remove();
-    });
+    document
+      .querySelectorAll('.mcp-popover-container, #mcp-popover-portal, #mcp-button-wrapper, #mcp-sidebar-shadow-host')
+      .forEach(el => {
+        el.remove();
+      });
   } catch (error) {
     logger.warn('Error removing residual DOM elements:', error);
   }
@@ -296,7 +298,9 @@ async function startExtensionForCurrentSite(): Promise<void> {
   setCachedCurrentSiteDisabled(currentlyDisabled);
 
   if (currentlyDisabled) {
-    logMessage(`[Content Script] Site ${hostname} (${resolveSiteIdFromHostname(hostname)}) is disabled by user settings.`);
+    logMessage(
+      `[Content Script] Site ${hostname} (${resolveSiteIdFromHostname(hostname)}) is disabled by user settings.`,
+    );
     if (rendererInitialized) {
       await teardownExtensionForCurrentSite();
     }
@@ -316,7 +320,9 @@ if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
       setCachedCurrentSiteDisabled(shouldDisable);
 
       if (shouldDisable && isExtensionActiveOnSite) {
-        teardownExtensionForCurrentSite().catch(err => logger.error('Failed to teardown extension on site disable:', err));
+        teardownExtensionForCurrentSite().catch(err =>
+          logger.error('Failed to teardown extension on site disable:', err),
+        );
       } else if (!shouldDisable && !isExtensionActiveOnSite) {
         if (hasInitializedOnce) {
           // Cleanest way to re-mount all adapters and shadow DOM after a teardown is to reload or start fresh

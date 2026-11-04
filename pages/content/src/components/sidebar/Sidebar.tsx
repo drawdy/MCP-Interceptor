@@ -681,11 +681,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
                   rel="noopener noreferrer"
                   aria-label="Visit MCP-Interceptor Repository"
                   className="block flex-shrink-0">
-                  <img
-                    src={mcpIconUrl}
-                    alt="MCP Logo"
-                    className="w-7 h-7 rounded-md"
-                  />
+                  <img src={mcpIconUrl} alt="MCP Logo" className="w-7 h-7 rounded-md" />
                 </a>
                 <div className="flex items-center space-x-1 min-w-0">
                   <a
@@ -724,9 +720,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
             <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between w-full text-xs">
               {/* Language Switch */}
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                  {t('Language', '语言')}
-                </span>
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('Language', '语言')}</span>
                 <div className="inline-flex items-center p-0.5 bg-slate-100 dark:bg-slate-700/60 rounded-md border border-slate-200/60 dark:border-slate-600/40">
                   <button
                     type="button"
@@ -755,9 +749,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
 
               {/* Theme Switch */}
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                  {t('Theme', '皮肤')}
-                </span>
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('Theme', '皮肤')}</span>
                 <div className="inline-flex items-center p-0.5 bg-slate-100 dark:bg-slate-700/60 rounded-md border border-slate-200/60 dark:border-slate-600/40">
                   <button
                     type="button"
@@ -844,7 +836,10 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
                               'The extension was reloaded. Please refresh this page to restore full functionality.',
                               '扩展已重新加载，请刷新当前页面以恢复完整功能。',
                             )
-                          : t(`Some features may be limited: ${initializationError}`, `部分功能可能受限：${initializationError}`)}
+                          : t(
+                              `Some features may be limited: ${initializationError}`,
+                              `部分功能可能受限：${initializationError}`,
+                            )}
                       </Typography>
                       {extensionContextInvalid && (
                         <div className="mt-2">

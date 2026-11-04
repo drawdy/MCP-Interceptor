@@ -122,12 +122,17 @@ const InstructionManager: React.FC<InstructionManagerProps> = ({ adapter, tools 
 
   // Custom instructions state - get from preferences
   const [customInstructions, setCustomInstructions] = useState(preferences.customInstructions || '');
-  const [customInstructionsEnabled, setCustomInstructionsEnabled] = useState(preferences.customInstructionsEnabled || false);
+  const [customInstructionsEnabled, setCustomInstructionsEnabled] = useState(
+    preferences.customInstructionsEnabled || false,
+  );
   const [isEditingCustom, setIsEditingCustom] = useState(false);
 
   // Memoize tools to prevent unnecessary regeneration - use deep comparison of tool data
   const toolsSignature = useMemo(() => {
-    return tools.map(tool => `${tool.name}:${tool.description || ''}`).sort().join('|');
+    return tools
+      .map(tool => `${tool.name}:${tool.description || ''}`)
+      .sort()
+      .join('|');
   }, [tools]);
 
   // Memoize enabled tools signature to track changes in tool enablement
@@ -174,7 +179,9 @@ const InstructionManager: React.FC<InstructionManagerProps> = ({ adapter, tools 
 
   // Update instructions when tools or tool enablement changes or custom instructions change
   useEffect(() => {
-    logMessage(`[InstructionManager] Regenerating instructions based on ${enabledTools.length}/${tools.length} enabled tools`);
+    logMessage(
+      `[InstructionManager] Regenerating instructions based on ${enabledTools.length}/${tools.length} enabled tools`,
+    );
     setInstructions(currentInstructions);
     // Force update global state to ensure sync
     instructionsState.setInstructions(currentInstructions);
@@ -182,12 +189,21 @@ const InstructionManager: React.FC<InstructionManagerProps> = ({ adapter, tools 
     return () => {
       logMessage('[InstructionManager] Cleaning up instruction generator effect');
     };
-  }, [toolsSignature, enabledToolsSignature, customInstructionsKey, currentInstructions, enabledTools.length, tools.length]);
+  }, [
+    toolsSignature,
+    enabledToolsSignature,
+    customInstructionsKey,
+    currentInstructions,
+    enabledTools.length,
+    tools.length,
+  ]);
 
   // Force instruction regeneration and global sync when enablement changes
   const forceInstructionUpdate = useCallback(() => {
     const newInstructions = generateCurrentInstructions();
-    logMessage(`[InstructionManager] Force updating instructions based on ${enabledTools.length}/${tools.length} enabled tools`);
+    logMessage(
+      `[InstructionManager] Force updating instructions based on ${enabledTools.length}/${tools.length} enabled tools`,
+    );
     setInstructions(newInstructions);
     // Force global state update
     instructionsState.setInstructions(newInstructions);
@@ -213,7 +229,7 @@ const InstructionManager: React.FC<InstructionManagerProps> = ({ adapter, tools 
   // Enhanced tool enablement change detection using a simpler approach
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
-    
+
     // Create a function to check for changes and update instructions
     const checkAndUpdateInstructions = () => {
       if (tools.length > 0) {
@@ -334,15 +350,18 @@ const InstructionManager: React.FC<InstructionManagerProps> = ({ adapter, tools 
   }, [generateCurrentInstructions]);
 
   // Custom instructions handlers
-  const handleCustomInstructionsToggle = useCallback(async (enabled: boolean) => {
-    setCustomInstructionsEnabled(enabled);
-    try {
-      updatePreferences({ customInstructionsEnabled: enabled });
-      logMessage(`Custom instructions ${enabled ? 'enabled' : 'disabled'}`);
-    } catch (error) {
-      logMessage(`Error saving custom instructions toggle: ${error}`);
-    }
-  }, [updatePreferences]);
+  const handleCustomInstructionsToggle = useCallback(
+    async (enabled: boolean) => {
+      setCustomInstructionsEnabled(enabled);
+      try {
+        updatePreferences({ customInstructionsEnabled: enabled });
+        logMessage(`Custom instructions ${enabled ? 'enabled' : 'disabled'}`);
+      } catch (error) {
+        logMessage(`Error saving custom instructions toggle: ${error}`);
+      }
+    },
+    [updatePreferences],
+  );
 
   const handleCustomInstructionsSave = useCallback(async () => {
     setIsEditingCustom(false);

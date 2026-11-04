@@ -15,20 +15,14 @@ const logger = createLogger('Settings');
 const DEFAULT_DELAYS = {
   autoInsertDelay: 2,
   autoSubmitDelay: 2,
-  autoExecuteDelay: 2
+  autoExecuteDelay: 2,
 } as const;
 
 const Settings: React.FC = () => {
   const { preferences, updatePreferences } = useUserPreferences();
   const { language, isZh, t } = useLanguage();
-  const {
-    currentSiteId,
-    isCurrentSiteEnabled,
-    isSiteEnabled,
-    setSiteEnabled,
-    toggleCurrentSite,
-    supportedSites,
-  } = useSiteControl();
+  const { currentSiteId, isCurrentSiteEnabled, isSiteEnabled, setSiteEnabled, toggleCurrentSite, supportedSites } =
+    useSiteControl();
   const [showAllSites, setShowAllSites] = useState(false);
   const [showSiteHelp, setShowSiteHelp] = useState(false);
 
@@ -36,17 +30,20 @@ const Settings: React.FC = () => {
   const handleDelayChange = (type: 'autoInsert' | 'autoSubmit' | 'autoExecute', value: string) => {
     const delay = Math.max(0, parseInt(value) || 0); // Ensure non-negative integer
     logger.debug(`${type} delay changed to: ${delay}`);
-    
+
     // Update user preferences store with the new delay
     updatePreferences({ [`${type}Delay`]: delay });
 
     // Store in localStorage
     try {
       const storedDelays = JSON.parse(localStorage.getItem('mcpDelaySettings') || '{}');
-      localStorage.setItem('mcpDelaySettings', JSON.stringify({
-        ...storedDelays,
-        [`${type}Delay`]: delay
-      }));
+      localStorage.setItem(
+        'mcpDelaySettings',
+        JSON.stringify({
+          ...storedDelays,
+          [`${type}Delay`]: delay,
+        }),
+      );
     } catch (error) {
       logger.error('[Settings] Error storing delay settings:', error);
     }
@@ -204,14 +201,13 @@ const Settings: React.FC = () => {
           <Typography variant="h4" className="mb-4 text-slate-700 dark:text-slate-300">
             {t('Automation Delay Settings', '自动化延迟设置')}
           </Typography>
-          
+
           <div className="space-y-4">
             {/* Auto Insert Delay */}
             <div>
               <label
                 htmlFor="auto-insert-delay"
-                className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
-              >
+                className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                 {t('Auto Insert Delay (seconds)', '自动插入延迟（秒）')}
               </label>
               <input
@@ -219,13 +215,13 @@ const Settings: React.FC = () => {
                 type="number"
                 min="0"
                 value={preferences.autoInsertDelay || 0}
-                onChange={(e) => handleDelayChange('autoInsert', e.target.value)}
+                onChange={e => handleDelayChange('autoInsert', e.target.value)}
                 disabled={false}
                 className={cn(
-                  "w-full p-2 text-sm border rounded-md",
-                  "bg-white dark:bg-slate-900",
-                  "border-slate-300 dark:border-slate-600",
-                  "text-slate-900 dark:text-slate-100"
+                  'w-full p-2 text-sm border rounded-md',
+                  'bg-white dark:bg-slate-900',
+                  'border-slate-300 dark:border-slate-600',
+                  'text-slate-900 dark:text-slate-100',
                 )}
               />
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -237,8 +233,7 @@ const Settings: React.FC = () => {
             <div>
               <label
                 htmlFor="auto-submit-delay"
-                className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
-              >
+                className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                 {t('Auto Submit Delay (seconds)', '自动提交延迟（秒）')}
               </label>
               <input
@@ -246,13 +241,13 @@ const Settings: React.FC = () => {
                 type="number"
                 min="0"
                 value={preferences.autoSubmitDelay || 0}
-                onChange={(e) => handleDelayChange('autoSubmit', e.target.value)}
+                onChange={e => handleDelayChange('autoSubmit', e.target.value)}
                 disabled={false}
                 className={cn(
-                  "w-full p-2 text-sm border rounded-md",
-                  "bg-white dark:bg-slate-900",
-                  "border-slate-300 dark:border-slate-600",
-                  "text-slate-900 dark:text-slate-100"
+                  'w-full p-2 text-sm border rounded-md',
+                  'bg-white dark:bg-slate-900',
+                  'border-slate-300 dark:border-slate-600',
+                  'text-slate-900 dark:text-slate-100',
                 )}
               />
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -264,8 +259,7 @@ const Settings: React.FC = () => {
             <div>
               <label
                 htmlFor="auto-execute-delay"
-                className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
-              >
+                className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                 {t('Auto Execute Delay (seconds)', '自动执行延迟（秒）')}
               </label>
               <input
@@ -273,13 +267,13 @@ const Settings: React.FC = () => {
                 type="number"
                 min="0"
                 value={preferences.autoExecuteDelay || 0}
-                onChange={(e) => handleDelayChange('autoExecute', e.target.value)}
+                onChange={e => handleDelayChange('autoExecute', e.target.value)}
                 disabled={false}
                 className={cn(
-                  "w-full p-2 text-sm border rounded-md",
-                  "bg-white dark:bg-slate-900",
-                  "border-slate-300 dark:border-slate-600",
-                  "text-slate-900 dark:text-slate-100"
+                  'w-full p-2 text-sm border rounded-md',
+                  'bg-white dark:bg-slate-900',
+                  'border-slate-300 dark:border-slate-600',
+                  'text-slate-900 dark:text-slate-100',
                 )}
               />
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">

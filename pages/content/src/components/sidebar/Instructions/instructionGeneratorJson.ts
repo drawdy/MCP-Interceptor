@@ -295,9 +295,7 @@ ClassName | Custom class | User
       }
     } catch (error) {
       // If schema parsing fails, provide a simpler example
-      instructions += isZh
-        ? 'Schema 信息不可用。\n'
-        : 'Schema information not available. No Tools Available';
+      instructions += isZh ? 'Schema 信息不可用。\n' : 'Schema information not available. No Tools Available';
     }
   });
 

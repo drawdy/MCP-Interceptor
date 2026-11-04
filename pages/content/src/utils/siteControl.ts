@@ -237,10 +237,7 @@ export function useSiteControl() {
     });
 
     if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
-      const handleStorageChange = (
-        changes: { [key: string]: chrome.storage.StorageChange },
-        areaName: string,
-      ) => {
+      const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => {
         if (areaName === 'local' && changes[DISABLED_SITES_STORAGE_KEY]) {
           const updated = normalizeDisabledSites(changes[DISABLED_SITES_STORAGE_KEY].newValue);
           if (mounted) {
@@ -293,4 +290,3 @@ export function useSiteControl() {
     supportedSites: SUPPORTED_SITES,
   };
 }
-

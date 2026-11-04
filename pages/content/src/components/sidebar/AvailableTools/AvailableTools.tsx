@@ -9,14 +9,12 @@ import { Card, CardHeader, CardContent } from '@src/components/ui/card';
 import { createLogger } from '@extension/shared/lib/logger';
 import { useLanguage } from '@src/utils/i18n';
 
-
 const logger = createLogger('AvailableTools');
 
 interface ExtendedTool extends Tool {
   displayName?: string;
   originalName?: string;
 }
-
 
 interface AvailableToolsProps {
   tools: Tool[];
@@ -30,7 +28,16 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
   // Use Zustand hooks for tool management
   const { tools: storeTools } = useAvailableTools();
   const { executions, isExecuting } = useToolExecution();
-  const { enabledTools, enableTool, disableTool, enableAllTools, disableAllTools, isToolEnabled, loadToolEnablementState, isLoadingEnablement } = useToolEnablement();
+  const {
+    enabledTools,
+    enableTool,
+    disableTool,
+    enableAllTools,
+    disableAllTools,
+    isToolEnabled,
+    loadToolEnablementState,
+    isLoadingEnablement,
+  } = useToolEnablement();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
@@ -103,14 +110,14 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
       if (dotIndex > 0) {
         const serverName = tool.name.substring(0, dotIndex);
         const toolName = tool.name.substring(dotIndex + 1);
-        
+
         if (!grouped[serverName]) {
           grouped[serverName] = [];
         }
         grouped[serverName].push({
           ...tool,
           displayName: toolName, // Store the short name for display
-          originalName: tool.name // Keep original for functionality
+          originalName: tool.name, // Keep original for functionality
         } as ExtendedTool);
       } else {
         ungrouped.push(tool as ExtendedTool);
@@ -123,11 +130,11 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
         if (!hasUnsavedChanges) {
           const aEnabled = isToolEnabled(a.originalName || a.name);
           const bEnabled = isToolEnabled(b.originalName || b.name);
-          
+
           if (aEnabled && !bEnabled) return -1;
           if (!aEnabled && bEnabled) return 1;
         }
-        
+
         const aName = a.displayName || a.name;
         const bName = b.displayName || b.name;
         return aName.localeCompare(bName);
@@ -139,11 +146,11 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
       if (!hasUnsavedChanges) {
         const aEnabled = isToolEnabled(a.name);
         const bEnabled = isToolEnabled(b.name);
-        
+
         if (aEnabled && !bEnabled) return -1;
         if (!aEnabled && bEnabled) return 1;
       }
-      
+
       return a.name.localeCompare(b.name);
     });
 
@@ -171,7 +178,7 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
       }
       return newPending;
     });
-    
+
     if (isToolEnabled(toolName)) {
       disableTool(toolName);
       logMessage(`[AvailableTools] Tool disabled: ${toolName}`);
@@ -196,7 +203,7 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
         enableTool(toolName);
       }
     });
-    
+
     setHasUnsavedChanges(false);
     setPendingChanges(new Set());
     logMessage('[AvailableTools] Tool changes discarded');
@@ -218,7 +225,7 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
   const handleToggleGroup = (serverName: string, tools: ExtendedTool[]) => {
     setHasUnsavedChanges(true);
     const allEnabled = tools.every(tool => isToolEnabled(tool.originalName || tool.name));
-    
+
     tools.forEach(tool => {
       const toolName = tool.originalName || tool.name;
       if (allEnabled) {
@@ -227,7 +234,7 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
         enableTool(toolName);
       }
     });
-    
+
     logMessage(`[AvailableTools] Group ${serverName} ${allEnabled ? 'disabled' : 'enabled'}`);
   };
 
@@ -281,11 +288,13 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
             />
           </Button>
         </div>
-        
+
         {isExpanded && (
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
             <div className="flex items-center mr-2">
-              <Typography variant="small" className="text-slate-600 dark:text-slate-400 whitespace-nowrap flex-shrink-0 text-xs font-medium">
+              <Typography
+                variant="small"
+                className="text-slate-600 dark:text-slate-400 whitespace-nowrap flex-shrink-0 text-xs font-medium">
                 {isZh
                   ? `已启用 ${enabledTools.size} / ${totalToolsCount} 个工具`
                   : `${enabledTools.size} of ${totalToolsCount} tools enabled`}
@@ -474,9 +483,11 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
                 const groupEnabled = isGroupEnabled(tools);
                 const groupPartiallyEnabled = isGroupPartiallyEnabled(tools);
                 const groupExpanded = expandedTools.has(serverName);
-                
+
                 return (
-                  <div key={serverName} className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                  <div
+                    key={serverName}
+                    className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
                     {/* Group Header */}
                     <div className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-3">
                       <div className="flex items-center justify-between">
@@ -490,23 +501,27 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
                               size="sm"
                               className={cn(
                                 'text-slate-600 dark:text-slate-400 transition-transform',
-                                groupExpanded ? 'rotate-90' : ''
+                                groupExpanded ? 'rotate-90' : '',
                               )}
                             />
                           </button>
                           <input
                             type="checkbox"
                             checked={groupEnabled}
-                            ref={(el) => {
+                            ref={el => {
                               if (el) el.indeterminate = groupPartiallyEnabled;
                             }}
                             onChange={() => handleToggleGroup(serverName, tools)}
                             className="w-4 h-4 mr-2 text-blue-600 bg-white border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 focus:ring-2 dark:bg-slate-700 dark:border-slate-600 flex-shrink-0"
                           />
-                          <Typography variant="subtitle" className="text-slate-800 dark:text-slate-200 font-semibold truncate text-sm">
+                          <Typography
+                            variant="subtitle"
+                            className="text-slate-800 dark:text-slate-200 font-semibold truncate text-sm">
                             {serverName}
                           </Typography>
-                          <Typography variant="small" className="ml-1.5 text-slate-500 dark:text-slate-400 whitespace-nowrap flex-shrink-0 text-xs">
+                          <Typography
+                            variant="small"
+                            className="ml-1.5 text-slate-500 dark:text-slate-400 whitespace-nowrap flex-shrink-0 text-xs">
                             {isZh ? `（${tools.length} 个工具）` : `(${tools.length} tools)`}
                           </Typography>
                         </div>
@@ -533,15 +548,17 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
                           const displayName = tool.displayName || tool.name;
                           const isEnabled = isToolEnabled(toolName);
                           const toolExpanded = expandedTools.has(toolName);
-                          
+
                           return (
-                            <div key={toolName} className="border-b border-slate-100 dark:border-slate-800 last:border-b-0">
+                            <div
+                              key={toolName}
+                              className="border-b border-slate-100 dark:border-slate-800 last:border-b-0">
                               <div
                                 className={cn(
-                                  "flex items-center justify-between p-3 cursor-pointer transition-colors",
-                                  isEnabled 
-                                    ? "hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                                    : "hover:bg-slate-50 dark:hover:bg-slate-800/30 opacity-60"
+                                  'flex items-center justify-between p-3 cursor-pointer transition-colors',
+                                  isEnabled
+                                    ? 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                                    : 'hover:bg-slate-50 dark:hover:bg-slate-800/30 opacity-60',
                                 )}
                                 onClick={() => toggleToolExpansion(toolName)}>
                                 <div className="flex items-center">
@@ -556,22 +573,22 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
                                   <input
                                     type="checkbox"
                                     checked={isEnabled}
-                                    onChange={(e) => {
+                                    onChange={e => {
                                       e.stopPropagation();
                                       handleToggleTool(toolName);
                                     }}
-                                    onClick={(e) => {
+                                    onClick={e => {
                                       e.stopPropagation();
                                     }}
                                     className="w-4 h-4 mr-3 text-blue-600 bg-white border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 focus:ring-2 dark:bg-slate-700 dark:border-slate-600"
                                   />
-                                  <Typography 
-                                    variant="body" 
+                                  <Typography
+                                    variant="body"
                                     className={cn(
-                                      "font-medium transition-colors",
-                                      isEnabled 
-                                        ? "text-slate-800 dark:text-slate-200"
-                                        : "text-slate-500 dark:text-slate-400"
+                                      'font-medium transition-colors',
+                                      isEnabled
+                                        ? 'text-slate-800 dark:text-slate-200'
+                                        : 'text-slate-500 dark:text-slate-400',
                                     )}>
                                     {displayName}
                                   </Typography>
@@ -584,39 +601,37 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
                               </div>
 
                               {toolExpanded && (
-                                <div className={cn(
-                                  "p-3 bg-slate-50 dark:bg-slate-800/50",
-                                  !isEnabled && "opacity-60"
-                                )}>
+                                <div className={cn('p-3 bg-slate-50 dark:bg-slate-800/50', !isEnabled && 'opacity-60')}>
                                   {tool.description && (
-                                    <Typography 
-                                      variant="body" 
+                                    <Typography
+                                      variant="body"
                                       className={cn(
-                                        "mb-2",
-                                        isEnabled 
-                                          ? "text-slate-600 dark:text-slate-300"
-                                          : "text-slate-500 dark:text-slate-400"
+                                        'mb-2',
+                                        isEnabled
+                                          ? 'text-slate-600 dark:text-slate-300'
+                                          : 'text-slate-500 dark:text-slate-400',
                                       )}>
                                       {tool.description}
                                     </Typography>
                                   )}
                                   <div className="mt-2">
-                                    <Typography 
-                                      variant="caption" 
+                                    <Typography
+                                      variant="caption"
                                       className={cn(
-                                        "mb-1",
-                                        isEnabled 
-                                          ? "text-slate-500 dark:text-slate-400"
-                                          : "text-slate-400 dark:text-slate-500"
+                                        'mb-1',
+                                        isEnabled
+                                          ? 'text-slate-500 dark:text-slate-400'
+                                          : 'text-slate-400 dark:text-slate-500',
                                       )}>
                                       {t('Schema', '参数定义 (Schema)')}
                                     </Typography>
-                                    <pre className={cn(
-                                      "text-xs p-2 whitespace-pre-wrap max-h-60 overflow-y-auto rounded border",
-                                      isEnabled 
-                                        ? "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
-                                        : "bg-slate-100 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-600"
-                                    )}>
+                                    <pre
+                                      className={cn(
+                                        'text-xs p-2 whitespace-pre-wrap max-h-60 overflow-y-auto rounded border',
+                                        isEnabled
+                                          ? 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                                          : 'bg-slate-100 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-600',
+                                      )}>
                                       {(() => {
                                         try {
                                           const schema = (tool as any).schema || (tool as any).input_schema;
@@ -660,15 +675,17 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
                     {ungroupedTools.map(tool => {
                       const isEnabled = isToolEnabled(tool.name);
                       const toolExpanded = expandedTools.has(tool.name);
-                      
+
                       return (
-                        <div key={tool.name} className="border-b border-slate-100 dark:border-slate-800 last:border-b-0">
+                        <div
+                          key={tool.name}
+                          className="border-b border-slate-100 dark:border-slate-800 last:border-b-0">
                           <div
                             className={cn(
-                              "flex items-center justify-between p-3 cursor-pointer transition-colors",
-                              isEnabled 
-                                ? "hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                                : "hover:bg-slate-50 dark:hover:bg-slate-800/30 opacity-60"
+                              'flex items-center justify-between p-3 cursor-pointer transition-colors',
+                              isEnabled
+                                ? 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                                : 'hover:bg-slate-50 dark:hover:bg-slate-800/30 opacity-60',
                             )}
                             onClick={() => toggleToolExpansion(tool.name)}>
                             <div className="flex items-center">
@@ -683,22 +700,22 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
                               <input
                                 type="checkbox"
                                 checked={isEnabled}
-                                onChange={(e) => {
+                                onChange={e => {
                                   e.stopPropagation();
                                   handleToggleTool(tool.name);
                                 }}
-                                onClick={(e) => {
+                                onClick={e => {
                                   e.stopPropagation();
                                 }}
                                 className="w-4 h-4 mr-3 text-blue-600 bg-white border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 focus:ring-2 dark:bg-slate-700 dark:border-slate-600"
                               />
-                              <Typography 
-                                variant="body" 
+                              <Typography
+                                variant="body"
                                 className={cn(
-                                  "font-medium transition-colors",
-                                  isEnabled 
-                                    ? "text-slate-800 dark:text-slate-200"
-                                    : "text-slate-500 dark:text-slate-400"
+                                  'font-medium transition-colors',
+                                  isEnabled
+                                    ? 'text-slate-800 dark:text-slate-200'
+                                    : 'text-slate-500 dark:text-slate-400',
                                 )}>
                                 {tool.name}
                               </Typography>
@@ -711,39 +728,37 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
                           </div>
 
                           {toolExpanded && (
-                            <div className={cn(
-                              "p-3 bg-slate-50 dark:bg-slate-800/50",
-                              !isEnabled && "opacity-60"
-                            )}>
+                            <div className={cn('p-3 bg-slate-50 dark:bg-slate-800/50', !isEnabled && 'opacity-60')}>
                               {tool.description && (
-                                <Typography 
-                                  variant="body" 
+                                <Typography
+                                  variant="body"
                                   className={cn(
-                                    "mb-2",
-                                    isEnabled 
-                                      ? "text-slate-600 dark:text-slate-300"
-                                      : "text-slate-500 dark:text-slate-400"
+                                    'mb-2',
+                                    isEnabled
+                                      ? 'text-slate-600 dark:text-slate-300'
+                                      : 'text-slate-500 dark:text-slate-400',
                                   )}>
                                   {tool.description}
                                 </Typography>
                               )}
                               <div className="mt-2">
-                                <Typography 
-                                  variant="caption" 
+                                <Typography
+                                  variant="caption"
                                   className={cn(
-                                    "mb-1",
-                                    isEnabled 
-                                      ? "text-slate-500 dark:text-slate-400"
-                                      : "text-slate-400 dark:text-slate-500"
+                                    'mb-1',
+                                    isEnabled
+                                      ? 'text-slate-500 dark:text-slate-400'
+                                      : 'text-slate-400 dark:text-slate-500',
                                   )}>
                                   {t('Schema', '参数定义 (Schema)')}
                                 </Typography>
-                                <pre className={cn(
-                                  "text-xs p-2 whitespace-pre-wrap max-h-60 overflow-y-auto rounded border",
-                                  isEnabled 
-                                    ? "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
-                                    : "bg-slate-100 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-600"
-                                )}>
+                                <pre
+                                  className={cn(
+                                    'text-xs p-2 whitespace-pre-wrap max-h-60 overflow-y-auto rounded border',
+                                    isEnabled
+                                      ? 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                                      : 'bg-slate-100 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-600',
+                                  )}>
                                   {(() => {
                                     try {
                                       const schema = (tool as any).schema || (tool as any).input_schema;

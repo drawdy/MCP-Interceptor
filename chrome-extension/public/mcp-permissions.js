@@ -21,24 +21,82 @@
   let activeTabSiteId = '';
 
   const SUPPORTED_SITES = [
-    { id: 'chatgpt.com', labelEn: 'ChatGPT (chatgpt.com)', labelZh: 'ChatGPT (chatgpt.com)', hosts: ['chatgpt.com', 'chat.openai.com'] },
-    { id: 'gemini.google.com', labelEn: 'Google Gemini (gemini.google.com)', labelZh: 'Google Gemini (gemini.google.com)', hosts: ['gemini.google.com'] },
-    { id: 'aistudio.google.com', labelEn: 'Google AI Studio (aistudio.google.com)', labelZh: 'Google AI Studio (aistudio.google.com)', hosts: ['aistudio.google.com'] },
-    { id: 'chat.deepseek.com', labelEn: 'DeepSeek (chat.deepseek.com)', labelZh: 'DeepSeek (chat.deepseek.com)', hosts: ['chat.deepseek.com'] },
-    { id: 'perplexity.ai', labelEn: 'Perplexity (perplexity.ai)', labelZh: 'Perplexity (perplexity.ai)', hosts: ['perplexity.ai'] },
-    { id: 'grok.com', labelEn: 'Grok (grok.com / x.com)', labelZh: 'Grok (grok.com / x.com)', hosts: ['grok.com', 'x.com', 'twitter.com'] },
+    {
+      id: 'chatgpt.com',
+      labelEn: 'ChatGPT (chatgpt.com)',
+      labelZh: 'ChatGPT (chatgpt.com)',
+      hosts: ['chatgpt.com', 'chat.openai.com'],
+    },
+    {
+      id: 'gemini.google.com',
+      labelEn: 'Google Gemini (gemini.google.com)',
+      labelZh: 'Google Gemini (gemini.google.com)',
+      hosts: ['gemini.google.com'],
+    },
+    {
+      id: 'aistudio.google.com',
+      labelEn: 'Google AI Studio (aistudio.google.com)',
+      labelZh: 'Google AI Studio (aistudio.google.com)',
+      hosts: ['aistudio.google.com'],
+    },
+    {
+      id: 'chat.deepseek.com',
+      labelEn: 'DeepSeek (chat.deepseek.com)',
+      labelZh: 'DeepSeek (chat.deepseek.com)',
+      hosts: ['chat.deepseek.com'],
+    },
+    {
+      id: 'perplexity.ai',
+      labelEn: 'Perplexity (perplexity.ai)',
+      labelZh: 'Perplexity (perplexity.ai)',
+      hosts: ['perplexity.ai'],
+    },
+    {
+      id: 'grok.com',
+      labelEn: 'Grok (grok.com / x.com)',
+      labelZh: 'Grok (grok.com / x.com)',
+      hosts: ['grok.com', 'x.com', 'twitter.com'],
+    },
     { id: 'kimi.com', labelEn: 'Kimi (kimi.com)', labelZh: 'Kimi (kimi.com)', hosts: ['kimi.com'] },
-    { id: 'chat.qwen.ai', labelEn: 'Qwen Chat (chat.qwen.ai)', labelZh: '通义千问 Qwen (chat.qwen.ai)', hosts: ['chat.qwen.ai'] },
-    { id: 'chat.z.ai', labelEn: 'Z.ai / GLM (chat.z.ai)', labelZh: '智谱 Z.ai (chat.z.ai)', hosts: ['chat.z.ai', 'z.ai'] },
-    { id: 'openrouter.ai', labelEn: 'OpenRouter (openrouter.ai)', labelZh: 'OpenRouter (openrouter.ai)', hosts: ['openrouter.ai'] },
-    { id: 'chat.mistral.ai', labelEn: 'Mistral Chat (chat.mistral.ai)', labelZh: 'Mistral Chat (chat.mistral.ai)', hosts: ['chat.mistral.ai'] },
+    {
+      id: 'chat.qwen.ai',
+      labelEn: 'Qwen Chat (chat.qwen.ai)',
+      labelZh: '通义千问 Qwen (chat.qwen.ai)',
+      hosts: ['chat.qwen.ai'],
+    },
+    {
+      id: 'chat.z.ai',
+      labelEn: 'Z.ai / GLM (chat.z.ai)',
+      labelZh: '智谱 Z.ai (chat.z.ai)',
+      hosts: ['chat.z.ai', 'z.ai'],
+    },
+    {
+      id: 'openrouter.ai',
+      labelEn: 'OpenRouter (openrouter.ai)',
+      labelZh: 'OpenRouter (openrouter.ai)',
+      hosts: ['openrouter.ai'],
+    },
+    {
+      id: 'chat.mistral.ai',
+      labelEn: 'Mistral Chat (chat.mistral.ai)',
+      labelZh: 'Mistral Chat (chat.mistral.ai)',
+      hosts: ['chat.mistral.ai'],
+    },
     { id: 't3.chat', labelEn: 'T3 Chat (t3.chat)', labelZh: 'T3 Chat (t3.chat)', hosts: ['t3.chat'] },
-    { id: 'github.com/copilot', labelEn: 'GitHub Copilot (github.com/copilot)', labelZh: 'GitHub Copilot (github.com/copilot)', hosts: ['copilot.github.com', 'github.com'] },
+    {
+      id: 'github.com/copilot',
+      labelEn: 'GitHub Copilot (github.com/copilot)',
+      labelZh: 'GitHub Copilot (github.com/copilot)',
+      hosts: ['copilot.github.com', 'github.com'],
+    },
     { id: 'kagi.com', labelEn: 'Kagi (kagi.com)', labelZh: 'Kagi (kagi.com)', hosts: ['kagi.com'] },
   ];
 
   function resolveSiteId(hostname) {
-    const raw = (hostname || '').trim().toLowerCase().replace(/^www\./, '');
+    const raw = (hostname || '')
+      .trim()
+      .toLowerCase()
+      .replace(/^www\./, '');
     if (!raw) return '';
     for (const site of SUPPORTED_SITES) {
       if (site.id === raw) return site.id;
@@ -80,11 +138,9 @@
       statusConnecting: 'Permission granted. Connecting to MCP server…',
       errStartConnection: 'Could not start the MCP connection.',
       statusConnected: 'Connected. You can close this window and return to your AI chat.',
-      statusUnreachable:
-        'Permission granted, but the MCP server is not reachable. Check the URL and server status.',
+      statusUnreachable: 'Permission granted, but the MCP server is not reachable. Check the URL and server status.',
       sitesTitle: 'WEBSITE ACCESS',
-      sitesDesc:
-        "Disable on websites where you don't need MCP tools (e.g., chatgpt.com) to avoid interference.",
+      sitesDesc: "Disable on websites where you don't need MCP tools (e.g., chatgpt.com) to avoid interference.",
       sitesSummary: (enabled, total) => `${enabled}/${total} enabled`,
       currentBadge: 'Current',
       enabledBtn: 'Enabled',
@@ -360,7 +416,11 @@
     const previousDefault = getDefaultUrl(connectionType);
     const nextType = connectionTypeSelect.value;
     const trimmed = serverUrlInput.value.trim();
-    if (!trimmed || trimmed === previousDefault || (connectionType === 'streamable-http' && trimmed === 'http://localhost:3006')) {
+    if (
+      !trimmed ||
+      trimmed === previousDefault ||
+      (connectionType === 'streamable-http' && trimmed === 'http://localhost:3006')
+    ) {
       serverUrlInput.value = getDefaultUrl(nextType);
     }
     connectionType = nextType;

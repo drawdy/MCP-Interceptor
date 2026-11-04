@@ -122,10 +122,7 @@ export const useLanguage = () => {
     setLanguage(language === 'zh' ? 'en' : 'zh');
   }, [language, setLanguage]);
 
-  const t = useCallback(
-    (enText: string, zhText: string): string => (isZh ? zhText : enText),
-    [isZh],
-  );
+  const t = useCallback((enText: string, zhText: string): string => (isZh ? zhText : enText), [isZh]);
 
   return {
     language,
@@ -135,4 +132,3 @@ export const useLanguage = () => {
     t,
   };
 };
-

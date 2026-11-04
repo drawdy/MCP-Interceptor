@@ -371,7 +371,10 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
         }
       } else {
         setStatusMessage(
-          t('Failed to reconnect to MCP server. Some features will be limited.', '重新连接 MCP 服务器失败，部分功能将受限。'),
+          t(
+            'Failed to reconnect to MCP server. Some features will be limited.',
+            '重新连接 MCP 服务器失败，部分功能将受限。',
+          ),
         );
       }
     } catch (error) {
@@ -434,9 +437,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
         );
       } else {
         setStatusMessage(
-          isZh
-            ? `连接失败：${translateServerMessage(errorMessage, language)}`
-            : `Connection failed: ${errorMessage}`,
+          isZh ? `连接失败：${translateServerMessage(errorMessage, language)}` : `Connection failed: ${errorMessage}`,
         );
       }
     } finally {
@@ -485,7 +486,11 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
     const nextType = e.target.value as ConnectionType;
     const trimmedUri = serverUri.trim();
     const previousDefault = getDefaultUriForType(connectionType);
-    if (!trimmedUri || trimmedUri === previousDefault || (connectionType === 'streamable-http' && trimmedUri === 'http://localhost:3006')) {
+    if (
+      !trimmedUri ||
+      trimmedUri === previousDefault ||
+      (connectionType === 'streamable-http' && trimmedUri === 'http://localhost:3006')
+    ) {
       setServerUri(getDefaultUriForType(nextType));
     }
     setConnectionType(nextType);
@@ -587,9 +592,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
       const errorMessage = error instanceof Error ? error.message : String(error);
       setLastErrorMessage(errorMessage);
       setStatusMessage(
-        isZh
-          ? `配置失败：${translateServerMessage(errorMessage, language)}`
-          : `Configuration failed: ${errorMessage}`,
+        isZh ? `配置失败：${translateServerMessage(errorMessage, language)}` : `Configuration failed: ${errorMessage}`,
       );
       logMessage(`[ServerStatus] Save config error: ${errorMessage}`);
       // Keep settings open on error
@@ -834,7 +837,10 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
                 </select>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                   {connectionType === 'sse'
-                    ? t('HTTP-based streaming connection (default for MCP-Proxy)', '基于 HTTP 的流式连接（MCP-Proxy 默认方式）')
+                    ? t(
+                        'HTTP-based streaming connection (default for MCP-Proxy)',
+                        '基于 HTTP 的流式连接（MCP-Proxy 默认方式）',
+                      )
                     : connectionType === 'websocket'
                       ? t('Full-duplex WebSocket connection', '全双工 WebSocket 连接')
                       : t('Modern MCP HTTP streaming protocol', '标准 MCP Streamable HTTP 协议')}
@@ -970,7 +976,9 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
                 </div>
 
                 <div className="flex justify-between items-start py-1">
-                  <span className="font-medium text-slate-700 dark:text-slate-200">{t('Server URI:', '服务器地址：')}</span>
+                  <span className="font-medium text-slate-700 dark:text-slate-200">
+                    {t('Server URI:', '服务器地址：')}
+                  </span>
                   <span className="text-right text-slate-600 dark:text-slate-300 max-w-[200px] break-all">
                     {serverUri || t('Not configured', '未配置')}
                   </span>
@@ -998,7 +1006,9 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
                 </div>
 
                 <div className="flex justify-between items-center py-1">
-                  <span className="font-medium text-slate-700 dark:text-slate-200">{t('Last updated:', '最后更新：')}</span>
+                  <span className="font-medium text-slate-700 dark:text-slate-200">
+                    {t('Last updated:', '最后更新：')}
+                  </span>
                   <span className="text-slate-600 dark:text-slate-300">{new Date().toLocaleTimeString()}</span>
                 </div>
 
@@ -1061,9 +1071,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
                   <div className="flex items-start gap-2">
                     <Icon name="alert-triangle" size="sm" className="text-rose-600 dark:text-rose-400 mt-0.5" />
                     <div>
-                      <p className="font-medium mb-2">
-                        {t('Extension Communication Issue:', '扩展通信异常：')}
-                      </p>
+                      <p className="font-medium mb-2">{t('Extension Communication Issue:', '扩展通信异常：')}</p>
                       <ul className="list-disc ml-4 space-y-1 text-xs">
                         <li>{t('Try reloading the current page', '请尝试刷新当前页面')}</li>
                         <li>{t('If the issue persists, restart your browser', '若问题持续，请重启浏览器')}</li>
