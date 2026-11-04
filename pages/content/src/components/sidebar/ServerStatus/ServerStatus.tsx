@@ -179,7 +179,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
           setStatusMessage('MCP Server is unavailable. Some features will be limited.');
           break;
         case 'error':
-          setStatusMessage(connectionError || 'Error connecting to extension services. Try reloading the page.');
+          setStatusMessage(connectionError || 'Server connection error. Check your configuration and try again.');
           break;
         default:
           setStatusMessage('Checking MCP Server status...');
@@ -302,32 +302,6 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
       });
     }
   }, [communicationMethods, isEditingUri, isEditingConnectionType, configFetched, getServerConfig]); // Add configFetched dependency
-
-  // Set status message based on connection state
-  useEffect(() => {
-    // During reconnection, don't override the status message set by handleSaveServerConfig
-    if (isReconnecting) {
-      return;
-    }
-
-    if (hasBackgroundError) {
-      setStatusMessage('Extension background services unavailable. Try reloading the page.');
-    } else {
-      switch (status) {
-        case 'connected':
-          setStatusMessage('MCP Server is connected and ready');
-          break;
-        case 'disconnected':
-          setStatusMessage('MCP Server is unavailable. Some features will be limited.');
-          break;
-        case 'error':
-          setStatusMessage('Error connecting to extension services. Try reloading the page.');
-          break;
-        default:
-          setStatusMessage('Checking MCP Server status...');
-      }
-    }
-  }, [status, hasBackgroundError, isReconnecting]);
 
   const handleReconnect = async () => {
     const startTime = Date.now();
@@ -454,8 +428,20 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
     // Don't immediately clear editing flag - wait for save or cancel
   };
 
+  const getDefaultUriForType = (type: ConnectionType): string => {
+    if (type === 'websocket') return 'ws://localhost:3006/message';
+    if (type === 'streamable-http') return 'http://localhost:3006/mcp';
+    return 'http://localhost:3006/sse';
+  };
+
   const handleConnectionTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setConnectionType(e.target.value as ConnectionType);
+    const nextType = e.target.value as ConnectionType;
+    const trimmedUri = serverUri.trim();
+    const previousDefault = getDefaultUriForType(connectionType);
+    if (!trimmedUri || trimmedUri === previousDefault || (connectionType === 'streamable-http' && trimmedUri === 'http://localhost:3006')) {
+      setServerUri(getDefaultUriForType(nextType));
+    }
+    setConnectionType(nextType);
     setIsEditingConnectionType(true); // Mark as editing when user changes
   };
 
@@ -528,12 +514,16 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
             `[ServerStatus] Error refreshing tools: ${refreshError instanceof Error ? refreshError.message : String(refreshError)}`,
           );
         }
-      } else {
-        setStatusMessage('Failed to connect to new MCP server');
-      }
 
-      // Close settings on success
-      setShowSettings(false);
+        // Close settings on success
+        setShowSettings(false);
+      } else {
+        setStatusMessage(
+          backgroundConnectionError ||
+            lastErrorMessage ||
+            'Failed to connect to MCP server. Verify the server is running and host access is granted.',
+        );
+      }
     } catch (error) {
       // Still ensure minimum display time even for errors
       const elapsed = Date.now() - startTime;
@@ -733,12 +723,13 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
                   ? 'Server connection lost. Click the refresh button to reconnect.'
                   : 'Server connection error. Check your configuration and try again.'}
               </Typography>
-              {/* Show detailed error message if available - prefer background error over local error */}
-              {(backgroundConnectionError || lastErrorMessage) && (
-                <Typography variant="small" className="text-rose-500 dark:text-rose-300 mt-1 text-xs">
-                  Details: {backgroundConnectionError || lastErrorMessage}
-                </Typography>
-              )}
+              {/* Show detailed error message if available and not already identical to statusMessage */}
+              {(backgroundConnectionError || lastErrorMessage) &&
+                (backgroundConnectionError || lastErrorMessage) !== statusMessage && (
+                  <Typography variant="small" className="text-rose-500 dark:text-rose-300 mt-1 text-xs">
+                    Details: {backgroundConnectionError || lastErrorMessage}
+                  </Typography>
+                )}
             </div>
           </div>
         </div>
@@ -781,10 +772,10 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
                 </select>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                   {connectionType === 'sse'
-                    ? 'HTTP-based streaming connection (traditional)'
+                    ? 'HTTP-based streaming connection (default for MCP-Proxy)'
                     : connectionType === 'websocket'
-                      ? 'Full-duplex WebSocket connection (faster, more features)'
-                      : 'Advanced HTTP streaming (modern MCP protocol)'}
+                      ? 'Full-duplex WebSocket connection'
+                      : 'Modern MCP HTTP streaming protocol'}
                 </p>
               </div>
 
@@ -799,59 +790,23 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
                   onChange={handleServerUriChange}
                   onFocus={handleServerUriFocus}
                   onBlur={handleServerUriBlur}
-                  placeholder={
-                    connectionType === 'sse'
-                      ? 'http://localhost:3006/sse'
-                      : connectionType === 'websocket'
-                        ? 'ws://localhost:3006/message'
-                        : 'http://localhost:3006/mcp'
-                  }
+                  placeholder={getDefaultUriForType(connectionType)}
                   className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:border-transparent outline-none transition-all duration-200 hover:border-slate-400 dark:hover:border-slate-500"
                 />
-                <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  <div className="mb-2">
-                    <strong>To start the upstream MCP SuperAssistant Proxy:</strong>
+                <div className="mt-2 text-xs text-slate-500 dark:text-slate-400 space-y-1">
+                  <div>
+                    To run the Proxy Server, see the
+                    <a
+                      href="https://github.com/drawdy/MCP-Interceptor/blob/main/README.md"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 underline ml-1">
+                      documentation
+                    </a>
+                    .
                   </div>
-                  <div className="bg-slate-100 dark:bg-slate-800 p-2 rounded font-mono text-xs border">
-                    npx @srbhptl39/mcp-superassistant-proxy@latest --config ./config.json --outputTransport{' '}
-                    {connectionType === 'sse' ? 'sse' : connectionType === 'websocket' ? 'ws' : 'streamableHttp'}
-                  </div>
-                  <div className="mt-2 text-xs">
-                    <div className="mb-1">
-                      Available transports: <code>streamableHttp</code>, <code>sse</code>, <code>ws</code>
-                    </div>
-                    <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
-                      <div className="font-medium text-blue-800 dark:text-blue-200 mb-1">
-                        📡 Public Endpoints Supported:
-                      </div>
-                      <div className="text-blue-700 dark:text-blue-300 space-y-1">
-                        <div>
-                          • <strong>Zapier:</strong> Public MCP endpoints with CORS enabled
-                        </div>
-                        <div>
-                          • <strong>Composio:</strong> SSE and Streamable HTTP endpoints
-                        </div>
-                        <div>
-                          • <strong>Custom servers:</strong> Any MCP server with CORS headers
-                        </div>
-                      </div>
-                      <div className="mt-2 text-xs text-blue-600 dark:text-blue-400">
-                        <strong>Note:</strong> WebSocket connections require local servers or proxy due to browser
-                        security restrictions.
-                      </div>
-                    </div>
-                    {/* <div className="mt-3 p-2 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
-                      <div className="font-medium text-green-800 dark:text-green-200 mb-2">🌍 Example Public Endpoints:</div>
-                      <div className="text-green-700 dark:text-green-300 space-y-1 text-xs">
-                        <div><strong>SSE:</strong></div>
-                        <div className="ml-2">• <code>https://api.zapier.com/v1/mcp/sse</code></div>
-                        <div className="ml-2">• <code>https://composio.dev/api/mcp/sse</code></div>
-                        <div className="mt-2"><strong>Streamable HTTP:</strong></div>
-                        <div className="ml-2">• <code>https://api.zapier.com/v1/mcp</code></div>
-                        <div className="ml-2">• <code>https://composio.dev/api/mcp</code></div>
-                        <div className="ml-2">• <code>https://your-server.com/mcp</code></div>
-                      </div>
-                    </div> */}
+                  <div>
+                    First-time host access must be granted via the MCP-Interceptor toolbar icon.
                   </div>
                 </div>
               </div>
@@ -921,7 +876,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
                       'px-2 py-1 rounded-full text-xs font-medium',
                       status === 'connected'
                         ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400'
-                        : status === 'disconnected'
+                        : isDisconnectedOrError
                           ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/20 dark:text-rose-400'
                           : 'bg-slate-100 text-slate-700 dark:bg-slate-900/20 dark:text-slate-400',
                     )}>
@@ -968,23 +923,23 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
                 )}
               </div>
 
-              {status === 'disconnected' && (
+              {isDisconnectedOrError && (
                 <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200">
                   <div className="flex items-start gap-2">
                     <Icon name="info" size="sm" className="text-amber-600 dark:text-amber-400 mt-0.5" />
                     <div>
                       <p className="font-medium mb-2">Troubleshooting tips:</p>
                       <ul className="list-disc ml-4 space-y-1 text-xs">
-                        <li>Check if the MCP server is running at the configured URI</li>
-                        <li>Verify network connectivity to the server</li>
-                        <li>Restart the MCP server if needed</li>
+                        <li>Verify MCP-Proxy is running at the configured URI (default: SSE at http://localhost:3006/sse)</li>
+                        <li>Click the MCP-Interceptor toolbar icon and choose &ldquo;Grant access and connect&rdquo; to authorize the host</li>
+                        <li>Check network connectivity and restart the proxy service if needed</li>
                         <li>Use the Reconnect button to try again</li>
                       </ul>
                       {/* Show detailed error in troubleshooting section - prefer background error */}
-                      {(backgroundConnectionError || lastErrorMessage) && (
+                      {(backgroundConnectionError || lastErrorMessage || connectionError) && (
                         <div className="mt-3 p-2 bg-amber-100 dark:bg-amber-800/50 rounded border border-amber-200 dark:border-amber-700">
                           <p className="font-medium text-xs mb-1">Last Error:</p>
-                          <p className="text-xs break-words">{backgroundConnectionError || lastErrorMessage}</p>
+                          <p className="text-xs break-words">{backgroundConnectionError || lastErrorMessage || connectionError}</p>
                         </div>
                       )}
                     </div>

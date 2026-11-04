@@ -54,6 +54,15 @@ footer {
   line-height: 1.5;
 }
 
+.muted a {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.muted a:hover {
+  color: #1d4ed8;
+}
+
 .server {
   display: grid;
   gap: 8px;
@@ -149,6 +158,12 @@ footer {
   footer,
   .status {
     color: #9da7b3;
+  }
+  .muted a {
+    color: #58a6ff;
+  }
+  .muted a:hover {
+    color: #79c0ff;
   }
   footer {
     border-color: #303a47;

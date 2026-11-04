@@ -172,13 +172,10 @@ const InstructionManager: React.FC<InstructionManagerProps> = ({ adapter, tools 
 
   // Update instructions when tools or tool enablement changes or custom instructions change
   useEffect(() => {
-    if (tools.length > 0) {
-      // Always update when dependencies change, let the state comparison happen later
-      logMessage(`[InstructionManager] Regenerating instructions based on ${enabledTools.length}/${tools.length} enabled tools`);
-      setInstructions(currentInstructions);
-      // Force update global state to ensure sync
-      instructionsState.setInstructions(currentInstructions);
-    }
+    logMessage(`[InstructionManager] Regenerating instructions based on ${enabledTools.length}/${tools.length} enabled tools`);
+    setInstructions(currentInstructions);
+    // Force update global state to ensure sync
+    instructionsState.setInstructions(currentInstructions);
 
     return () => {
       logMessage('[InstructionManager] Cleaning up instruction generator effect');
@@ -187,13 +184,11 @@ const InstructionManager: React.FC<InstructionManagerProps> = ({ adapter, tools 
 
   // Force instruction regeneration and global sync when enablement changes
   const forceInstructionUpdate = useCallback(() => {
-    if (tools.length > 0) {
-      const newInstructions = generateCurrentInstructions();
-      logMessage(`[InstructionManager] Force updating instructions based on ${enabledTools.length}/${tools.length} enabled tools`);
-      setInstructions(newInstructions);
-      // Force global state update
-      instructionsState.setInstructions(newInstructions);
-    }
+    const newInstructions = generateCurrentInstructions();
+    logMessage(`[InstructionManager] Force updating instructions based on ${enabledTools.length}/${tools.length} enabled tools`);
+    setInstructions(newInstructions);
+    // Force global state update
+    instructionsState.setInstructions(newInstructions);
   }, [tools.length, generateCurrentInstructions, enabledTools.length]);
 
   // Watch for changes in enabled tools count and force update when it changes

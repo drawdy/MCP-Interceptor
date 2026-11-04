@@ -29,11 +29,15 @@
 
         <label for="connection-type" class="eyebrow">TRANSPORT</label>
         <select id="connection-type">
-          <option value="sse">SSE</option>
+          <option value="sse">Server-Sent Events (SSE)</option>
           <option value="streamable-http">Streamable HTTP</option>
           <option value="websocket">WebSocket</option>
         </select>
         <p id="server-host" class="muted"></p>
+        <p class="muted">
+          To run the Proxy Server, see the
+          <a href="https://github.com/drawdy/MCP-Interceptor/blob/main/README.md" target="_blank" rel="noopener noreferrer">documentation</a>.
+        </p>
       </section>
 
       <button id="grant-connect" type="button" disabled>Grant access and connect</button>
