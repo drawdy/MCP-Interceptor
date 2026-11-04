@@ -30,9 +30,14 @@ Gemini / DeepSeek / Grok / ChatGPT
 
 **请注意：** MCP Server 配置在 MCP-Proxy 的配置文件中。浏览器扩展只需要连接 MCP-Proxy，不需要在扩展中逐个添加后端 MCP Server。
 
+<details>
+<summary>可选：图片预览和附件</summary>
+
 MCP 工具返回受支持的位图图片（PNG、JPEG、GIF、WebP、AVIF、BMP）时，扩展会在结果面板中显示预览。点击 **Attach Images** 可将图片及其文本上下文一起添加到当前聊天；图片结果不会自动插入或提交。单次结果最多 8 张图片、每张 10 MiB、总计 20 MiB；出于安全考虑不接受 SVG。
 
 附件功能取决于网站 Adapter 和当前页面的实际支持情况，不支持时会显示提示。附件失败后可重试，已确认的图片不会重复添加，文本上下文也不会重复插入。ChatGPT 的 MCP 按钮位于当前输入框的上传按钮旁，切换首页和对话时会跟随可见输入框移动。
+
+</details>
 
 ## 一、安装 Chrome 扩展
 
@@ -47,97 +52,86 @@ MCP 工具返回受支持的位图图片（PNG、JPEG、GIF、WebP、AVIF、BMP�
 此时，MCP-Interceptor 图标应该已经出现在 Chrome 工具栏中。如果没有显示，请打开 Chrome 扩展程序菜单，将 MCP-Interceptor 固定到工具栏。
 
 > 请不要移动或删除扩展解压目录，否则 Chrome 将无法加载扩展。
+>
+> **加载扩展不等于已授权访问代理。首次连接前必须按第四节完成主机授权；否则即使 Proxy 正常运行，扩展也无法连接。**
 
 ## 二、安装并启动 MCP-Proxy
 
-MCP-Interceptor 使用独立的 Go 服务 [MCP-Proxy](https://github.com/drawdy/MCP-Proxy)，聚合本地和远程 MCP Server，通过传统 SSE 接口提供给扩展。它已替代此前的 Node.js Proxy Server。
+从 [MCP-Proxy Releases](https://github.com/drawdy/MCP-Proxy/releases/latest) 下载已发布的可执行文件。**Linux 和 Windows 安装包无需安装 Go、克隆源码或自行构建。** 使用普通用户运行，让本机工具使用该用户的文件、命令和权限。
 
-### 长期运行方式如何选择
+以下示例使用已发布的 **v0.1.0**。升级时选择目标版本，并使用该版本配套的可执行文件和 `SHA256SUMS`。这些文件是独立可执行程序，不是 ZIP/tar 压缩包。
 
-**对于需要操作本机文件、执行本机命令的工具，推荐以普通用户身份运行编译后的 MCP-Proxy，由操作系统管理进程。** 这是桌面使用场景的默认方案。
+| 平台 | 下载文件 |
+|---|---|
+| Linux x86-64（`uname -m` 为 `x86_64`） | [`mcp-proxy-v0.1.0-linux-amd64`](https://github.com/drawdy/MCP-Proxy/releases/download/v0.1.0/mcp-proxy-v0.1.0-linux-amd64) |
+| Linux ARM64（`uname -m` 为 `aarch64` / `arm64`） | [`mcp-proxy-v0.1.0-linux-arm64`](https://github.com/drawdy/MCP-Proxy/releases/download/v0.1.0/mcp-proxy-v0.1.0-linux-arm64) |
+| Windows x64 | [`mcp-proxy-v0.1.0-windows-amd64.exe`](https://github.com/drawdy/MCP-Proxy/releases/download/v0.1.0/mcp-proxy-v0.1.0-windows-amd64.exe) |
 
-| 环境 | 推荐的进程管理方式 | 运行周期 |
-|---|---|---|
-| Linux | systemd 用户服务 | 登录后启动；可通过 lingering 实现开机启动、退出登录后继续运行 |
-| macOS | launchd LaunchAgent | 在已登录用户的会话中运行 |
-| Windows | 当前用户的计划任务 | 用户登录后启动 |
-| WSL2 | 目标发行版内的 systemd 用户服务 | 仅在该发行版运行期间有效 |
-| 需要隔离的工具或远程后端 | Docker Compose | 随容器生命周期运行 |
+代理程序不包含后端运行环境。使用下面的 `npx` 示例时，请在同一宿主环境安装 **Node.js 24 或更新版本**及 npm；其他后端可能需要 Python、uv 等环境。npm 包首次运行需要联网；建议固定经过验证的版本，并以服务运行用户提前运行、准备缓存，再依赖自动启动。
 
-MCP-Proxy 将 stdio 后端作为子进程启动，传递自身环境并使用配置中的 `cwd`。在 Docker 中，文件工具看到的是容器路径，命令使用容器内程序，凭据和 HOME 属于容器，`localhost` 也指向容器。目录挂载只能开放选定文件，无法完整提供宿主机的 Shell、工具链、桌面会话和权限；仅改用 host 网络也不能解决这些问题。需要隔离时保留 Docker，不建议通过特权容器、挂载整个宿主机或 Docker socket 来绕过隔离。
+### Linux：安装和配置
 
-原生运行的工具拥有运行账户的权限，应使用普通用户、限制后端访问范围，并默认监听 `127.0.0.1`。`go run`、`nohup`、终端复用工具适合开发或临时运行；长期运行使用编译产物和进程管理器，获得自动启动、故障重启和日志管理。
-
-### 步骤 1：构建并配置原生程序
-
-安装 MCP-Proxy 的 `go.mod` 要求的 Go 版本（当前为 **1.26.8 或更高版本**）。如果使用 `npx` 后端，还需在同一宿主环境安装 Node.js/npm；其他后端依其要求安装 Python、uv 等运行环境。
-
-**macOS / Linux**
+1. 下载并校验程序。按上表选择架构，下面默认使用 amd64；只有校验成功后才继续。
 
 ```bash
-git clone https://github.com/drawdy/MCP-Proxy.git
-cd MCP-Proxy
-cp config.example.json config.json
-mkdir -p bin workspace
-go build -trimpath -o ./bin/mcp-proxy ./cmd/mcp-proxy
-command -v node npx
+mkdir -p "$HOME/.local/share/mcp-proxy/bin" "$HOME/.local/share/mcp-proxy/workspace"
+cd "$HOME/.local/share/mcp-proxy"
+(
+  set -eu
+  version=v0.1.0
+  arch=amd64 # Linux ARM64 请改为 arm64。
+  asset="mcp-proxy-${version}-linux-${arch}"
+  base="https://github.com/drawdy/MCP-Proxy/releases/download/${version}"
+  curl -fL "$base/$asset" -o "$asset"
+  curl -fL "$base/SHA256SUMS" -o SHA256SUMS
+  awk -v name="$asset" '$2 == name { print }' SHA256SUMS | sha256sum -c -
+  install -m 755 "$asset" ./bin/mcp-proxy
+)
 ```
 
-**Windows / PowerShell**
-
-```powershell
-git clone https://github.com/drawdy/MCP-Proxy.git
-cd MCP-Proxy
-Copy-Item config.example.json config.json
-New-Item -ItemType Directory -Force bin, workspace
-go build -trimpath -o .\bin\mcp-proxy.exe ./cmd/mcp-proxy
-Get-Command node, npx
-```
-
-将仓库保留在固定位置。启动前编辑 `config.json`：示例中的 `/workspace` 是**容器路径**，需要替换为真实存在的宿主机绝对路径。例如 Linux 配置如下（请替换 `alice` 和目录）：
+2. 将 `config.json` 保存到 `~/.local/share/mcp-proxy/`。下面同时配置 Desktop Commander 和 filesystem；请把 `/home/alice` 换成真实用户目录，并提前创建项目目录。如果已有配置，请保留原有 Server 条目、参数和凭据，不要直接覆盖。
 
 ```json
 {
   "mcpServers": {
+    "desktop-commander": {
+      "command": "npx",
+      "args": ["-y", "@wonderwhy-er/desktop-commander@0.3.1"],
+      "cwd": "/home/alice/.local/share/mcp-proxy/workspace"
+    },
     "filesystem": {
-      "command": "/usr/bin/npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/alice/projects"],
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem@2.1.0", "/home/alice/projects"],
       "cwd": "/home/alice/projects"
     }
   }
 }
 ```
 
-程序路径以本机实际安装位置为准。Go 直接启动程序，不经过交互式 Shell，因此不会展开别名、`~`、Shell 初始化文件或 Shell 语法。Windows 的 `npx.cmd` 需要命令解释器，可以显式使用 `"command": "C:\\Windows\\System32\\cmd.exe"`，并配置 `"args": ["/d", "/s", "/c", "npx -y @modelcontextprotocol/server-filesystem C:\\projects"]`。确保代理的 PATH 包含 Node.js/npm；路径有空格时需正确处理引号。
+`cwd` 是后端启动时的工作目录，应使用当前用户有权限访问的、真实存在的绝对路径；它不是文件访问限制。filesystem 在 `args` 中指定的目录才是其允许访问的根目录。`command: "npx"` 通过代理的 PATH 查找程序，不绑定 npm 包的具体安装目录。
 
-**后台服务需要显式配置环境。** 为代理设置 PATH，包含 Node.js/npm、Python/uv 等程序的真实目录，尤其注意 nvm、fnm、mise、Homebrew 安装的位置。即使 `npx` 使用绝对路径，它仍可能依赖 PATH 查找 `node`。需要项目上下文的后端应设置 `cwd`。后端继承代理环境，也可通过 `env` 覆盖；`${API_TOKEN}` 在配置加载时从**代理进程**环境展开。原生 MCP-Proxy **不会自动读取 `.env`**，应通过进程管理器或受保护的启动脚本注入变量，密钥不要提交到 Git。仅在后端 `env.PATH` 中设置路径，不能控制 Go 对初始启动命令的查找。
-
-长期使用建议固定经过验证的后端包版本，避免每次启动都依赖 `@latest` 或未指定版本的 `npx` 下载。使用服务运行账户安装或缓存依赖，验证后再启用自动启动。
-
-### 步骤 2：前台验证
-
-在 MCP-Proxy 目录执行：
+3. 前台验证：
 
 ```bash
+cd "$HOME/.local/share/mcp-proxy"
+command -v node npx
 ./bin/mcp-proxy --config ./config.json --host 127.0.0.1 --port 3006
 ```
 
-PowerShell 中将程序名改为 `.\bin\mcp-proxy.exe`，参数相同。在另一个终端检查 `http://127.0.0.1:3006/healthz` 和 `/readyz`，然后让扩展通过 **SSE** 连接 `http://localhost:3006/sse`。`/healthz` 检查代理进程；只有部分后端连接成功时 `/readyz` 也可能成功，仍需核对日志及预期工具列表。验证完成后按 **Ctrl+C** 停止，再启动托管服务。
+在另一个终端执行 `curl -f http://127.0.0.1:3006/healthz` 和 `curl -f http://127.0.0.1:3006/readyz`。核对日志中**每个预期后端**都已连接；只有一个后端连接成功时 `/readyz` 也可能成功。按第四节完成 Chrome 授权，再检查工具列表和实际调用。验证完成后按 **Ctrl+C** 停止，再启用服务。
 
-### 步骤 3：配置自动启动
+### Linux：配置 systemd 用户服务
 
-#### Linux：systemd 用户服务
-
-创建 `~/.config/systemd/user/mcp-proxy.service`（先创建父目录）。以下假设仓库在 `~/code/github/MCP-Proxy`，请按实际位置修改路径和 PATH：
+先执行 `mkdir -p ~/.config/systemd/user`，再将以下内容保存为 `~/.config/systemd/user/mcp-proxy.service`：
 
 ```ini
 [Unit]
-Description=MCP-Proxy
+Description=mcp-proxy
 
 [Service]
 Type=simple
-WorkingDirectory=%h/code/github/MCP-Proxy
-ExecStart="%h/code/github/MCP-Proxy/bin/mcp-proxy" --config "%h/code/github/MCP-Proxy/config.json" --host 127.0.0.1 --port 3006
+WorkingDirectory=%h/.local/share/mcp-proxy
+ExecStart="%h/.local/share/mcp-proxy/bin/mcp-proxy" --config "%h/.local/share/mcp-proxy/config.json" --host 127.0.0.1 --port 3006
 Environment="PATH=/usr/local/bin:/usr/bin:/bin"
 EnvironmentFile=-%h/.config/mcp-proxy/env
 Restart=on-failure
@@ -150,7 +144,7 @@ UMask=0077
 WantedBy=default.target
 ```
 
-可选的 `~/.config/mcp-proxy/env` 使用 `KEY=value` 格式，不加 `export`；先创建父目录，并将文件权限设为仅本人可读写（`chmod 600`）。PATH 使用完整的绝对路径。代理与后端输出统一进入 journal，停止服务时清理服务进程组。
+**启动前请调整 PATH。** 使用 `command -v node npx` 查找程序实际所在目录。使用 nvm 时，需要加入 `/home/alice/.nvm/versions/node/v24.21.0/bin` 这样的真实绝对路径；服务不会读取 Shell 初始化文件。后端需要 Python、uv 等程序时，也应加入对应目录。即使 npx 使用绝对路径，仍需要 PATH 找到 node。
 
 ```bash
 systemd-analyze --user verify ~/.config/systemd/user/mcp-proxy.service
@@ -160,13 +154,91 @@ systemctl --user status mcp-proxy.service
 journalctl --user -u mcp-proxy.service -f
 ```
 
-修改配置或环境后，执行 `systemctl --user restart mcp-proxy.service`；修改 unit 后还需先执行 `daemon-reload`。停止使用 `systemctl --user stop mcp-proxy.service`，取消自动启动使用 `systemctl --user disable --now mcp-proxy.service`。
+服务名称是 **`mcp-proxy.service`**，属于**用户服务**：由运行代理的普通用户执行 `systemctl --user`，不要加 `sudo`；`sudo systemctl --user` 会指向另一个用户的服务管理器。通过 SSH 操作时使用该用户的正常登录会话；出现 `Failed to connect to bus` 时，检查用户管理器和 `/run/user/$(id -u)/bus`。
 
-以上 `systemctl --user` 命令均由实际运行代理的普通用户执行，不要加 `sudo`；`sudo systemctl --user` 会指向另一个用户的服务管理器。通过 SSH 操作时，使用该用户的正常登录会话；出现 `Failed to connect to bus` 时，先确认该账户的用户管理器与 `/run/user/$(id -u)/bus` 是否可用。
+修改 `config.json` 或环境文件后，执行 `systemctl --user restart mcp-proxy.service`；修改 unit 后先执行 `systemctl --user daemon-reload`。停止使用 `systemctl --user stop mcp-proxy.service`；取消自动启动使用 `systemctl --user disable --now mcp-proxy.service`。代理和后端日志统一进入用户 journal。
 
-如需开机启动且退出登录后继续运行，可执行 `loginctl enable-linger "$USER"`（本机策略可能要求管理员授权），并用 `loginctl show-user "$USER" -p Linger` 确认返回 `Linger=yes`。这不会提供图形会话或自动解锁密钥环。参见官方 [服务配置](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html)、[环境配置](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html) 和 [lingering 说明](https://www.freedesktop.org/software/systemd/man/latest/loginctl.html)。
+### Windows x64：安装和配置
 
-#### macOS：launchd LaunchAgent
+1. 在 PowerShell 中下载并校验程序：
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$installDir = Join-Path $env:LOCALAPPDATA 'mcp-proxy'
+New-Item -ItemType Directory -Force "$installDir\bin", "$installDir\workspace" | Out-Null
+Set-Location $installDir
+$version = 'v0.1.0'
+$asset = "mcp-proxy-$version-windows-amd64.exe"
+$base = "https://github.com/drawdy/MCP-Proxy/releases/download/$version"
+Invoke-WebRequest "$base/$asset" -OutFile $asset
+Invoke-WebRequest "$base/SHA256SUMS" -OutFile SHA256SUMS
+$line = Get-Content SHA256SUMS | Where-Object { $_ -match ('\s+\*?' + [regex]::Escape($asset) + '$') }
+if (-not $line) { throw 'Missing checksum for this asset.' }
+$expected = ($line -split '\s+')[0]
+if ((Get-FileHash $asset -Algorithm SHA256).Hash -ne $expected) { throw 'SHA-256 mismatch.' }
+Move-Item $asset .\bin\mcp-proxy.exe -Force
+Get-Command node, npx.cmd
+```
+
+2. 将 `config.json` 保存到 `%LOCALAPPDATA%\mcp-proxy`。先创建 `C:\projects`，或替换为真实存在且希望工具访问的目录。以下示例的项目路径不含空格；命令字符串中的路径包含空格时，需要额外处理 Windows 命令行引号。
+
+```json
+{
+  "mcpServers": {
+    "desktop-commander": {
+      "command": "C:\\Windows\\System32\\cmd.exe",
+      "args": ["/d", "/s", "/c", "npx -y @wonderwhy-er/desktop-commander@0.3.1"],
+      "cwd": "C:\\projects"
+    },
+    "filesystem": {
+      "command": "C:\\Windows\\System32\\cmd.exe",
+      "args": ["/d", "/s", "/c", "npx -y @modelcontextprotocol/server-filesystem@2.1.0 C:\\projects"],
+      "cwd": "C:\\projects"
+    }
+  }
+}
+```
+
+Windows 下 npm 提供的是 `npx.cmd`，因此通过 `cmd.exe /d /s /c` 启动后端。JSON 中的反斜杠需要写成两个。确保代理的 PATH 包含 Node.js/npm；Windows 安装在其他位置时，请调整 `cmd.exe` 路径。迁移已有配置时保留原有后端条目和凭据。
+
+3. 在 PowerShell 中前台验证：
+
+```powershell
+Set-Location (Join-Path $env:LOCALAPPDATA 'mcp-proxy')
+.\bin\mcp-proxy.exe --config .\config.json --host 127.0.0.1 --port 3006
+```
+
+在另一个 PowerShell 窗口执行 `Invoke-RestMethod http://127.0.0.1:3006/healthz` 和 `Invoke-RestMethod http://127.0.0.1:3006/readyz`。检查前台输出中的全部后端，按第四节完成 Chrome 授权并验证工具。完成后按 **Ctrl+C** 停止，再启动计划任务。
+
+### Windows：配置任务计划程序自动启动
+
+创建名为 **mcp-proxy** 的任务：
+
+1. 使用当前用户，选择**只在用户登录时运行**，不勾选**使用最高权限运行**；触发器设为该用户**登录时**。
+2. 使用 `Join-Path $env:LOCALAPPDATA 'mcp-proxy'` 确定安装目录，在任务操作中填写实际的**绝对路径**，例如：
+   - **程序或脚本：** `C:\Users\Alice\AppData\Local\mcp-proxy\bin\mcp-proxy.exe`
+   - **参数：** `--config "C:\Users\Alice\AppData\Local\mcp-proxy\config.json" --host 127.0.0.1 --port 3006`
+   - **起始于：** `C:\Users\Alice\AppData\Local\mcp-proxy`
+3. 启用失败后重启，选择**不启动新实例**，关闭运行时长限制；按需调整电池供电限制。
+4. 运行任务，检查健康端点和扩展工具。修改 `config.json` 后先**结束**再**运行**；**禁用**任务可取消自动启动。
+
+启动任务前配置需要的用户环境变量。修改 PATH 后注销并重新登录，确保调度器使用新环境。如需文件日志，使用同步运行代理的启动脚本，将 stdout/stderr 重定向到受保护且定期轮转的文件，不要使用 `Start-Process` 分离进程。结束任务可能强制终止进程，重启前检查是否遗留后端子进程。该程序不是 Windows Service 可执行文件，不要直接使用 `sc.exe` 注册。
+
+<details>
+<summary>可选：环境变量和退出登录后持续运行</summary>
+
+后端继承代理环境，也可通过 `env` 覆盖。`${API_TOKEN}` 在配置加载时从代理环境展开。原生代理不会读取 Compose 的 `.env`、`MCP_PROXY_BIND`、`MCP_PROXY_PORT`；环境变量通过进程管理器配置，监听地址和端口使用 `--host` / `--port`。Go 直接启动命令，不展开别名、`~` 或 Shell 语法；后端 `env.PATH` 不控制 Go 对初始启动命令的查找。
+
+可选的 `~/.config/mcp-proxy/env` 使用不带 `export` 的 `KEY=value` 格式；先创建父目录，再用 `chmod 600` 限制权限。不要将密钥提交到 Git。
+
+如需开机启动且退出登录后继续运行，执行 `loginctl enable-linger "$USER"`（可能要求管理员授权），再用 `loginctl show-user "$USER" -p Linger` 确认 `Linger=yes`。这不会解锁密钥环或提供图形会话。参见 [systemd 环境配置](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html) 和 [lingering 说明](https://www.freedesktop.org/software/systemd/man/latest/loginctl.html)。
+
+</details>
+
+<details>
+<summary>macOS：发布包支持情况和 launchd LaunchAgent</summary>
+
+v0.1.0 当前没有 macOS 发布包。请使用下方折叠说明从源码构建，或等待适配的发布包，再配置 LaunchAgent：
 
 创建 `~/Library/LaunchAgents/local.mcp-proxy.plist` 和日志目录 `~/Library/Logs/MCP-Proxy`。替换下面**所有** `/Users/alice` 路径，并按 Node.js 安装位置调整 PATH。Plist 字符串不会展开 `~` 或 `$HOME`。
 
@@ -178,12 +250,12 @@ journalctl --user -u mcp-proxy.service -f
   <key>Label</key><string>local.mcp-proxy</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/alice/code/github/MCP-Proxy/bin/mcp-proxy</string>
-    <string>--config</string><string>/Users/alice/code/github/MCP-Proxy/config.json</string>
+    <string>/Users/alice/.local/share/mcp-proxy/bin/mcp-proxy</string>
+    <string>--config</string><string>/Users/alice/.local/share/mcp-proxy/config.json</string>
     <string>--host</string><string>127.0.0.1</string>
     <string>--port</string><string>3006</string>
   </array>
-  <key>WorkingDirectory</key><string>/Users/alice/code/github/MCP-Proxy</string>
+  <key>WorkingDirectory</key><string>/Users/alice/.local/share/mcp-proxy</string>
   <key>EnvironmentVariables</key>
   <dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string></dict>
   <key>RunAtLoad</key><true/>
@@ -205,33 +277,31 @@ tail -f ~/Library/Logs/MCP-Proxy/*.log
 
 配置变更后使用 `launchctl kickstart -k "gui/$(id -u)/local.mcp-proxy"` 重启。停止使用 `launchctl bootout "gui/$(id -u)" ~/Library/LaunchAgents/local.mcp-proxy.plist`；修改 plist 后先 bootout 再 bootstrap。取消自动启动需先 bootout，再移除 plist。应为日志文件安排轮转。macOS 隐私权限仍适用于后台进程，终端中运行成功不代表后台服务自动获得受保护目录的权限。参见 Apple [launchd 指南](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html)。
 
-#### Windows：任务计划程序
+</details>
 
-在任务计划程序中创建名为 **MCP-Proxy** 的任务：
+<details>
+<summary>WSL2：在目标 Linux 发行版运行</summary>
 
-1. 使用当前用户，选择**只在用户登录时运行**，不勾选**使用最高权限运行**；触发器设为该用户**登录时**。
-2. 操作中的程序选择 `bin\mcp-proxy.exe` 的绝对路径，参数设为 `--config "C:\path\MCP-Proxy\config.json" --host 127.0.0.1 --port 3006`，**起始于**设为 `C:\path\MCP-Proxy`。
-3. 启用失败后重启（例如每分钟一次、尝试三次），选择**不启动新实例**，关闭运行时长限制；如需电池供电时运行，也应关闭相应的电源限制。
-4. 运行任务，检查 `/healthz`、`/readyz` 和扩展中的工具。修改配置后先**结束**再**运行**；**禁用**任务可取消自动启动。
+需要 Linux 项目与 Linux 命令时，在目标 WSL 发行版内安装匹配的 Linux 发布包并运行 MCP-Proxy，按 Linux 步骤配置并[启用 systemd](https://learn.microsoft.com/en-us/windows/wsl/systemd)。路径使用 `/home/alice/projects` 等 Linux 路径，访问挂载的 Windows 文件可用 `/mnt/c/projects`。这提供的是该发行版环境，不等同于 Windows 桌面会话；需要 Windows 应用和工具链时，优先运行 Windows 原生代理。lingering 不会在 Windows 开机时自动启动发行版，也不能保证发行版一直运行；如有需要，另行配置 Windows 侧的 WSL 启动，并在修改监听地址前验证浏览器能否连接。
 
-启动任务前配置需要的用户环境变量；修改 PATH 后注销并重新登录，确保任务调度器使用新环境。如需文件日志，可使用 PowerShell 启动脚本设置环境，并同步运行程序，将 stdout/stderr 重定向到受保护且定期轮转的日志文件；不要用 `Start-Process` 分离进程，任务需要跟踪实际运行进程。结束任务可能强制终止进程，重启前检查是否遗留后端子进程。无人登录也要运行的 Windows Service 需要服务包装器，并显式配置账户和环境；当前 Go 程序本身不是 Windows Service。参见 Microsoft [任务账户选项](https://learn.microsoft.com/en-us/powershell/module/scheduledtasks/new-scheduledtaskprincipal) 和 [运行时长限制](https://learn.microsoft.com/en-us/windows/win32/taskschd/tasksettings-executiontimelimit)。
+</details>
 
-#### WSL2：先确定需要哪一侧的环境
-
-需要 Linux 项目与 Linux 命令时，在目标 WSL 发行版内构建并运行 MCP-Proxy，按 Linux 步骤配置并[启用 systemd](https://learn.microsoft.com/en-us/windows/wsl/systemd)。路径使用 `/home/alice/projects` 等 Linux 路径，访问挂载的 Windows 文件可用 `/mnt/c/projects`。这提供的是该发行版环境，不等同于 Windows 桌面会话；需要 Windows 应用和工具链时，优先运行 Windows 原生代理。lingering 不会在 Windows 开机时自动启动发行版，也不能保证发行版一直运行；如有需要，另行配置 Windows 侧的 WSL 启动，并在修改监听地址前验证浏览器能否连接。
-
-### 从 Docker Compose 迁移
+<details>
+<summary>可选：从 Docker Compose 迁移或升级</summary>
 
 1. 先记录原 Compose 的项目名、全部 `-f` 配置文件、监听地址/端口、后端名称及完整工具列表。使用实际部署命令检查 `docker compose ... config` 和 `docker inspect`，确认 override、host 网络、bind mount、volume 及环境变量；输出可能含密钥，不要贴到公开日志。不要只根据仓库默认的 `compose.yml` 判断线上配置。
 2. 备份 `config.json`、`.env`、Compose 文件、旧镜像标识和需要保留的后端状态。保留原配置作为回滚副本，在独立的候选配置中修改宿主路径。容器 HOME、npm 缓存及 Desktop Commander 的历史/配置与宿主账户分离，按需迁移，并检查路径、权限和密钥。对已通过 bind mount 持久化的状态，可让原生服务继续使用对应宿主目录；例如将容器 `XDG_DATA_HOME=/var/lib/mcp-proxy` 改为该挂载的真实宿主路径，以延续后端审计日志。
-3. 在停止旧服务前，安装宿主运行环境、构建程序并校验 unit。将 `/workspace`、`/opt/...` 等容器路径替换为真实宿主路径，保留原有 `mcpServers` 条目、认证配置及后端参数。复制 Node.js 后端目录时，确认包含运行依赖，并在宿主 Node.js 版本和 CPU 架构下验证原生模块；仅复制入口 JS 文件不够。将所需环境变量迁入进程管理器配置；原生进程不读取 Compose 的 `.env`、`MCP_PROXY_BIND` 或 `MCP_PROXY_PORT`，监听地址和端口使用 `--host`、`--port`。
+3. 在停止旧服务前，安装宿主运行环境、下载并校验发布程序、校验 unit。将 `/workspace`、`/opt/...` 等容器路径替换为真实宿主路径，保留原有 `mcpServers` 条目、认证配置及后端参数。复制 Node.js 后端目录时，确认包含运行依赖，并在宿主 Node.js 版本和 CPU 架构下验证原生模块；仅复制入口 JS 文件不够。将所需环境变量迁入进程管理器配置；原生进程不读取 Compose 的 `.env`、`MCP_PROXY_BIND` 或 `MCP_PROXY_PORT`，监听地址和端口使用 `--host`、`--port`。
 4. 用候选配置在临时的回环地址端口（例如 `127.0.0.1:3007`）验证原生程序。核对全部后端及工具列表，并实际调用无副作用的工具；`/readyz` 成功并不代表所有后端都已恢复。并行验证时，为日志/审计等可写状态使用独立目录；若后端不支持多个实例，应在维护窗口顺序验证。完成后停止临时实例。
 5. 使用原来的项目名及全部 `-f` 参数执行 `docker compose ... stop mcp-proxy`，确认正式端口已释放，再切换候选配置并启动托管服务。保留已停止的容器和 volume 以便回滚；如使用 `down`，**不要加 `-v`**。同一端口只保留一个运行实例。沿用原访问地址（本机默认 `http://localhost:3006/sse`；远程浏览器使用服务器实际地址），重新连接扩展，核对工具列表并验证实际调用、服务重启和自动启动。
 6. 需要回滚时，先停止并禁用原生服务，恢复原 Compose 使用的配置及环境，再使用原项目名和全部 `-f` 参数执行 `docker compose ... up -d --no-build`。候选配置中的宿主路径不能直接交给旧容器；回滚后也需检查工具列表和实际调用。确认迁移稳定后，再按需清理旧容器和备份。
 
-升级时先停止原生服务，备份程序和配置，更新到经过审查的版本，按前述命令重新构建，然后启动并验证。保留旧程序和配置以便回滚。
+升级时先停止原生服务，备份程序和配置，下载并校验目标版本的发布程序，替换可执行文件，然后启动并验证。保留旧程序和配置以便回滚。
 
-### 可选：使用 Docker Compose 运行隔离工具
+</details>
+
+<details>
+<summary>可选：使用 Docker Compose 运行隔离工具</summary>
 
 如果容器隔离符合需求，可按 [MCP-Proxy Docker 文档](https://github.com/drawdy/MCP-Proxy#docker-compose) 部署。默认 Compose 将 `./workspace` 挂载为 `/workspace`，提供 Node.js、npm/Desktop Commander 持久化 volume，并发布到 `127.0.0.1:3006`。容器后端不需要宿主安装对应运行环境，配置使用容器路径；宿主命令和桌面访问仍受隔离限制。
 
@@ -242,15 +312,41 @@ docker compose logs -f mcp-proxy
 docker compose restart mcp-proxy
 ```
 
-### 可选：开放局域网访问
+容器工具使用容器路径、运行环境、HOME 和凭据，`localhost` 指向容器。目录挂载和 host 网络不能提供宿主 Shell 或桌面会话。需要隔离时使用 Docker，不要通过特权模式或挂载 Docker socket 绕过隔离。
+
+</details>
+
+<details>
+<summary>可选：开放局域网访问</summary>
 
 原生运行时，将托管命令改为 `--host 0.0.0.0 --port 3006` 并重启。Compose 则在其 `.env` 中设置 `MCP_PROXY_BIND=0.0.0.0`，再执行 `docker compose up -d`。扩展填写机器的真实局域网地址，例如 `http://192.168.1.100:3006/sse`；`0.0.0.0` 是监听地址，不是连接目标。
 
 使用防火墙将 `3006` 端口限制为可信设备。代理没有前端身份认证，CORS 不能替代访问控制。不要直接暴露到公网或配置路由器公网端口转发。
 
+</details>
+
+<details>
+<summary>可选：其他平台或开发时从源码构建</summary>
+
+仅在没有匹配平台的发布包或开发 MCP-Proxy 时使用。安装其 `go.mod` 要求的 Go 版本（v0.1.0 要求 Go 1.26.8 或更高版本）。
+
+```bash
+git clone --branch v0.1.0 https://github.com/drawdy/MCP-Proxy.git
+cd MCP-Proxy
+mkdir -p "$HOME/.local/share/mcp-proxy/bin"
+go build -trimpath -o "$HOME/.local/share/mcp-proxy/bin/mcp-proxy" ./cmd/mcp-proxy
+```
+
+macOS 用户还需创建 `~/.local/share/mcp-proxy/workspace`，并将使用 macOS 路径的配置保存到 `~/.local/share/mcp-proxy/config.json`，再使用上方 LaunchAgent。
+
+</details>
+
 ## 三、添加更多 MCP Server
 
 可以同时连接多个 MCP Server。在 `config.json` 的 `mcpServers` 对象中，为每个 MCP Server 增加一个独立配置项，并确保名称唯一。
+
+<details>
+<summary>可选：添加其他本地或远程 MCP Server 的示例</summary>
 
 ### 示例 A：添加文件系统访问能力
 
@@ -260,14 +356,14 @@ docker compose restart mcp-proxy
 {
   "mcpServers": {
     "desktop-commander": {
-      "command": "/usr/bin/npx",
-      "args": ["-y", "@wonderwhy-er/desktop-commander@latest"]
+      "command": "npx",
+      "args": ["-y", "@wonderwhy-er/desktop-commander@0.3.1"]
     },
     "filesystem": {
-      "command": "/usr/bin/npx",
+      "command": "npx",
       "args": [
         "-y",
-        "@modelcontextprotocol/server-filesystem",
+        "@modelcontextprotocol/server-filesystem@2.1.0",
         "/home/alice/projects"
       ]
     }
@@ -295,6 +391,8 @@ macOS 可使用 `/Users/alice/projects`；Windows 的 JSON 路径应转义，例
 
 请使用远程 Server 提供的实际 URL 和认证配置。如果需要凭据，请按照该 Server 的说明配置，并避免将密码、Token 等敏感信息提交到公开仓库。
 
+</details>
+
 ### 修改 config.json 后
 
 使用对应进程管理器重启：Linux 执行 `systemctl --user restart mcp-proxy.service`，macOS 执行 `launchctl kickstart -k "gui/$(id -u)/local.mcp-proxy"`，Windows 在任务计划程序中先**结束**再**运行**。前台进程按 **Ctrl+C** 后重新启动；Docker 执行 `docker compose restart mcp-proxy`。扩展未自动恢复时重新连接。配置只在启动时加载，修改后必须重启。
@@ -303,25 +401,34 @@ macOS 可使用 `/Users/alice/projects`；Windows 的 JSON 路径应转义，例
 
 ## 四、让扩展连接 Proxy Server
 
-请先确认 Proxy Server 已经启动，然后进行以下操作：
+**首次连接必须完成 Chrome 主机授权。** 安装或加载扩展、打开聊天侧边栏，都不会自动授予 Proxy Server 的访问权限。
 
-1. 点击 Chrome 工具栏中的 **MCP-Interceptor** 图标。
-2. 在 **MCP Server Endpoint** 中输入：
+1. 先确认代理所在机器上的 `http://127.0.0.1:3006/healthz` 能正常响应。
+2. 点击 Chrome 工具栏中的 **MCP-Interceptor 图标**；图标隐藏时，先从 Chrome 扩展菜单将其固定。此处打开的是扩展的配置和授权页面。
+3. 在 **MCP Server Endpoint** 中填写 `http://localhost:3006/sse`，将 **Transport** 设为 **SSE**。
+4. 核对 **Chrome permission scope**，点击 **Grant access and connect**。必须点击此按钮才能申请访问权限，仅填写地址或刷新侧边栏不够。
+5. Chrome 弹出主机访问确认时，选择 **允许（Allow）**。如果之前已经授权，Chrome 可能不再弹出确认。
+6. 等待显示 **Connected**，再返回 AI 聊天页面；必要时刷新侧边栏中的 Server 和工具列表。
 
-   `http://localhost:3006/sse`
+**拒绝授权或权限缺失时：** 重新打开工具栏页面，再次点击 **Grant access and connect**。如果 Chrome 的扩展设置限制了网站访问，请进入 `chrome://extensions/` → MCP-Interceptor → **详情（Details）**，检查已配置代理主机的网站访问权限，再重试。`/healthz` 正常只说明代理在运行，并不代表扩展已获授权。
 
-3. 将 **Transport** 设置为 **SSE**。
-4. 点击 **Grant access and connect**。
-5. Chrome 弹出主机访问权限提示时，点击 **允许（Allow）**。
-6. 等待扩展显示 **Connected**。
+授权按配置的协议和主机生效，覆盖该主机的所有端口（所以页面会显示 `localhost (all ports)`），并非只授权 `/sse` 或 3006 端口。`localhost`、`127.0.0.1` 和局域网 IP 是不同主机；更换主机或 HTTP/HTTPS 协议后可能需要重新授权。已有授权保持有效时可复用；撤销权限或重新安装扩展后，请重新检查授权。
 
-只需要授予扩展访问当前配置的 Server 主机的权限，不需要允许它访问所有网站或局域网地址。
+<details>
+<summary>为什么需要授权按钮，能否去掉？</summary>
 
-### 传输协议兼容性
+当前版本只为你配置的 Server 申请可选主机权限。[Chrome 要求运行时权限申请由用户操作触发](https://developer.chrome.com/docs/extensions/reference/api/permissions#step_3_request_optional_permissions)，扩展不能静默为任意新 Server 授权。仅删除按钮会导致新主机无法访问。另一种实现是预先声明固定主机或更广的必需权限，把权限需求提前到安装阶段；这会改变扩展申请的访问范围。当前版本保留逐主机授权方式。
+
+</details>
+
+<details>
+<summary>传输协议兼容性</summary>
 
 MCP-Proxy 当前向 MCP-Interceptor 提供传统 **SSE** 接口。扩展中的 **Transport** 请选择 **SSE**，Endpoint 使用 `http://localhost:3006/sse`。
 
 MCP-Proxy 的后端连接支持 stdio、SSE 和 Streamable HTTP。这里指的是它连接后端 MCP Server 的能力，并不代表面向浏览器扩展的代理接口也支持 Streamable HTTP 或 WebSocket。使用 MCP-Proxy 时，不要在扩展中选择这两种输出协议。
+
+</details>
 
 ## 五、在 Gemini、DeepSeek、Grok、ChatGPT 中使用 MCP 工具
 
@@ -383,18 +490,22 @@ AI 需要先获得调用工具的说明，才能按照 MCP-Interceptor 支持的
 
 首次使用时，建议关闭 **Auto Insert**、**Auto Submit** 和 **Auto Execute**。先人工检查每次工具调用，并点击 **Run** 执行。只有在确认 MCP Server 可信、理解工具的实际操作范围后，再考虑启用自动化。
 
-### 可选：Push Content Mode
+<details>
+<summary>可选：Push Content Mode</summary>
 
 侧边栏顶部有一个 **Push Content Mode** 开关。启用后，扩展会调整网页内容区域，为侧边栏腾出空间，而不是让侧边栏覆盖网页内容。
 
 如果侧边栏遮挡了网页内容，可以打开这个开关；如果没有遮挡，则保持关闭即可。
+
+</details>
 
 ## 六、常见问题
 
 | 现象 | 检查方法 |
 |---|---|
 | 扩展弹窗显示 **Disconnected** | 检查原生服务状态（Linux：`systemctl --user status mcp-proxy.service`）及 `/healthz`；Docker 使用 `docker compose ps`。核对 Endpoint，Transport 选择 SSE。 |
-| Chrome 没有弹出权限提示 | 输入 Endpoint 后点击 **Grant access and connect**。如果更换了主机地址，需要为新主机重新授权。 |
+| 主机权限缺失或拒绝过授权 | 点击工具栏图标 → 填写地址 → **Grant access and connect** → 弹窗时选 **允许**。若网站访问受限，检查 Chrome 扩展权限设置；代理健康并不等于扩展已授权。 |
+| Chrome 没有弹出权限提示 | 已授权时无需再次弹窗，检查连接状态即可；更换主机或协议可能需要重新授权。 |
 | 侧边栏显示 **Disconnected** | 查看进程管理器日志（Linux：`journalctl --user -u mcp-proxy.service -f`），核对 Endpoint 和 SSE 设置，再刷新 Server。Docker 使用 `docker compose logs -f mcp-proxy`。 |
 | 已连接，但没有显示工具 | 检查 `mcpServers` 和进程管理器日志，核对服务账户的程序路径、PATH、凭据及 `cwd`；修复后使用对应进程管理器重启，再刷新工具列表。 |
 | AI 不调用工具 | 将 MCP Instructions 插入当前对话，明确指定工具名称和任务。 |
@@ -416,9 +527,12 @@ MCP 工具可能读取或修改文件、执行命令或访问外部服务。请�
 - 除非确实需要无人值守执行，否则保持 **Auto Execute** 关闭。
 - MCP-Proxy 默认只绑定 `127.0.0.1`。如使用 `--host 0.0.0.0`（Compose 使用 `MCP_PROXY_BIND=0.0.0.0`）开放局域网访问，请通过防火墙将 `3006` 端口限制为可信设备。不要将它暴露到公网，也不要配置路由器公网端口转发。
 
-### Chrome Manifest V3 内容安全策略
+<details>
+<summary>开发者说明：Chrome Manifest V3 内容安全策略</summary>
 
 扩展的 Background Service Worker 使用 MCP SDK 自带的 `CfWorkerJsonSchemaValidator` 校验工具结构化输出。由于 Ajv 的运行时代码生成与 MV3 扩展 CSP 不兼容，构建时通过 fail-closed alias 禁用默认 Ajv Provider。不要在 CSP 中加入 `unsafe-eval`，也不要重新引入 Ajv 动态代码生成。Extension CI 在后台、MCP 客户端、storage 或 shared 代码变更时运行 `pnpm --filter chrome-extension test`，生产构建后运行 `pnpm scan:mv3-csp`。测试直接编译 workspace 源码，不依赖预先生成的包构建产物。
+
+</details>
 
 ## 支持的平台
 
