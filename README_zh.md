@@ -153,6 +153,7 @@ WantedBy=default.target
 可选的 `~/.config/mcp-proxy/env` 使用 `KEY=value` 格式，不加 `export`；先创建父目录，并将文件权限设为仅本人可读写（`chmod 600`）。PATH 使用完整的绝对路径。代理与后端输出统一进入 journal，停止服务时清理服务进程组。
 
 ```bash
+systemd-analyze --user verify ~/.config/systemd/user/mcp-proxy.service
 systemctl --user daemon-reload
 systemctl --user enable --now mcp-proxy.service
 systemctl --user status mcp-proxy.service
@@ -161,7 +162,9 @@ journalctl --user -u mcp-proxy.service -f
 
 修改配置或环境后，执行 `systemctl --user restart mcp-proxy.service`；修改 unit 后还需先执行 `daemon-reload`。停止使用 `systemctl --user stop mcp-proxy.service`，取消自动启动使用 `systemctl --user disable --now mcp-proxy.service`。
 
-如需开机启动且退出登录后继续运行，可执行 `loginctl enable-linger "$USER"`（本机策略可能要求管理员授权）。这不会提供图形会话或自动解锁密钥环。参见官方 [服务配置](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html)、[环境配置](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html) 和 [lingering 说明](https://www.freedesktop.org/software/systemd/man/latest/loginctl.html)。
+以上 `systemctl --user` 命令均由实际运行代理的普通用户执行，不要加 `sudo`；`sudo systemctl --user` 会指向另一个用户的服务管理器。通过 SSH 操作时，使用该用户的正常登录会话；出现 `Failed to connect to bus` 时，先确认该账户的用户管理器与 `/run/user/$(id -u)/bus` 是否可用。
+
+如需开机启动且退出登录后继续运行，可执行 `loginctl enable-linger "$USER"`（本机策略可能要求管理员授权），并用 `loginctl show-user "$USER" -p Linger` 确认返回 `Linger=yes`。这不会提供图形会话或自动解锁密钥环。参见官方 [服务配置](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html)、[环境配置](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html) 和 [lingering 说明](https://www.freedesktop.org/software/systemd/man/latest/loginctl.html)。
 
 #### macOS：launchd LaunchAgent
 
@@ -219,10 +222,12 @@ tail -f ~/Library/Logs/MCP-Proxy/*.log
 
 ### 从 Docker Compose 迁移
 
-1. 备份 `config.json`、`.env` 和需要保留的后端状态。容器 HOME、npm 缓存及 Desktop Commander 的历史/配置与宿主账户分离，按需迁移，并检查路径、权限和密钥。
-2. 在原 Compose 目录执行 `docker compose down`，释放 `3006` 端口。需要保留 volume 用于迁移或回滚时，**不要加 `-v`**。
-3. 安装宿主运行环境，将 `/workspace` 和容器内程序路径替换为宿主路径，并将所需环境变量迁入进程管理器配置。原生进程不读取 Compose 的 `.env`、`MCP_PROXY_BIND` 或 `MCP_PROXY_PORT`，监听地址和端口使用 `--host`、`--port`。
-4. 前台验证原生程序后停止，再启用一种进程管理器。扩展继续使用 `http://localhost:3006/sse`，实际验证文件和命令工具。需要回滚时，先停止原生服务，再执行 `docker compose up -d`。
+1. 先记录原 Compose 的项目名、全部 `-f` 配置文件、监听地址/端口、后端名称及完整工具列表。使用实际部署命令检查 `docker compose ... config` 和 `docker inspect`，确认 override、host 网络、bind mount、volume 及环境变量；输出可能含密钥，不要贴到公开日志。不要只根据仓库默认的 `compose.yml` 判断线上配置。
+2. 备份 `config.json`、`.env`、Compose 文件、旧镜像标识和需要保留的后端状态。保留原配置作为回滚副本，在独立的候选配置中修改宿主路径。容器 HOME、npm 缓存及 Desktop Commander 的历史/配置与宿主账户分离，按需迁移，并检查路径、权限和密钥。对已通过 bind mount 持久化的状态，可让原生服务继续使用对应宿主目录；例如将容器 `XDG_DATA_HOME=/var/lib/mcp-proxy` 改为该挂载的真实宿主路径，以延续后端审计日志。
+3. 在停止旧服务前，安装宿主运行环境、构建程序并校验 unit。将 `/workspace`、`/opt/...` 等容器路径替换为真实宿主路径，保留原有 `mcpServers` 条目、认证配置及后端参数。复制 Node.js 后端目录时，确认包含运行依赖，并在宿主 Node.js 版本和 CPU 架构下验证原生模块；仅复制入口 JS 文件不够。将所需环境变量迁入进程管理器配置；原生进程不读取 Compose 的 `.env`、`MCP_PROXY_BIND` 或 `MCP_PROXY_PORT`，监听地址和端口使用 `--host`、`--port`。
+4. 用候选配置在临时的回环地址端口（例如 `127.0.0.1:3007`）验证原生程序。核对全部后端及工具列表，并实际调用无副作用的工具；`/readyz` 成功并不代表所有后端都已恢复。并行验证时，为日志/审计等可写状态使用独立目录；若后端不支持多个实例，应在维护窗口顺序验证。完成后停止临时实例。
+5. 使用原来的项目名及全部 `-f` 参数执行 `docker compose ... stop mcp-proxy`，确认正式端口已释放，再切换候选配置并启动托管服务。保留已停止的容器和 volume 以便回滚；如使用 `down`，**不要加 `-v`**。同一端口只保留一个运行实例。沿用原访问地址（本机默认 `http://localhost:3006/sse`；远程浏览器使用服务器实际地址），重新连接扩展，核对工具列表并验证实际调用、服务重启和自动启动。
+6. 需要回滚时，先停止并禁用原生服务，恢复原 Compose 使用的配置及环境，再使用原项目名和全部 `-f` 参数执行 `docker compose ... up -d --no-build`。候选配置中的宿主路径不能直接交给旧容器；回滚后也需检查工具列表和实际调用。确认迁移稳定后，再按需清理旧容器和备份。
 
 升级时先停止原生服务，备份程序和配置，更新到经过审查的版本，按前述命令重新构建，然后启动并验证。保留旧程序和配置以便回滚。
 
