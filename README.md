@@ -152,6 +152,7 @@ WantedBy=default.target
 The optional `~/.config/mcp-proxy/env` file contains `KEY=value` entries, without `export`; create its parent directory and restrict the file to your user (`chmod 600`). Use literal absolute paths in PATH. The supervisor captures proxy and backend output in the journal and stops the service's process group.
 
 ```bash
+systemd-analyze --user verify ~/.config/systemd/user/mcp-proxy.service
 systemctl --user daemon-reload
 systemctl --user enable --now mcp-proxy.service
 systemctl --user status mcp-proxy.service
@@ -160,7 +161,9 @@ journalctl --user -u mcp-proxy.service -f
 
 After changing configuration or environment, use `systemctl --user restart mcp-proxy.service`. After changing the unit, also run `daemon-reload`. Stop with `systemctl --user stop mcp-proxy.service`; remove automatic startup with `systemctl --user disable --now mcp-proxy.service`.
 
-For startup at boot and operation after logout, optionally run `loginctl enable-linger "$USER"` (local policy may require administrator authorization). This does not provide a graphical session or an unlocked keyring. See the official [service configuration](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html), [environment configuration](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html) and [lingering documentation](https://www.freedesktop.org/software/systemd/man/latest/loginctl.html).
+Run these `systemctl --user` commands as the ordinary user who will run the proxy, without `sudo`; `sudo systemctl --user` targets another user's service manager. Over SSH, use that user's normal login session. If you see `Failed to connect to bus`, check that the account's user manager and `/run/user/$(id -u)/bus` are available.
+
+For startup at boot and operation after logout, optionally run `loginctl enable-linger "$USER"` (local policy may require administrator authorization), then confirm `Linger=yes` with `loginctl show-user "$USER" -p Linger`. This does not provide a graphical session or an unlocked keyring. See the official [service configuration](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html), [environment configuration](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html) and [lingering documentation](https://www.freedesktop.org/software/systemd/man/latest/loginctl.html).
 
 #### macOS — launchd LaunchAgent
 
@@ -218,10 +221,12 @@ If your tools need Linux projects and Linux commands, build and run MCP-Proxy in
 
 ### Migrating from Docker Compose
 
-1. Back up `config.json`, `.env` and any backend state you need. Container HOME, npm cache and Desktop Commander history/configuration live separately from your host account; migrate needed state deliberately and review paths, permissions and secrets.
-2. In the old Compose directory, run `docker compose down` to release port `3006`. Do **not** add `-v` if you need the named volumes for migration or rollback.
-3. Install host runtimes; replace `/workspace` and container executable paths with host paths, and transfer required environment variables into the supervisor configuration. Native processes do not read Compose's `.env`, `MCP_PROXY_BIND` or `MCP_PROXY_PORT`; use `--host` and `--port`.
-4. Verify the native binary in the foreground, stop it, then enable one supervisor. Keep the extension endpoint `http://localhost:3006/sse` and check actual file/command tools. To roll back, stop the native service before running `docker compose up -d` again.
+1. Record the original Compose project name, every `-f` configuration file, the bind address and port, backend names, and the complete tool list. Inspect `docker compose ... config` using the actual deployment command and inspect the container with `docker inspect` to identify overrides, host networking, bind mounts, volumes, and environment variables. These outputs may contain secrets; do not paste them into public logs. Do not infer the deployed configuration from the repository's default `compose.yml` alone.
+2. Back up `config.json`, `.env`, Compose files, the old image ID, and any backend state you need. Keep the original configuration for rollback and edit host paths in a separate candidate configuration. Container HOME, npm cache, and Desktop Commander history/configuration live separately from your host account; migrate needed state deliberately and review paths, permissions, and secrets. For state already persisted through bind mounts, the native service can use the corresponding host directory. For example, replace a container's `XDG_DATA_HOME=/var/lib/mcp-proxy` with the real host path of that mount to continue backend audit logs.
+3. Before stopping the old service, install host runtimes, build the binary, and validate the unit. Replace container paths such as `/workspace` and `/opt/...` with real host paths, preserving the existing `mcpServers` entries, authentication settings, and backend arguments. If copying a Node.js backend directory, include its runtime dependencies and verify native modules against the host's Node.js version and CPU architecture; copying only the entry-point JS file is insufficient. Transfer required environment variables into the supervisor configuration. Native processes do not read Compose's `.env`, `MCP_PROXY_BIND`, or `MCP_PROXY_PORT`; use `--host` and `--port`.
+4. Test the native binary with the candidate configuration on a temporary loopback port, for example `127.0.0.1:3007`. Check every backend and the complete tool list, and make actual calls to tools without side effects; a successful `/readyz` does not mean every backend has recovered. During parallel validation, use separate directories for writable state such as logs and audit records. If a backend does not support multiple instances, validate sequentially during a maintenance window. Stop the temporary instance when done.
+5. Using the original project name and every `-f` argument, run `docker compose ... stop mcp-proxy`. Confirm the production port is free, then switch to the candidate configuration and start the supervised service. Keep the stopped container and volumes for rollback; if using `down`, **do not add `-v`**. Run only one instance on the port. Keep the original endpoint (locally, `http://localhost:3006/sse`; for a remote browser, use the server's actual address), reconnect the extension, check the tool list and actual calls, and verify service restart and automatic startup.
+6. To roll back, stop and disable the native service, restore the configuration and environment used by the original Compose deployment, then run `docker compose ... up -d --no-build` with the original project name and every `-f` argument. Do not pass the candidate's host paths directly to the old container. Check the tool list and actual calls after rollback too. Clean up old containers and backups only after the migration is stable.
 
 For upgrades, stop the native service, back up the binary and configuration, update to a reviewed revision, rebuild with the command above, and start and verify the service. Keep the previous binary/configuration for rollback.
 
