@@ -1,6 +1,6 @@
 {
   "name": "chrome-extension",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "MCP-Interceptor browser extension for connecting MCP tools to AI chat websites",
   "type": "module",
   "private": true,
@@ -39,5 +39,9 @@
     "@types/node": "^22.5.5",
     "magic-string": "^1.4.5",
     "ts-loader": "^9.6.2"
+  },
+  "author": "drawdy (https://github.com/drawdy)",
+  "bugs": {
+    "url": "https://github.com/drawdy/MCP-Interceptor/issues"
   }
 }

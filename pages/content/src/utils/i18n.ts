@@ -77,7 +77,9 @@ const initChromeStorageLanguageSync = () => {
 
     chrome.storage.onChanged?.addListener((changes, areaName) => {
       if (areaName === 'local' && changes[STORAGE_KEY]?.newValue) {
-        const nextLang = normalizeLanguage(changes[STORAGE_KEY].newValue);
+        const nextLang = normalizeLanguage(
+          typeof changes[STORAGE_KEY].newValue === 'string' ? changes[STORAGE_KEY].newValue : 'en',
+        );
         const current = normalizeLanguage(useUIStore.getState().preferences.language);
         if (nextLang !== current) {
           useUIStore.getState().updatePreferences({ language: nextLang });

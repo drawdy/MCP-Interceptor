@@ -1,15 +1,15 @@
 /**
- * Automation Service for MCP SuperAssistant
- * 
+ * Automation Service for MCP-Interceptor
+ *
  * This service handles the automation features (auto insert, auto submit, auto execute)
  * that were previously part of the legacy adapter system. It integrates with the new
  * Zustand architecture and plugin-based adapter system.
- * 
+ *
  * Features:
  * - Auto Insert: Automatically insert function execution results into the current page
  * - Auto Submit: Automatically submit forms after auto-insertion
  * - Auto Execute: Log when tool execution is completed (extensible for future features)
- * 
+ *
  * The service listens for 'mcp:tool-execution-complete' events and performs actions
  * based on the current automation state from the user preferences store.
  */
@@ -46,18 +46,16 @@ async function initializeStoreAccess() {
       const { useAdapterStore } = await import('../stores/adapter.store');
       const adapterState = useAdapterStore.getState();
       const activeAdapterRegistration = adapterState.getActiveAdapter();
-      
+
       const plugin = activeAdapterRegistration?.plugin;
-      
+
       return {
         plugin,
         // Bind methods to maintain proper 'this' context
         insertText: plugin?.insertText ? plugin.insertText.bind(plugin) : null,
         attachFile: plugin?.attachFile ? plugin.attachFile.bind(plugin) : null,
         submitForm: plugin?.submitForm ? plugin.submitForm.bind(plugin) : null,
-        isReady: !!plugin && 
-                activeAdapterRegistration.status === 'active' && 
-                !adapterState.lastAdapterError
+        isReady: !!plugin && activeAdapterRegistration.status === 'active' && !adapterState.lastAdapterError,
       };
     };
 
@@ -204,7 +202,7 @@ export class AutomationService {
     try {
       // Get current automation state from user preferences
       const automationState = await this.getAutomationState();
-      
+
       if (!automationState) {
         logger.debug('[AutomationService] Could not get automation state, skipping automation');
         return;
@@ -223,10 +221,10 @@ export class AutomationService {
       // Handle Auto Insert and Auto Submit logic
       // Skip auto-insert if skipAutoInsertCheck is true (for manual actions)
       const shouldAutoInsert = automationState.autoInsert && !detail.skipAutoInsertCheck;
-      
+
       if (shouldAutoInsert) {
         const insertSuccess = await this.handleAutoInsert(detail);
-        
+
         // Only proceed with auto submit if auto insert was successful
         // and auto submit is enabled
         if (insertSuccess && automationState.autoSubmit) {
@@ -235,7 +233,6 @@ export class AutomationService {
       } else {
         logger.debug('[AutomationService] Auto Insert disabled, skipping insert and submit actions');
       }
-
     } catch (error) {
       logger.error('[AutomationService] Error handling tool execution complete:', error);
     }
@@ -253,7 +250,7 @@ export class AutomationService {
       }
 
       const preferences = await storeRefs.getUserPreferences();
-      
+
       // Extract automation settings from preferences
       return {
         autoInsert: preferences.autoInsert || false,
@@ -288,7 +285,7 @@ export class AutomationService {
       hasResult: !!detail.result,
       isFileAttachment: detail.isFileAttachment,
       fileName: detail.fileName,
-      appliedDelay: delay
+      appliedDelay: delay,
     });
 
     // Emit event for potential future integrations
@@ -338,13 +335,13 @@ export class AutomationService {
       // Handle file attachment
       if (detail.isFileAttachment && detail.file && attachFile) {
         logger.debug('[AutomationService] Auto inserting file:', detail.file.name);
-        
+
         try {
           const success = await attachFile(detail.file);
-          
+
           if (success) {
             logger.debug('[AutomationService] File attached successfully via auto insert');
-            
+
             // Optionally insert confirmation text if provided
             if (detail.confirmationText && insertText) {
               logger.debug('[AutomationService] Inserting file confirmation text');
@@ -357,7 +354,7 @@ export class AutomationService {
                 }
               }, 100);
             }
-            
+
             return true;
           } else {
             logger.warn('[AutomationService] File attachment failed');
@@ -369,19 +366,19 @@ export class AutomationService {
             hasAttachFile: !!attachFile,
             attachFileType: typeof attachFile,
             activePluginName: activePlugin?.name,
-            fileName: detail.file?.name
+            fileName: detail.file?.name,
           });
           return false;
         }
       }
-      
+
       // Handle text insertion
       else if (detail.result && insertText) {
         logger.debug('[AutomationService] Auto inserting text result');
-        
+
         try {
           const success = await insertText(detail.result);
-          
+
           if (success) {
             logger.debug('[AutomationService] Text inserted successfully via auto insert');
             return true;
@@ -394,12 +391,12 @@ export class AutomationService {
           logger.error('[AutomationService] insertText context info:', {
             hasInsertText: !!insertText,
             insertTextType: typeof insertText,
-            activePluginName: activePlugin?.name
+            activePluginName: activePlugin?.name,
           });
           return false;
         }
       }
-      
+
       // No valid insertion method found
       else {
         logger.warn('[AutomationService] No valid insertion method found for auto insert', {
@@ -407,11 +404,10 @@ export class AutomationService {
           isFileAttachment: detail.isFileAttachment,
           hasFile: !!detail.file,
           hasInsertText: !!insertText,
-          hasAttachFile: !!attachFile
+          hasAttachFile: !!attachFile,
         });
         return false;
       }
-
     } catch (error) {
       logger.error('[AutomationService] Error during auto insert:', error);
       return false;
@@ -454,7 +450,7 @@ export class AutomationService {
 
       try {
         const success = await submitForm();
-        
+
         if (success) {
           logger.debug('[AutomationService] Form submitted successfully via auto submit');
           return true;
@@ -467,11 +463,10 @@ export class AutomationService {
         logger.error('[AutomationService] submitForm context info:', {
           hasSubmitForm: !!submitForm,
           submitFormType: typeof submitForm,
-          activePluginName: activePlugin?.name
+          activePluginName: activePlugin?.name,
         });
         return false;
       }
-
     } catch (error) {
       logger.error('[AutomationService] Error during auto submit:', error);
       return false;
@@ -549,14 +544,14 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
       return automationService.triggerTestAutomation({
         result: text,
         isFileAttachment: false,
-        skipAutoInsertCheck: false
+        skipAutoInsertCheck: false,
       });
     },
     testAutoSubmit: async () => {
       return automationService.triggerTestAutomation({
         result: 'Test result for auto submit',
         isFileAttachment: false,
-        skipAutoInsertCheck: true // Force insert so submit can run
+        skipAutoInsertCheck: true, // Force insert so submit can run
       });
     },
     testFileAttachment: async (fileName: string = 'test.txt', content: string = 'Test file content') => {
@@ -566,10 +561,10 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
         file,
         fileName,
         confirmationText: `File ${fileName} attached successfully`,
-        skipAutoInsertCheck: false
+        skipAutoInsertCheck: false,
       });
-    }
+    },
   };
-  
+
   logger.debug('[AutomationService] Debug utilities exposed on window.__automationService');
 }

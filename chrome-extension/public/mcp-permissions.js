@@ -15,6 +15,60 @@
   const sitesDesc = document.getElementById('sites-desc');
   const sitesListElement = document.getElementById('sites-list');
 
+  const CONSENT_VERSION = '2026-11-06';
+  const consentKeys = ['privacyConsentGranted', 'privacyConsentVersion', 'privacyConsentTimestamp'];
+  const agreeButton = document.getElementById('privacy-agree');
+  const revokeButton = document.getElementById('privacy-revoke');
+  let consentGranted = false;
+
+  function renderPrivacy() {
+    const zh = currentLang === 'zh';
+    document.getElementById('privacy-disclosure').textContent = zh
+      ? '同意后，本扩展会读取已启用 AI 网站的对话内容以识别工具名称、参数及结果。工具调用发送至您配置的 MCP 服务器（本地、企业或第三方）；历史与结果保存在本机，结果可插入或自动提交给 AI 服务商。无遥测。主机权限需另外授权。撤销授权会刷新已启用的对话页，以停止全部监控；未发送的输入可能丢失。'
+      : 'After you agree, this extension reads conversations on enabled AI sites to recognize tool names, arguments and results. Calls go to your configured MCP server (local, enterprise or third party). History and results are stored locally; results can be inserted or automatically submitted to the AI provider. No telemetry. Server host access requires a separate grant. Revoking consent reloads enabled chat pages to stop all monitoring; unsent input may be lost.';
+    document.getElementById('privacy-status').textContent = consentGranted
+      ? zh
+        ? '已同意当前隐私政策。'
+        : 'Current privacy policy accepted.'
+      : zh
+        ? '未授权：页面内容处理已关闭。'
+        : 'Not authorized: page-content processing is off.';
+    agreeButton.textContent = zh ? '我同意并启用页面内容处理' : 'I agree — enable page-content processing';
+    revokeButton.textContent = zh ? '撤销隐私授权' : 'Revoke privacy consent';
+    agreeButton.disabled = consentGranted;
+    revokeButton.disabled = !consentGranted;
+  }
+
+  agreeButton.addEventListener('click', async () => {
+    await chrome.storage.local.set({
+      privacyConsentGranted: true,
+      privacyConsentVersion: CONSENT_VERSION,
+      privacyConsentTimestamp: Date.now(),
+    });
+  });
+  revokeButton.addEventListener('click', async () => {
+    await chrome.storage.local.set({
+      privacyConsentGranted: false,
+      privacyConsentVersion: '',
+      privacyConsentTimestamp: 0,
+    });
+  });
+  document.getElementById('privacy-clear').addEventListener('click', async () => {
+    await chrome.storage.local.clear();
+    location.reload();
+  });
+  chrome.storage.onChanged.addListener(async (changes, area) => {
+    if (area !== 'local' || !consentKeys.some(key => key in changes)) return;
+    const stored = await chrome.storage.local.get(consentKeys);
+    consentGranted =
+      stored.privacyConsentGranted === true &&
+      stored.privacyConsentVersion === CONSENT_VERSION &&
+      Number.isFinite(stored.privacyConsentTimestamp) &&
+      stored.privacyConsentTimestamp > 0;
+    renderPrivacy();
+    updatePermissionSummary();
+  });
+
   let connectionType = 'sse';
   let currentLang = 'en';
   let disabledSites = [];
@@ -215,6 +269,7 @@
       proxyDocHint.appendChild(document.createTextNode(d.docSuffix));
     }
     renderSitesList();
+    renderPrivacy();
   }
 
   function renderSitesList() {
@@ -338,6 +393,13 @@
     const value = serverUrlInput.value.trim();
     if (!value) {
       serverHostElement.textContent = d.enterAddress;
+      setStatus(
+        consentGranted
+          ? d.enterAddress
+          : currentLang === 'zh'
+            ? '请先阅读并同意隐私政策。'
+            : 'Read and agree to the privacy policy first.',
+      );
       grantButton.disabled = true;
       return;
     }
@@ -345,8 +407,14 @@
     try {
       const permission = getPermission(value, connectionType);
       serverHostElement.textContent = d.permissionScope(permission.host);
-      grantButton.disabled = false;
-      setStatus(d.statusRequestAccess);
+      grantButton.disabled = !consentGranted;
+      setStatus(
+        consentGranted
+          ? d.statusRequestAccess
+          : currentLang === 'zh'
+            ? '请先阅读并同意隐私政策。'
+            : 'Read and agree to the privacy policy first.',
+      );
     } catch (error) {
       serverHostElement.textContent = '';
       grantButton.disabled = true;
@@ -369,6 +437,7 @@
       }
 
       const stored = await chrome.storage.local.get([
+        ...consentKeys,
         'mcpServerUrl',
         'mcpConnectionType',
         'mcpLanguage',
@@ -382,14 +451,17 @@
       if (Array.isArray(stored.mcpDisabledSites)) {
         disabledSites = stored.mcpDisabledSites.filter(item => typeof item === 'string');
       }
+      consentGranted =
+        stored.privacyConsentGranted === true &&
+        stored.privacyConsentVersion === CONSENT_VERSION &&
+        Number.isFinite(stored.privacyConsentTimestamp) &&
+        stored.privacyConsentTimestamp > 0;
       applyStaticTranslations();
 
       connectionType = stored.mcpConnectionType || 'sse';
       connectionTypeSelect.value = connectionType;
       serverUrlInput.value =
-        typeof stored.mcpServerUrl === 'string' && stored.mcpServerUrl.trim()
-          ? stored.mcpServerUrl
-          : getDefaultUrl(connectionType);
+        typeof stored.mcpServerUrl === 'string' && stored.mcpServerUrl.trim() ? stored.mcpServerUrl : '';
       updatePermissionSummary();
     } catch (error) {
       grantButton.disabled = true;
@@ -428,6 +500,7 @@
   });
 
   grantButton.addEventListener('click', async () => {
+    if (!consentGranted) return;
     const d = dict();
     const value = serverUrlInput.value.trim();
     let permission;
@@ -475,7 +548,7 @@
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error), 'error');
     } finally {
-      grantButton.disabled = false;
+      grantButton.disabled = !consentGranted;
     }
   });
 

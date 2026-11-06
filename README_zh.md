@@ -13,7 +13,17 @@
 
 ---
 
-MCP-Interceptor 通过独立的 Go 代理服务 [MCP-Proxy](https://github.com/drawdy/MCP-Proxy)，将 AI 聊天网站连接到 MCP 工具。只需安装浏览器扩展、启动 MCP-Proxy 并配置 MCP Server，然后连接即可。
+MCP-Interceptor 将用户自行配置的 MCP 服务器连接到受支持的 AI 对话网站，让用户在对话中调用工具并使用结果。下文介绍以可选的 MCP-Proxy 连接后端工具的使用方式。
+
+## 隐私授权与独立产品定位
+
+MCP-Interceptor 是独立维护的浏览器扩展，将用户自行配置的 MCP 服务器连接到受支持的 AI 对话网站，让用户在熟悉的对话中调用工具并使用结果。下文以可选的、自行运行的 [MCP-Proxy](https://github.com/drawdy/MCP-Proxy) 为例；也可连接其他兼容端点，不依赖维护者托管服务。
+
+首次使用或从没有授权记录的旧版升级后，请打开工具栏 Popup，阅读数据处理说明与[隐私政策](PRIVACY.md)，点击**我同意并启用页面内容处理**。在此之前不启动页面内容监控和工具识别。授权保存在 Chrome 本地存储，隐私政策实质性变化时需要重新同意。MCP 服务器主机权限另行授予；未配置端点并授权前不会连接默认 localhost。可逐站启用或禁用。
+
+可在 Popup 撤销授权或清除扩展数据。撤销会刷新已初始化的对话页，未发送的输入可能丢失。执行历史会在本地记录对话 URL、工具/服务器名称及可选文本结果（每 URL 最多 100 条，无自动过期）。Chrome 扩展存储与 AI 网站 localStorage 需分别清理，详见隐私政策。无遥测、统计或远程配置。
+
+[Chrome Web Store 发布指南](docs/CHROME_WEB_STORE_RELEASE.md) · [验收清单](docs/chrome-web-store/RELEASE_CHECKLIST.md)
 
 ## 工作原理
 
@@ -28,7 +38,7 @@ Gemini / DeepSeek / Grok / ChatGPT
        已配置的 MCP Server
 ```
 
-**请注意：** MCP Server 配置在 MCP-Proxy 的配置文件中。浏览器扩展只需要连接 MCP-Proxy，不需要在扩展中逐个添加后端 MCP Server。
+**本指南示例：** 将后端 MCP Server 配置在 MCP-Proxy 中，再把代理端点填入扩展；也可直接配置其他兼容的 MCP 服务器端点。
 
 <details>
 <summary>可选：图片预览和附件</summary>
@@ -543,3 +553,8 @@ MCP-Interceptor 当前包含 Gemini、DeepSeek、Grok、ChatGPT 等聊天网站�
 ## 许可证
 
 MCP-Interceptor 使用 MIT License，详见 [LICENSE](LICENSE)。
+
+
+## 版权与许可证归属
+
+MCP-Interceptor 原创贡献版权 © 2026 drawdy 及贡献者，采用 [MIT License](LICENSE)。继承及修改的第三方部分仍归原作者，完整声明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。独立产品定位不改变第三方版权。生产 ZIP 包含项目许可、上游声明及自动生成的依赖许可证清单。

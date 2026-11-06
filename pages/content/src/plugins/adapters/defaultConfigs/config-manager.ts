@@ -48,7 +48,7 @@ export class AdapterConfigManager {
       return this.configCache.get(cacheKey)!;
     }
 
-    // Use bundled, reviewed defaults; this fork has no Firebase Remote Config client.
+    // Use bundled, reviewed defaults; no remote configuration client is included.
     const config: AdapterConfig = this.getDefaultConfig(adapterName);
 
     // Cache the resolved config
