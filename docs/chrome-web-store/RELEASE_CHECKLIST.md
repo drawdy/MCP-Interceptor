@@ -33,7 +33,7 @@ is not authorization to merge or submit. Main guide: [CHROME_WEB_STORE_RELEASE.m
   and attachment fallbacks.
 - [x] Optional custom-server hosts remain available; runtime grant stays scoped to
   the configured host. Content-script allowlist retained; web resources use the
-  same allowlist. No tabs/scripting/activeTab permissions added. Unused default_locale
+  same origin allowlist (Chrome WAR patterns use `/*` paths). No tabs/scripting/activeTab permissions added. Unused default_locale
   and boilerplate locale copying removed.
 - [x] Recursive production JS syntax/CSP/remote-loading checks and package inventory
   checks added, with adversarial scanner regression fixtures. MCP JSON schemas and
@@ -95,8 +95,8 @@ Commands executed locally, with logs in `/tmp/interceptor-*.log` during this wor
 
 ## Final local artifact
 
-- ZIP: `dist-zip/MCP-Interceptor-0.4.0-20261106-090122.zip`
-- SHA-256: `c6e63455a3b2330ebbc8ec0f5dfd028b68c4818c24d1d2639638b4543d33145d`
+- ZIP: `dist-zip/MCP-Interceptor-0.4.0-20261106-090956.zip`
+- SHA-256: `ded6f816592f6166e68779cb669fb7c914f32ce52648e8ecd8605ee6be509113`
 - 22 files; manifest version 0.4.0; seven JavaScript files scanned again after
   extraction to a fresh directory. Required notices and runtime/entry present;
   no maps, node_modules, HMR or unused locale catalogs.

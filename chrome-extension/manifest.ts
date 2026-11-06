@@ -161,6 +161,14 @@ const manifest = {
   // },
 } satisfies chrome.runtime.ManifestV3;
 
-manifest.web_accessible_resources[0].matches = manifest.content_scripts.flatMap(script => script.matches);
+// Chrome WAR matches are origin patterns: their path must be /* even when a
+// content script is limited to /i/grok* or /copilot/* on the same origin.
+manifest.web_accessible_resources[0].matches = [
+  ...new Set(
+    manifest.content_scripts.flatMap(script =>
+      script.matches.map(pattern => pattern.replace(/(\*:\/\/[^/]+)\/.*$/, '$1/*')),
+    ),
+  ),
+];
 
 export default manifest;

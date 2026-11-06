@@ -86,6 +86,10 @@ export async function scanProduction(directory) {
     if ((item.matches ?? []).some(value => ['<all_urls>', '*://*/*', 'http://*/*', 'https://*/*'].includes(value)))
       issues.push('unrestricted page injection/resource access');
   }
+  for (const resource of manifest.web_accessible_resources ?? []) {
+    if ((resource.matches ?? []).some(pattern => !/^[^:]+:\/\/[^/]+\/\*$/.test(pattern)))
+      issues.push('invalid web-accessible resource origin pattern');
+  }
   for (const file of files) {
     const name = relative(root, file);
     if (/\.map$|(?:^|\/)(?:refresh|hmr)[^/]*\.js$|(?:^|\/)(?:tests?|node_modules)\//i.test(name))

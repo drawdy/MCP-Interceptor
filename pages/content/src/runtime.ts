@@ -51,6 +51,11 @@ const logger = createLogger('content_script');
 let recoveryIntervalId: ReturnType<typeof setInterval> | null = null;
 let isExtensionActiveOnSite = false;
 let hasInitializedOnce = false;
+let runtimeCancelled = false;
+(globalThis as typeof globalThis & { mcpInterceptorStop?: () => void }).mcpInterceptorStop = () => {
+  runtimeCancelled = true;
+  void teardownExtensionForCurrentSite();
+};
 
 function stopSidebarRecovery(): void {
   if (recoveryIntervalId !== null) {
@@ -170,10 +175,6 @@ const initRendererWithRetry = (retries = 3, delay = 300) => {
 };
 
 async function teardownExtensionForCurrentSite(): Promise<void> {
-  if (!isExtensionActiveOnSite && !rendererInitialized) {
-    return;
-  }
-
   logMessage(`[Content Script] Disabling MCP-Interceptor on ${window.location.hostname}...`);
   isExtensionActiveOnSite = false;
   rendererInitialized = false;
@@ -221,7 +222,7 @@ async function teardownExtensionForCurrentSite(): Promise<void> {
 }
 
 async function startExtensionForCurrentSite(): Promise<void> {
-  if (isExtensionActiveOnSite) return;
+  if (isExtensionActiveOnSite || runtimeCancelled) return;
 
   isExtensionActiveOnSite = true;
   hasInitializedOnce = true;
@@ -252,7 +253,15 @@ async function startExtensionForCurrentSite(): Promise<void> {
     }
 
     await applicationInit();
+    if (runtimeCancelled) {
+      await teardownExtensionForCurrentSite();
+      return;
+    }
     await initializeAllServices();
+    if (runtimeCancelled) {
+      await teardownExtensionForCurrentSite();
+      return;
+    }
 
     logMessage('Application initialized successfully with Session 10 architecture');
 
@@ -267,6 +276,7 @@ async function startExtensionForCurrentSite(): Promise<void> {
       (window as any).appInitUtils = initializationUtils;
     }
   } catch (error) {
+    if (runtimeCancelled) return;
     logger.error('Failed to initialize application with Session 10 architecture:', error);
     try {
       initializeRenderer();
@@ -343,6 +353,10 @@ function handleVersionUpdate(message: any, sendResponse: (response: any) => void
 
 // Listen for messages from the background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (runtimeCancelled || !isExtensionActiveOnSite) {
+    sendResponse({ success: false, error: 'Page processing is disabled.' });
+    return false;
+  }
   logMessage(`Message received in content script: ${JSON.stringify(message)}`); // Log all incoming messages
 
   // Use the new plugin system to get current adapter

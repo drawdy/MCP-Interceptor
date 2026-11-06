@@ -44,6 +44,10 @@ async function harness(initial = {}) {
     console,
     runtimeStarts: 0,
     reloads: 0,
+    stops: 0,
+    mcpInterceptorStop() {
+      ctx.stops++;
+    },
     location: {
       hostname: 'chatgpt.com',
       reload() {
@@ -107,6 +111,7 @@ test('revocation terminates old document; restart fails closed', async () => {
   assert.equal(h.ctx.runtimeStarts, 1);
   await h.change({ ...accepted, privacyConsentGranted: false });
   assert.equal(h.ctx.reloads, 1);
+  assert.equal(h.ctx.stops, 1);
   assert.equal((await harness({ ...accepted, privacyConsentGranted: false })).ctx.runtimeStarts, 0);
 });
 test('site disabled then enabled still requires consent', async () => {
@@ -117,6 +122,7 @@ test('site disabled then enabled still requires consent', async () => {
   assert.equal(h.ctx.runtimeStarts, 1);
   await h.change({ ...accepted, mcpDisabledSites: ['chatgpt.com'] }, ['mcpDisabledSites']);
   assert.equal(h.ctx.reloads, 1);
+  assert.equal(h.ctx.stops, 1);
 });
 test('storage error cannot enable runtime', async () => {
   const h = await harness();

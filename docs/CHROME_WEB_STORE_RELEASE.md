@@ -65,7 +65,7 @@ their results directly in familiar AI conversations.
 | `clipboardWrite` | User-facing instruction copy and supported attachment/paste fallbacks; no clipboard read permission or clipboard reading. |
 | optional HTTP/HTTPS hosts | User servers may be loopback, LAN, enterprise or third party. Broad optional patterns allow arbitrary user configurations; the runtime gesture requests only the configured scheme/hostname, across all ports. WS/WSS map to HTTP/HTTPS host grants. |
 | content script matches | A specific supported AI-site allowlist, including path-limited Grok/Copilot matches. No all-sites injection. Only the consent entry is initially executed. |
-| web-accessible resources | Packaged runtime, styles and assets needed on those same AI sites; matches mirror the content-script allowlist. |
+| web-accessible resources | Packaged runtime, styles and assets needed on those same AI sites; matches cover the same AI-site origins. Chrome requires `/*` paths for web-accessible resource origin patterns; path-limited content-script matches remain unchanged. |
 
 `tabs`, `scripting`, `activeTab` and clipboard-read privileges are not requested.
 `default_locale` was removed: the popup has bundled English/Chinese strings and

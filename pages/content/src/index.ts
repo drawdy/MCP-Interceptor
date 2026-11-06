@@ -4,6 +4,11 @@ import { DISABLED_SITES_STORAGE_KEY, isSiteDisabled, normalizeDisabledSites } fr
 
 let loadingRuntime = false;
 let revision = 0;
+function stopAndReload(): void {
+  // Stop renderer monitoring synchronously even if navigation is slow or cancelled.
+  (globalThis as typeof globalThis & { mcpInterceptorStop?: () => void }).mcpInterceptorStop?.();
+  location.reload();
+}
 
 async function reconcile(): Promise<void> {
   const current = ++revision;
@@ -16,7 +21,7 @@ async function reconcile(): Promise<void> {
     if (loadingRuntime) {
       // A fresh document cancels observers, timers, in-flight initialization and injected controls,
       // including adapter-specific resources. The next entry checks storage again.
-      if (!allowed) location.reload();
+      if (!allowed) stopAndReload();
       return;
     }
     if (!allowed) return;
@@ -33,7 +38,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
     // Stop the old document immediately on any authorization change while runtime is loaded.
     // This also closes the race with an asynchronous runtime import or initialization.
     if (loadingRuntime) {
-      location.reload();
+      stopAndReload();
       return;
     }
     void reconcile();

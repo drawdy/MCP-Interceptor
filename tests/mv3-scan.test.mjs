@@ -49,6 +49,14 @@ test('recursively scans content, popup and other scripts and checks package inve
       }),
     );
     assert.ok((await scanProduction(dir)).issues.includes('unsafe extension CSP'));
+    await writeFile(
+      join(dir, 'manifest.json'),
+      JSON.stringify({
+        manifest_version: 3,
+        web_accessible_resources: [{ matches: ['*://x.com/i/grok*'], resources: ['script.js'] }],
+      }),
+    );
+    assert.ok((await scanProduction(dir)).issues.includes('invalid web-accessible resource origin pattern'));
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
