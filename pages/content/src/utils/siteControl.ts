@@ -62,9 +62,9 @@ export const SUPPORTED_SITES: SupportedSiteInfo[] = [
   },
   {
     id: 'chat.z.ai',
-    labelEn: 'Z.ai / GLM (chat.z.ai)',
-    labelZh: '智谱 Z.ai (chat.z.ai)',
-    hosts: ['chat.z.ai', 'z.ai'],
+    labelEn: 'Z.ai / GLM (chat.z.ai / zchat.z.ai)',
+    labelZh: '智谱 Z.ai (chat.z.ai / zchat.z.ai)',
+    hosts: ['chat.z.ai', 'zchat.z.ai', 'z.ai'],
   },
   {
     id: 'openrouter.ai',

@@ -11,7 +11,6 @@
     "forceConsistentCasingInFileNames": true,
     "declaration": true,
     "types": ["chrome"],
-    "baseUrl": ".",
     "paths": {
       "@extension/shared/*": ["../../../../packages/shared/lib/*"]
     }

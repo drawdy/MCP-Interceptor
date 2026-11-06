@@ -186,7 +186,7 @@ export const WEBSITE_CONFIGS: Array<{
     },
   },
   {
-    urlPattern: 'chat.z.ai',
+    urlPattern: /(?:chat|zchat)\.z\.ai/,
     config: {
       // targetSelectors: ['pre[id^="cm-hidden-pre-"]'],
       // streamingContainerSelectors: ['pre[id^="cm-hidden-pre-"]'],

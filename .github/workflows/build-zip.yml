@@ -88,7 +88,7 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: pnpm
-      - run: pnpm install --frozen-lockfile --prefer-offline --network-concurrency=4 --fetch-retries=5
+      - run: pnpm install --frozen-lockfile --prefer-offline --network-concurrency=4
       - if: matrix.suite == 'csp'
         run: pnpm --filter chrome-extension test
       - if: matrix.suite == 'image'
@@ -108,7 +108,7 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: pnpm
-      - run: pnpm install --frozen-lockfile --prefer-offline --network-concurrency=4 --fetch-retries=5
+      - run: pnpm install --frozen-lockfile --prefer-offline --network-concurrency=4
       - run: pnpm --filter chrome-extension type-check
       - run: pnpm build
       - run: pnpm scan:mv3-csp
