@@ -13,12 +13,12 @@ import type { AdapterCapability, PluginContext } from '../plugin-types';
 export class ZAdapter extends BaseAdapterPlugin {
   readonly name = 'ZAdapter';
   readonly version = '1.0.0'; // Incremented for new architecture
-  readonly hostnames = ['z.ai', 'chat.z.ai'];
+  readonly hostnames = ['z.ai', 'chat.z.ai', 'zchat.z.ai'];
   readonly capabilities: AdapterCapability[] = [
     'text-insertion',
     'form-submission',
     'file-attachment',
-    'dom-manipulation'
+    'dom-manipulation',
   ];
 
   // CSS selectors for Z's UI elements
@@ -40,8 +40,7 @@ export class ZAdapter extends BaseAdapterPlugin {
     FILE_PREVIEW:
       'div.flex.relative.w-full.h-full > div > div.px-3.pb-3 > div.w-full.font-primary > div.transparent > div > div > form > div > div:nth-of-type(1)',
     // Button insertion points (for MCP popover) - looking for search/research toggle area
-    BUTTON_INSERTION_CONTAINER:
-      'button[aria-label="More"], button[type="submit"]',
+    BUTTON_INSERTION_CONTAINER: 'button[aria-label="More"], button[type="submit"]',
     // Alternative insertion points
     FALLBACK_INSERTION: '#chat-input',
   };
@@ -114,7 +113,7 @@ export class ZAdapter extends BaseAdapterPlugin {
     // Emit activation event for store synchronization
     this.context.eventBus.emit('adapter:activated', {
       pluginName: this.name,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }
 
@@ -140,7 +139,7 @@ export class ZAdapter extends BaseAdapterPlugin {
     // Emit deactivation event
     this.context.eventBus.emit('adapter:deactivated', {
       pluginName: this.name,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }
 
@@ -211,7 +210,12 @@ export class ZAdapter extends BaseAdapterPlugin {
     try {
       // Check if we're on the homepage and use the special method
       const currentUrl = window.location.href;
-      if (currentUrl === 'https://chat.z.ai/' || currentUrl === 'https://z.ai/' || true) {
+      if (
+        currentUrl.startsWith('https://chat.z.ai/') ||
+        currentUrl.startsWith('https://zchat.z.ai/') ||
+        currentUrl.startsWith('https://z.ai/') ||
+        true
+      ) {
         // this.context.logger.debug('Homepage detected, using InputEvent method for text insertion');
         this.context.logger.debug('Using InputEvent method for text insertion for all pages');
         return await this.insertTextViaInputEvent(targetElement, text);
@@ -722,9 +726,7 @@ export class ZAdapter extends BaseAdapterPlugin {
     }
 
     // Check if we're on a supported Z page
-    const supportedPatterns = [
-      /^https:\/\/(?:chat\.)?z\.ai\/search\/.*/, // chat page
-    ];
+    const supportedPatterns = [/^https?:\/\/(?:www\.)?(?:chat\.|zchat\.)?z\.ai\/.*/];
 
     const isSupported = supportedPatterns.some(pattern => pattern.test(currentUrl));
 
@@ -857,7 +859,7 @@ export class ZAdapter extends BaseAdapterPlugin {
     // Start observing
     this.mutationObserver.observe(document.body, {
       childList: true,
-      subtree: true
+      subtree: true,
     });
 
     this.domObserversSetup = true;
@@ -1269,8 +1271,8 @@ export class ZAdapter extends BaseAdapterPlugin {
         parameters,
         result,
         timestamp: Date.now(),
-        status: 'success'
-      }
+        status: 'success',
+      },
     });
   }
 

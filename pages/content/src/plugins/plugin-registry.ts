@@ -968,7 +968,7 @@ class PluginRegistry {
         name: 'z-adapter',
         version: '2.0.0',
         type: 'website-adapter',
-        hostnames: ['z.ai'],
+        hostnames: ['z.ai', 'chat.z.ai', 'zchat.z.ai'],
         capabilities: ['text-insertion', 'form-submission', 'file-attachment'],
         create: () => new ZAdapter(),
         config: {

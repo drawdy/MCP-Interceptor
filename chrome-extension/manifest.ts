@@ -129,9 +129,9 @@ const manifest = {
       js: ['content/index.iife.js'],
       run_at: 'document_idle',
     },
-    // Specific content script for chat.z.ai
+    // Specific content script for chat.z.ai and zchat.z.ai
     {
-      matches: ['*://*.chat.z.ai/*'],
+      matches: ['*://*.chat.z.ai/*', '*://*.zchat.z.ai/*'],
       js: ['content/index.iife.js'],
       run_at: 'document_idle',
     },
