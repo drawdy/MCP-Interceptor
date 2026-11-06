@@ -268,7 +268,7 @@ export class DeepSeekAdapter extends BaseAdapterPlugin {
 
   /**
    * Return whether an element is visible and belongs to the DeepSeek page,
-   * rather than an input embedded in the SuperAssistant UI.
+   * rather than an input embedded in the MCP-Interceptor UI.
    */
   private isUsablePageElement(element: HTMLElement): boolean {
     if (!element.isConnected || element.getAttribute('aria-hidden') === 'true') {
