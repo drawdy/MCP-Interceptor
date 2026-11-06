@@ -4,3 +4,6 @@ packages:
   # - 'pages/content/*'
   - 'packages/*'
   - 'tests/*'
+allowBuilds:
+  '@swc/core': true
+  esbuild: true
