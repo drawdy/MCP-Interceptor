@@ -16,8 +16,10 @@ export function selectChecks(paths, all = false) {
           'pnpm-workspace.yaml',
           'tsconfig.json',
           'turbo.json',
+          'LICENSE',
+          'THIRD_PARTY_NOTICES.md',
           '.github/workflows/build-zip.yml',
-        ].includes(path) || path.startsWith('.github/scripts/'),
+        ].includes(path) || path.startsWith('.github/scripts/') || path.startsWith('third-party/'),
     );
   const code = paths.filter(path => !path.endsWith('.md'));
   const build =
@@ -28,7 +30,7 @@ export function selectChecks(paths, all = false) {
         !/(^|\/)(tests?|__tests__)\//.test(path) &&
         !/\.(test|spec)\.[^/]+$/.test(path),
     ) ||
-    code.includes('scripts/check-mv3-csp.js');
+    code.some(path => path.startsWith('scripts/'));
   const csp =
     global ||
     code.some(

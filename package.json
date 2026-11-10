@@ -1,6 +1,6 @@
 {
   "name": "mcp-interceptor",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "MCP-Interceptor browser extension for connecting MCP tools to AI chat websites",
   "license": "MIT",
   "private": true,
@@ -18,13 +18,13 @@
     "clean:install": "pnpm clean:node_modules && pnpm install --frozen-lockfile",
     "type-check": "turbo type-check",
     "base-build": "pnpm clean:bundle && turbo build",
-    "build": "pnpm set-global-env && pnpm base-build",
+    "build": "pnpm set-global-env && pnpm licenses:production && pnpm base-build",
     "build:firefox": "pnpm set-global-env CLI_CEB_FIREFOX=true && pnpm base-build",
     "base-dev": "pnpm clean:bundle && turbo ready && turbo watch dev --concurrency 20",
     "dev": "pnpm set-global-env CLI_CEB_DEV=true && pnpm base-dev",
     "dev:firefox": "pnpm set-global-env CLI_CEB_DEV=true CLI_CEB_FIREFOX=true && pnpm base-dev",
     "build:eslint": "tsc -b",
-    "zip": "pnpm build && pnpm -F zipper zip",
+    "zip": "pnpm build && pnpm scan:mv3-csp && pnpm -F zipper zip",
     "zip:firefox": "pnpm build:firefox && pnpm -F zipper zip",
     "lint": "turbo lint --continue -- --fix --cache --cache-location node_modules/.cache/.eslintcache",
     "lint:fix": "turbo lint:fix --continue -- --fix --cache --cache-location node_modules/.cache/.eslintcache",
@@ -38,7 +38,11 @@
     "test:json-parser": "node tests/run-json-function-parser-multiline.js",
     "test:mcp-csp-validator": "node chrome-extension/tests/mcp-csp-validator.test.mjs",
     "scan:mv3-csp": "node scripts/check-mv3-csp.js",
-    "test:mcp-image-output": "node tests/run-mcp-image-output.js"
+    "test:mcp-image-output": "node tests/run-mcp-image-output.js",
+    "test:privacy-consent": "node --test tests/privacy-consent.test.mjs",
+    "test:mv3-scan": "node --test tests/mv3-scan.test.mjs",
+    "licenses:production": "node scripts/collect-production-licenses.js",
+    "test:production-package": "node --test tests/production-package.test.mjs"
   },
   "dependencies": {
     "react": "19.3.1",
@@ -92,5 +96,9 @@
   "packageManager": "pnpm@12.18.0",
   "engines": {
     "node": ">=22.13.0"
+  },
+  "author": "drawdy (https://github.com/drawdy)",
+  "bugs": {
+    "url": "https://github.com/drawdy/MCP-Interceptor/issues"
   }
 }

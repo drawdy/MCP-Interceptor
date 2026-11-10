@@ -19,7 +19,6 @@ const packageJson = JSON.parse(readFileSync('./package.json', 'utf8'));
  */
 const manifest = {
   manifest_version: 3,
-  default_locale: 'en',
   name: 'MCP-Interceptor',
   version: packageJson.version,
   description: 'Connect MCP tools to supported AI chat websites through a user-configured MCP server.',
@@ -144,13 +143,32 @@ const manifest = {
   // devtools_page: 'devtools/index.html',
   web_accessible_resources: [
     {
-      resources: ['*.js', '*.css', 'content/*.css', '*.svg', 'icon-128.png', 'icon-34.png', 'icon-16.png'],
-      matches: ['*://*/*'],
+      resources: [
+        '*.js',
+        '*.css',
+        'content/*.css',
+        'content/runtime.iife.js',
+        '*.svg',
+        'icon-128.png',
+        'icon-34.png',
+        'icon-16.png',
+      ],
+      matches: [] as string[], // Filled from the content-script allowlist below.
     },
   ],
   // side_panel: {
   //   default_path: 'side-panel/index.html',
   // },
 } satisfies chrome.runtime.ManifestV3;
+
+// Chrome WAR matches are origin patterns: their path must be /* even when a
+// content script is limited to /i/grok* or /copilot/* on the same origin.
+manifest.web_accessible_resources[0].matches = [
+  ...new Set(
+    manifest.content_scripts.flatMap(script =>
+      script.matches.map(pattern => pattern.replace(/(\*:\/\/[^/]+)\/.*$/, '$1/*')),
+    ),
+  ),
+];
 
 export default manifest;

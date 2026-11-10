@@ -57,7 +57,8 @@ export const addExecutedTool = async (
 
     // Get current executed tools
     const storageResult = await chrome.storage.local.get(EXECUTED_TOOLS_STORAGE_KEY);
-    const executedTools: ExecutedToolsMap = storageResult[EXECUTED_TOOLS_STORAGE_KEY] || {};
+    const executedTools: ExecutedToolsMap =
+      (storageResult[EXECUTED_TOOLS_STORAGE_KEY] as ExecutedToolsMap | undefined) || {};
 
     // Initialize array for this URL if it doesn't exist
     if (!executedTools[url]) {
@@ -109,7 +110,7 @@ export const getExecutedToolsForUrl = async (url: string): Promise<ExecutedToolI
     }
 
     const result = await chrome.storage.local.get(EXECUTED_TOOLS_STORAGE_KEY);
-    const executedTools: ExecutedToolsMap = result[EXECUTED_TOOLS_STORAGE_KEY] || {};
+    const executedTools: ExecutedToolsMap = (result[EXECUTED_TOOLS_STORAGE_KEY] as ExecutedToolsMap | undefined) || {};
 
     return executedTools[url] || [];
   } catch (error) {
@@ -135,7 +136,7 @@ export const getExecutedToolByCallId = async (url: string, callId: string): Prom
     }
 
     const result = await chrome.storage.local.get(EXECUTED_TOOLS_STORAGE_KEY);
-    const executedTools: ExecutedToolsMap = result[EXECUTED_TOOLS_STORAGE_KEY] || {};
+    const executedTools: ExecutedToolsMap = (result[EXECUTED_TOOLS_STORAGE_KEY] as ExecutedToolsMap | undefined) || {};
 
     if (!executedTools[url]) {
       return null;
@@ -164,7 +165,7 @@ export const getAllExecutedTools = async (): Promise<ExecutedToolsMap> => {
     }
 
     const result = await chrome.storage.local.get(EXECUTED_TOOLS_STORAGE_KEY);
-    return result[EXECUTED_TOOLS_STORAGE_KEY] || {};
+    return (result[EXECUTED_TOOLS_STORAGE_KEY] as ExecutedToolsMap | undefined) || {};
   } catch (error) {
     logMessage(
       `[Tool Execution Storage] Error retrieving all executed tools: ${error instanceof Error ? error.message : String(error)}`,
@@ -187,7 +188,7 @@ export const clearExecutedToolsForUrl = async (url: string): Promise<void> => {
     }
 
     const result = await chrome.storage.local.get(EXECUTED_TOOLS_STORAGE_KEY);
-    const executedTools: ExecutedToolsMap = result[EXECUTED_TOOLS_STORAGE_KEY] || {};
+    const executedTools: ExecutedToolsMap = (result[EXECUTED_TOOLS_STORAGE_KEY] as ExecutedToolsMap | undefined) || {};
 
     // Remove the entry for this URL
     if (executedTools[url]) {

@@ -21,6 +21,9 @@ on:
       - '.github/workflows/build-zip.yml'
       - '.github/scripts/**'
       - '!**/*.md'
+      - 'LICENSE'
+      - 'THIRD_PARTY_NOTICES.md'
+      - 'third-party/**'
   pull_request:
     branches: [main, dev]
     paths:
@@ -41,6 +44,9 @@ on:
       - '.github/workflows/build-zip.yml'
       - '.github/scripts/**'
       - '!**/*.md'
+      - 'LICENSE'
+      - 'THIRD_PARTY_NOTICES.md'
+      - 'third-party/**'
   workflow_dispatch:
 
 permissions:
@@ -110,8 +116,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile --prefer-offline --network-concurrency=4
       - run: pnpm --filter chrome-extension type-check
+      - run: pnpm test:privacy-consent
+      - run: pnpm test:mv3-scan
       - run: pnpm build
       - run: pnpm scan:mv3-csp
+      - run: pnpm test:production-package
       - uses: actions/upload-artifact@v4
         if: github.event_name != 'pull_request'
         with:

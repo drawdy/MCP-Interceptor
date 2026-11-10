@@ -46,8 +46,12 @@ test('background tests compile storage sources without prebuilt workspace packag
   assert.ok(!inputs.some(path => path.includes('packages/storage/dist/')));
 });
 
-for (const configured of [false, true]) {
-  test(`reconnect reports ${configured ? 'missing host permission' : 'missing configuration'} without an exception`, async () => {
+for (const [configured, consented] of [
+  [false, true],
+  [true, true],
+  [true, false],
+]) {
+  test(`reconnect reports ${!consented ? 'missing privacy consent' : configured ? 'missing host permission' : 'missing configuration'} without network access`, async () => {
     let onMessage;
     let networkCalls = 0;
     const errors = [];
@@ -91,11 +95,16 @@ for (const configured of [false, true]) {
           onChanged: listener,
           local: {
             onChanged: listener,
-            get: async () => (configured ? { mcpServerUrl: 'http://localhost:3006/sse' } : {}),
+            get: async () => ({
+              ...(configured ? { mcpServerUrl: 'http://localhost:3006/sse' } : {}),
+              privacyConsentGranted: consented,
+              privacyConsentVersion: '2026-11-06',
+              privacyConsentTimestamp: 1,
+            }),
             set: async () => {},
           },
         },
-        permissions: { contains: async () => false },
+        permissions: { contains: async () => !consented, onRemoved: listener },
         tabs: { query: (_query, callback) => callback([]) },
       },
     };
@@ -104,6 +113,12 @@ for (const configured of [false, true]) {
       contextCodeGeneration: { strings: false, wasm: false },
     });
     const response = await new Promise(resolve => onMessage({ type: 'mcp:force-reconnect', payload: {} }, {}, resolve));
+    if (!consented) {
+      assert.equal(response.success, false);
+      assert.match(response.error, /privacy policy/);
+      assert.equal(networkCalls, 0);
+      return;
+    }
     assert.equal(response.success, true);
     assert.equal(response.payload.isConnected, false);
     assert.match(response.payload.error, configured ? /Grant access and connect/ : /Configure an MCP server/);

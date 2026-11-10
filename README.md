@@ -12,7 +12,25 @@
 
 ---
 
-MCP-Interceptor connects AI chat websites to MCP tools through [MCP-Proxy](https://github.com/drawdy/MCP-Proxy), a standalone Go-based proxy. Install the browser extension, start MCP-Proxy with your configured MCP Servers, and connect.
+MCP-Interceptor is an independent browser extension that connects user-configured MCP servers to supported AI chat websites, allowing users to invoke MCP tools and use their results directly in familiar AI conversations. The guide below uses [MCP-Proxy](https://github.com/drawdy/MCP-Proxy), an optional user-operated Go proxy; any compatible MCP endpoint can be configured. No maintainer-hosted service is required.
+
+## Privacy and first use
+
+Open the toolbar popup, read the disclosure and [privacy policy](PRIVACY.md), then
+click **I agree — enable page-content processing**. Until then, including after
+upgrading from a version without consent, page monitoring and tool recognition
+remain off. Agreement is stored locally and required again after material policy
+changes. Server host permission is a separate grant. No MCP server is contacted
+until you configure it and grant access. Per-site switches control enabled websites.
+
+Revoke consent or clear extension data in the popup. Revocation reloads initialized
+chat pages and may discard unsent input. Local execution records contain conversation
+URLs, tool/server names and optional text results (up to 100 per URL). Chrome extension
+storage and AI-site localStorage have separate clearing procedures; see the policy.
+No telemetry, analytics or remote configuration is included.
+
+[Chrome Web Store release guide](docs/CHROME_WEB_STORE_RELEASE.md) ·
+[Release acceptance checklist](docs/chrome-web-store/RELEASE_CHECKLIST.md)
 
 ## How it works
 
@@ -27,7 +45,7 @@ Gemini / DeepSeek / Grok / ChatGPT
    Your configured MCP Servers
 ```
 
-**Important:** Configure MCP Servers in MCP-Proxy. The browser extension connects to MCP-Proxy; you do not add each backend MCP Server separately in the extension.
+**For this guide:** configure backend MCP Servers in MCP-Proxy and enter its endpoint in the extension. You may instead connect another compatible server directly.
 
 <details>
 <summary>Optional: image previews and attachments</summary>
@@ -537,4 +555,4 @@ MCP-Interceptor currently includes adapters for Gemini, DeepSeek, Grok, ChatGPT 
 
 ## License
 
-MCP-Interceptor is released under the MIT License. See [LICENSE](LICENSE).
+Original MCP-Interceptor contributions are copyright © 2026 drawdy and contributors, under the [MIT License](LICENSE). Inherited and modified third-party portions retain their original ownership and MIT terms in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Product independence does not remove third-party attribution. Production packages include both notices and a generated dependency license inventory.

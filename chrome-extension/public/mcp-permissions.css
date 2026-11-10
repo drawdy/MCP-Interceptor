@@ -317,3 +317,45 @@ footer {
     color: #ff7b72;
   }
 }
+
+.privacy-section {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  margin-bottom: 16px;
+  border: 1px solid #93c5fd;
+  border-radius: 10px;
+  background: #eff6ff;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.privacy-section h2,
+.privacy-section p {
+  margin: 0;
+}
+
+.privacy-section h2 {
+  font-size: 14px;
+}
+
+.privacy-section a {
+  color: #1d4ed8;
+}
+
+#privacy-revoke,
+#privacy-clear {
+  background: transparent;
+  border: 1px solid #667085;
+  color: inherit;
+}
+
+@media (prefers-color-scheme: dark) {
+  .privacy-section {
+    border-color: #3b82f6;
+    background: #172554;
+  }
+  .privacy-section a {
+    color: #93c5fd;
+  }
+}

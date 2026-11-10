@@ -1,3 +1,4 @@
+import { readPrivacyConsent } from '@extension/shared/lib/privacy-consent';
 import 'webextension-polyfill';
 import { exampleThemeStorage } from '@extension/storage';
 import {
@@ -139,6 +140,7 @@ function getMcpHostPermissionPattern(uri: string): string {
 
 async function hasMcpHostPermission(uri: string): Promise<boolean> {
   try {
+    if (!(await readPrivacyConsent())) return false;
     const origin = getMcpHostPermissionPattern(uri);
     return await chrome.permissions.contains({ origins: [origin] });
   } catch {
@@ -463,7 +465,7 @@ async function tryConnectToServer(uri: string, type: ConnectionType = connection
 // Set up a periodic connection check with enhanced recovery logic
 const PERIODIC_CHECK_INTERVAL = 60000; // 1 minute
 setInterval(async () => {
-  if (!hasConfiguredServer || isConnecting) {
+  if (!hasConfiguredServer || isConnecting || !(await hasMcpHostPermission(getServerUrl()))) {
     return; // Skip if already connecting
   }
 
@@ -648,6 +650,7 @@ async function handleMcpMessage(
   const messageType = message.type as McpMessageType;
 
   try {
+    if (!(await readPrivacyConsent())) throw new Error('Open MCP-Interceptor and agree to the privacy policy first.');
     let result: any = null;
     const payload = message.payload || {};
 
@@ -1071,3 +1074,20 @@ function broadcastConfigUpdateToContentScripts(config: { uri: string; connection
     });
   });
 }
+
+// Revocation applies to an already running worker as well as the next worker startup.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (
+    area === 'local' &&
+    ['privacyConsentGranted', 'privacyConsentVersion', 'privacyConsentTimestamp'].some(key => key in changes)
+  ) {
+    resetMcpConnectionState();
+    updateConnectionStatus(false);
+    broadcastConnectionStatusToContentScripts(false);
+  }
+});
+chrome.permissions.onRemoved.addListener(() => {
+  resetMcpConnectionState();
+  updateConnectionStatus(false);
+  broadcastConnectionStatusToContentScripts(false);
+});

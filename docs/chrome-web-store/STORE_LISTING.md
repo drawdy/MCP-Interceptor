@@ -1,60 +1,48 @@
-# Chrome Web Store Listing Draft
+# English Chrome Web Store listing draft
 
-## Proposed name
+**Name:** MCP-Interceptor
 
-MCP-Interceptor
+**Short description:** Connect your MCP tools to supported AI chat websites and use tool results in your conversations.
 
-Use the MCP-Interceptor name and current fork icon consistently. Keep the upstream attribution visible and do not imply endorsement by the upstream maintainer.
-
-## Short description
-
-Connect MCP tools to supported AI chat websites through a user-configured MCP server.
+**Single purpose:** MCP-Interceptor connects user-configured MCP servers to supported AI chat websites, allowing users to invoke MCP tools and use their results directly in familiar AI conversations.
 
 ## Detailed description
 
-MCP-Interceptor connects Model Context Protocol (MCP) tools to supported AI chat websites. It detects structured tool-call instructions in AI responses, lets users review and execute those calls, and returns tool results to the conversation.
+Bring the tools from your chosen Model Context Protocol (MCP) server into supported
+AI chat websites. MCP-Interceptor includes integrations for ChatGPT, Gemini,
+DeepSeek and Grok, alongside other sites listed in the extension's website settings.
+Website interface changes can affect adapter compatibility.
 
-Features:
-- Connect to a local, private-network, or remote MCP server configured by the user.
-- Support SSE and other transports provided by the client.
-- Detect and display structured MCP tool calls.
-- Review and manually execute tool calls.
-- Insert tool results into the AI chat input.
-- DeepSeek-specific compatibility improvements for composer insertion and tool-call instructions.
-- Configure the MCP endpoint and transport directly in the toolbar popup.
-- Optional host access: Chrome asks the user to grant access only to the configured MCP server host.
+Configure your own MCP endpoint, grant access to that host, choose available tools
+and insert MCP instructions into your conversation. When the AI produces a
+supported tool call, inspect its name and arguments, run it, and use the returned
+result in the same conversation. Supported raster image results can be previewed
+and attached on compatible pages. Optional automation can execute tools, insert
+text results and submit messages when enabled; review calls manually first.
 
-Supported AI websites are those listed in the extension manifest and may change as their web interfaces evolve.
+On first use you must agree to page-content processing before the extension reads
+AI conversations. You can disable individual websites or revoke privacy consent
+in the toolbar popup. Revocation reloads initialized chat pages to stop processing,
+which can discard unsent input. Server host access is a separate permission.
 
-This is an independent community fork of the MIT-licensed upstream project. It is not the official upstream extension and is not affiliated with or endorsed by the upstream maintainer.
+Your configured MCP server may be local, on your company network or operated by a
+third party. MCP-Proxy is an optional user-operated choice; no maintainer-hosted
+service is required. An MCP server is required for tools; AI websites may require
+their own account. Install and trust servers according to their own instructions.
 
-## Category
+Privacy: the extension handles website content and personal communications to
+recognize tool calls. Names and arguments go to your chosen MCP server. Results
+can be inserted, attached or submitted to the AI provider. Local history includes
+conversation URLs, tool names and optional text results; preferences also use AI-site
+storage. No maintainer analytics, telemetry or remote configuration. MCP-Interceptor
+complies with the Chrome Web Store User Data Policy, including Limited Use.
 
-Productivity
+Privacy policy: https://github.com/drawdy/MCP-Interceptor/blob/main/PRIVACY.md
+Support and source: https://github.com/drawdy/MCP-Interceptor
 
-## Language
+MCP-Interceptor is an independent product, unaffiliated with the AI website
+providers. Their names identify compatible services. Tools run on your selected
+server and may affect files or external systems; review calls and automation settings.
 
-English (add Chinese listing localization if the listing and support materials are ready).
-
-## Privacy policy URL
-
-https://github.com/drawdy/MCP-Interceptor/blob/main/PRIVACY.md
-
-## Privacy and permission disclosures
-
-- The extension reads rendered content on supported AI chat websites to detect MCP tool calls.
-- Tool names and arguments are sent to the MCP endpoint explicitly configured by the user.
-- Results from that endpoint are displayed and may be inserted into the AI chat input.
-- Analytics and telemetry are disabled in this fork.
-- Firebase Remote Config is disabled.
-- The extension requests optional host access at runtime for the configured MCP server host.
-- No remote code is downloaded or executed.
-
-## Required store assets
-
-- Store icon: 128 × 128 PNG.
-- At least one screenshot: 1280 × 800 or 640 × 400; up to five.
-- Recommended small promotional tile: 440 × 280 PNG or JPEG.
-- Optional marquee image: 1400 × 560 PNG or JPEG.
-
-Screenshots must show the current, working extension and must not imply that it is an official upstream product.
+Publisher-only preparation: verify all claimed live-site functionality and capture
+screenshots before submitting. Do not present this draft as an already published listing.
