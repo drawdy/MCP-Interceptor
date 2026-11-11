@@ -1,0 +1,89 @@
+diff --git a/v4/core/doc.cjs b/v4/core/doc.cjs
+index 4f16b0979c19ec9705dab522adf1da12bebcc701..2c771439b791e3c9959f76bd089d93dbdd65e1f1 100644
+--- a/v4/core/doc.cjs
++++ b/v4/core/doc.cjs
+@@ -33,10 +33,7 @@ class Doc {
+         }
+     }
+     compile() {
+-        const F = Function;
+-        const content = this?.content ?? [``];
+-        const factory = new F(...Object.keys(this.closed), `return function (${this.args.join(", ")}) {\n${content.join("\n")}\n};`);
+-        return factory(...Object.values(this.closed));
++        throw new Error("Zod code generation is disabled in MCP-Interceptor (MV3 CSP)");
+     }
+ }
+ exports.Doc = Doc;
+diff --git a/v4/core/doc.js b/v4/core/doc.js
+index c1e8d9374199e66529b9909eb341fe7eb7d7492f..fb5c0d08911f34c97811e31f2db45776315a489a 100644
+--- a/v4/core/doc.js
++++ b/v4/core/doc.js
+@@ -30,9 +30,6 @@ export class Doc {
+         }
+     }
+     compile() {
+-        const F = Function;
+-        const content = this?.content ?? [``];
+-        const factory = new F(...Object.keys(this.closed), `return function (${this.args.join(", ")}) {\n${content.join("\n")}\n};`);
+-        return factory(...Object.values(this.closed));
++        throw new Error("Zod code generation is disabled in MCP-Interceptor (MV3 CSP)");
+     }
+ }
+diff --git a/v4/core/util.cjs b/v4/core/util.cjs
+index 7db65e0cada986f911868d1c0464fe2adee1fb66..312b47776da33dad1da59b72d74185acf126ffd0 100644
+--- a/v4/core/util.cjs
++++ b/v4/core/util.cjs
+@@ -286,22 +286,8 @@ function isObject(data) {
+     return typeof data === "object" && data !== null && !Array.isArray(data);
+ }
+ exports.allowsEval = cached(() => {
+-    // Skip the probe under `jitless`: strict CSPs report the caught `new Function` as a `securitypolicyviolation` even though the throw is swallowed.
+-    if (core_js_1.globalConfig.jitless) {
+-        return false;
+-    }
+-    // @ts-ignore
+-    if (typeof navigator !== "undefined" && navigator?.userAgent?.includes("Cloudflare")) {
+-        return false;
+-    }
+-    try {
+-        const F = Function;
+-        new F("");
+-        return true;
+-    }
+-    catch (_) {
+-        return false;
+-    }
++    // MV3 forbids dynamic code generation, including caught capability probes.
++    return false;
+ });
+ function isPlainObject(o) {
+     if (isObject(o) === false)
+diff --git a/v4/core/util.js b/v4/core/util.js
+index b53c7a0ae51b9ad0e49f7262f282b01c67671681..6723e650c23d04a626595b2c1423c3ba486541b2 100644
+--- a/v4/core/util.js
++++ b/v4/core/util.js
+@@ -216,22 +216,8 @@ export function isObject(data) {
+     return typeof data === "object" && data !== null && !Array.isArray(data);
+ }
+ export const allowsEval = /* @__PURE__*/ cached(() => {
+-    // Skip the probe under `jitless`: strict CSPs report the caught `new Function` as a `securitypolicyviolation` even though the throw is swallowed.
+-    if (globalConfig.jitless) {
+-        return false;
+-    }
+-    // @ts-ignore
+-    if (typeof navigator !== "undefined" && navigator?.userAgent?.includes("Cloudflare")) {
+-        return false;
+-    }
+-    try {
+-        const F = Function;
+-        new F("");
+-        return true;
+-    }
+-    catch (_) {
+-        return false;
+-    }
++    // MV3 forbids dynamic code generation, including caught capability probes.
++    return false;
+ });
+ export function isPlainObject(o) {
+     if (isObject(o) === false)
