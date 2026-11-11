@@ -162,6 +162,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  zod@4.6.7: 5e8e268ce620492f8562a3045b534d2d960821f627273d02ba42a6afe7afb3d0
+
 importers:
 
   .:
@@ -304,7 +307,7 @@ importers:
         version: link:../packages/storage
       '@modelcontextprotocol/sdk':
         specifier: ^1.32.2
-        version: 1.32.2(@cfworker/json-schema@4.1.6)(supports-color@8.1.1)(zod@4.6.7)
+        version: 1.32.2(@cfworker/json-schema@4.1.6)(supports-color@8.1.1)(zod@4.6.7(patch_hash=5e8e268ce620492f8562a3045b534d2d960821f627273d02ba42a6afe7afb3d0))
       vite-plugin-node-polyfills:
         specifier: ^0.28.0
         version: 0.28.0(rollup@4.67.5)(vite@8.3.6(@types/node@22.13.14)(esbuild@0.28.2)(jiti@1.21.7)(terser@5.51.2)(tsx@4.23.15)(yaml@2.7.0))
@@ -313,10 +316,10 @@ importers:
         version: 0.12.0
       zod:
         specifier: ^4.6.7
-        version: 4.6.7
+        version: 4.6.7(patch_hash=5e8e268ce620492f8562a3045b534d2d960821f627273d02ba42a6afe7afb3d0)
       zustand:
-        specifier: ^5.0.16
-        version: 5.0.16(@types/react@19.3.0)(immer@11.2.9)(react@19.3.1)
+        specifier: ^5.1.0
+        version: 5.1.0(@types/react@19.3.0)(immer@11.2.9)(react@19.3.1)
     devDependencies:
       '@extension/dev-utils':
         specifier: workspace:*
@@ -516,8 +519,8 @@ importers:
         specifier: ^11.2.9
         version: 11.2.9
       lucide-react:
-        specifier: ^1.69.0
-        version: 1.69.0(@types/react@19.3.0)(react@19.3.1)
+        specifier: ^1.70.0
+        version: 1.70.0(@types/react@19.3.0)(react@19.3.1)
       react:
         specifier: 19.3.1
         version: 19.3.1
@@ -534,8 +537,8 @@ importers:
         specifier: ^1.0.7
         version: 1.0.7(tailwindcss@3.4.19(tsx@4.23.15)(yaml@2.7.0))
       zustand:
-        specifier: ^5.0.16
-        version: 5.0.16(@types/react@19.3.0)(immer@11.2.9)(react@19.3.1)
+        specifier: ^5.1.0
+        version: 5.1.0(@types/react@19.3.0)(immer@11.2.9)(react@19.3.1)
     devDependencies:
       '@extension/hmr':
         specifier: workspace:*
@@ -3411,8 +3414,8 @@ packages:
     resolution: {integrity: sha512-U4N8FgzmWxc8k1VH8Kr6lQg18U7Fjvby6wXHVRX/ZZ7IwWbRMgrRbP0Wrb5q5NVinryp4SQampHKdvtecItxUg==}
     engines: {node: 20 || >=22}
 
-  lucide-react@1.69.0:
-    resolution: {integrity: sha512-UTFECm4yEgkgMN0kfLuxWcmlk+4u02Jrqehgk3ZXRx/Ud68OpP7hjkp67bvkBHmIpMaZCIveF1QDYeupO7XmYQ==}
+  lucide-react@1.70.0:
+    resolution: {integrity: sha512-gCTPPN1MlQUBtUgdsUv+0CAUj+X8hifRUiRBw4E5v7lvDIOIpx0EZezdGQMSimS8pKA6esvullJub4GYr0mCHA==}
     peerDependencies:
       '@types/react': '*'
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
@@ -4644,8 +4647,8 @@ packages:
   zod@4.6.7:
     resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
 
-  zustand@5.0.16:
-    resolution: {integrity: sha512-Uv7e327ihlCfayfja3hDc0M64Upev1LWBKpRobdK4NyovDDPeeX4imWXc/wzC1yc6fkYPoAY/ncKVPAs2jrtQw==}
+  zustand@5.1.0:
+    resolution: {integrity: sha512-ciJZlP48M1PTQbVQq81CGVFxHTLpZNrFjKqwjtCU34AWuXTZT/jrF3p9+fI84Cf1eSCMLapxqBy/SNTfwOBuqA==}
     engines: {node: '>=12.20.0'}
     peerDependencies:
       '@types/react': '>=18.0.0'
@@ -5005,7 +5008,7 @@ snapshots:
       semver: 7.8.6
       vite: 8.3.6(@types/node@22.13.14)(esbuild@0.28.2)(jiti@1.21.7)(terser@5.51.2)(tsx@4.23.15)(yaml@2.7.0)
 
-  '@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(supports-color@8.1.1)(zod@4.6.7)':
+  '@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(supports-color@8.1.1)(zod@4.6.7(patch_hash=5e8e268ce620492f8562a3045b534d2d960821f627273d02ba42a6afe7afb3d0))':
     dependencies:
       '@hono/node-server': 2.1.6(hono@4.13.16)
       ajv: 8.20.0
@@ -5022,8 +5025,8 @@ snapshots:
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 4.6.7
-      zod-to-json-schema: 3.25.2(zod@4.6.7)
+      zod: 4.6.7(patch_hash=5e8e268ce620492f8562a3045b534d2d960821f627273d02ba42a6afe7afb3d0)
+      zod-to-json-schema: 3.25.2(zod@4.6.7(patch_hash=5e8e268ce620492f8562a3045b534d2d960821f627273d02ba42a6afe7afb3d0))
     optionalDependencies:
       '@cfworker/json-schema': 4.1.6
     transitivePeerDependencies:
@@ -7552,7 +7555,7 @@ snapshots:
 
   lru-cache@11.5.3: {}
 
-  lucide-react@1.69.0(@types/react@19.3.0)(react@19.3.1):
+  lucide-react@1.70.0(@types/react@19.3.0)(react@19.3.1):
     dependencies:
       react: 19.3.1
     optionalDependencies:
@@ -8971,13 +8974,13 @@ snapshots:
 
   yoctocolors@2.2.0: {}
 
-  zod-to-json-schema@3.25.2(zod@4.6.7):
+  zod-to-json-schema@3.25.2(zod@4.6.7(patch_hash=5e8e268ce620492f8562a3045b534d2d960821f627273d02ba42a6afe7afb3d0)):
     dependencies:
-      zod: 4.6.7
+      zod: 4.6.7(patch_hash=5e8e268ce620492f8562a3045b534d2d960821f627273d02ba42a6afe7afb3d0)
 
-  zod@4.6.7: {}
+  zod@4.6.7(patch_hash=5e8e268ce620492f8562a3045b534d2d960821f627273d02ba42a6afe7afb3d0): {}
 
-  zustand@5.0.16(@types/react@19.3.0)(immer@11.2.9)(react@19.3.1):
+  zustand@5.1.0(@types/react@19.3.0)(immer@11.2.9)(react@19.3.1):
     optionalDependencies:
       '@types/react': 19.3.0
       immer: 11.2.9
