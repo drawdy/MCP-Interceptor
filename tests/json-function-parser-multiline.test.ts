@@ -8,12 +8,9 @@ Object.defineProperty(globalThis, 'window', {
   configurable: true,
 });
 
-const { containsJSONFunctionCalls, extractJSONParameters } = await import(
-  '../pages/content/src/render_prescript/src/parser/jsonFunctionParser.ts'
-);
-const { getRawFunctionContent } = await import(
-  '../pages/content/src/render_prescript/src/renderer/functionBlock.ts'
-);
+const { containsJSONFunctionCalls, extractJSONParameters } =
+  await import('../pages/content/src/render_prescript/src/parser/jsonFunctionParser.ts');
+const { getRawFunctionContent } = await import('../pages/content/src/render_prescript/src/renderer/functionBlock.ts');
 
 const multilineArrayCall = [
   '```jsonl',

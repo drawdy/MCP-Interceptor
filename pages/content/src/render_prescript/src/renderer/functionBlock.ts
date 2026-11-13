@@ -91,7 +91,7 @@ function getAutomationState() {
       autoExecute: automationState.autoExecute || false,
     };
   }
-  
+
   // Fallback to legacy toggle state
   const legacyState = (window as any).toggleState;
   return {
@@ -420,7 +420,7 @@ const ScrollUtils = {
     if (preElement) {
       (preElement as any)._userHasScrolled = false;
     }
-    
+
     // Force scroll to bottom for streaming content
     ScrollUtils.performOptimizedScroll(paramValueElement, true);
   },
@@ -577,7 +577,8 @@ export const executionTracker: ExecutionTracker = {
   executedFunctions: new Set<string>(),
 
   isFunctionExecuted(callId: string, contentSignature: string, functionName?: string): boolean {
-    logger.debug(`isFunctionExecuted called with: callId='${callId}', signature='${contentSignature}', funcName='${functionName || 'undefined'}'`,
+    logger.debug(
+      `isFunctionExecuted called with: callId='${callId}', signature='${contentSignature}', funcName='${functionName || 'undefined'}'`,
     );
 
     let effectiveFunctionName = functionName;
@@ -601,15 +602,13 @@ export const executionTracker: ExecutionTracker = {
       const key = `${effectiveFunctionName}:${callId}:${contentSignature}`;
       const inMemory = this.executedFunctions.has(key);
       const inStorage = getPreviousExecution(effectiveFunctionName, callId, contentSignature) !== null;
-      logger.debug(`isFunctionExecuted (Standard Check): Key='${key}', inMemory=${inMemory}, inStorage=${inStorage}`,
-      );
+      logger.debug(`isFunctionExecuted (Standard Check): Key='${key}', inMemory=${inMemory}, inStorage=${inStorage}`);
       return inMemory || inStorage;
     } else {
       const key = `${callId}:${contentSignature}`;
       const inMemory = this.executedFunctions.has(key) || this.executedFunctions.has(`:${callId}:${contentSignature}`);
       const inStorage = getPreviousExecutionLegacy(callId, contentSignature) !== null;
-      logger.debug(`isFunctionExecuted (Legacy Check): Key='${key}', inMemory=${inMemory}, inStorage=${inStorage}`,
-      );
+      logger.debug(`isFunctionExecuted (Legacy Check): Key='${key}', inMemory=${inMemory}, inStorage=${inStorage}`);
       return inMemory || inStorage;
     }
   },
@@ -647,14 +646,14 @@ export const executionTracker: ExecutionTracker = {
 const AutoExpandUtils = {
   expandBlock: (blockDiv: HTMLDivElement, animate: boolean = true): void => {
     if (blockDiv.classList.contains('expanded')) return;
-    
+
     const expandButton = blockDiv.querySelector('.expand-button') as HTMLButtonElement;
     const expandableContent = blockDiv.querySelector('.expandable-content') as HTMLDivElement;
-    
+
     if (!expandButton || !expandableContent) return;
-    
+
     blockDiv.classList.add('expanded', 'auto-expanded');
-    
+
     if (animate) {
       // Smooth expansion animation
       DOMUtils.applyStyles(expandableContent, {
@@ -664,9 +663,9 @@ const AutoExpandUtils = {
         paddingTop: '0',
         paddingBottom: '0',
       });
-      
+
       const targetHeight = expandableContent.scrollHeight + 24;
-      
+
       requestAnimationFrame(() => {
         DOMUtils.applyStyles(expandableContent, {
           maxHeight: targetHeight + 'px',
@@ -675,7 +674,7 @@ const AutoExpandUtils = {
           paddingBottom: '12px',
           transition: 'all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
         });
-        
+
         const expandIcon = expandButton.querySelector('svg path');
         if (expandIcon) {
           expandIcon.setAttribute('d', 'M16 14l-4-4-4 4');
@@ -693,23 +692,23 @@ const AutoExpandUtils = {
       });
     }
   },
-  
+
   collapseBlock: (blockDiv: HTMLDivElement, animate: boolean = true): void => {
     if (!blockDiv.classList.contains('expanded') || !blockDiv.classList.contains('auto-expanded')) return;
-    
+
     const expandButton = blockDiv.querySelector('.expand-button') as HTMLButtonElement;
     const expandableContent = blockDiv.querySelector('.expandable-content') as HTMLDivElement;
-    
+
     if (!expandButton || !expandableContent) return;
-    
+
     blockDiv.classList.remove('expanded', 'auto-expanded');
-    
+
     if (animate) {
       // Smooth collapse animation
       const currentHeight = expandableContent.scrollHeight;
       expandableContent.style.maxHeight = currentHeight + 'px';
       expandableContent.offsetHeight; // Force reflow
-      
+
       requestAnimationFrame(() => {
         DOMUtils.applyStyles(expandableContent, {
           maxHeight: '0px',
@@ -718,14 +717,14 @@ const AutoExpandUtils = {
           paddingBottom: '0',
           transition: 'all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
         });
-        
+
         const expandIcon = expandButton.querySelector('svg path');
         if (expandIcon) {
           expandIcon.setAttribute('d', 'M8 10l4 4 4-4');
         }
         expandButton.title = 'Expand function details';
       });
-      
+
       // Hide after animation completes
       setTimeout(() => {
         if (!blockDiv.classList.contains('expanded')) {
@@ -743,14 +742,14 @@ const AutoExpandUtils = {
       });
     }
   },
-  
+
   scheduleAutoCollapse: (blockDiv: HTMLDivElement, delay: number = 2000): void => {
     const blockId = blockDiv.getAttribute('data-block-id');
     if (!blockId) return;
-    
+
     const timeoutKey = `auto-collapse-${blockId}`;
     PerformanceUtils.cleanupTimeout(timeoutKey);
-    
+
     PerformanceUtils.setManagedTimeout(
       timeoutKey,
       () => {
@@ -760,7 +759,7 @@ const AutoExpandUtils = {
           AutoExpandUtils.collapseBlock(blockDiv, true);
         }
       },
-      delay
+      delay,
     );
   },
 };
@@ -1026,7 +1025,7 @@ const ParamElementUtils = {
             willChange: 'auto',
             containIntrinsicSize: 'auto',
           });
-          
+
           // Check if block should auto-collapse when streaming ends
           const blockDiv = paramValueElement.closest('.function-block') as HTMLDivElement;
           if (blockDiv && blockDiv.classList.contains('auto-expanded')) {
@@ -1066,7 +1065,7 @@ const ParamElementUtils = {
 // Auto-execution utilities
 const AutoExecutionUtils = {
   setupOptimizedAutoExecution: (blockId: string, functionDetails: any): void => {
-  const setupAutoExecution = () => {
+    const setupAutoExecution = () => {
       const attempts = executionTracker.incrementAttempts(blockId);
 
       if (attempts > MAX_AUTO_EXECUTE_ATTEMPTS) {
@@ -1097,9 +1096,7 @@ const AutoExecutionUtils = {
           }
 
           if (!currentBlock) {
-            logger.debug(
-              `Auto-execute: Block ${blockId} not found (attempt ${attempts}/${MAX_AUTO_EXECUTE_ATTEMPTS})`,
-            );
+            logger.debug(`Auto-execute: Block ${blockId} not found (attempt ${attempts}/${MAX_AUTO_EXECUTE_ATTEMPTS})`);
             if (attempts < MAX_AUTO_EXECUTE_ATTEMPTS) {
               setupAutoExecution();
             } else {
@@ -1242,7 +1239,7 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
       detectedBlockType: functionInfo.detectedBlockType,
       isComplete: functionInfo.isComplete,
       hasParameters: functionInfo.hasParameters,
-      invokeName: functionInfo.invokeName
+      invokeName: functionInfo.invokeName,
     });
   }
 
@@ -1345,7 +1342,7 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
     blockDiv.setAttribute('data-block-id', blockId);
     applyThemeClass(blockDiv);
     renderedFunctionBlocks.set(blockId, blockDiv);
-    
+
     // Ensure blocks start collapsed by default
     blockDiv.classList.remove('expanded', 'auto-expanded');
   }
@@ -1430,7 +1427,7 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
   if (!expandableContent) {
     expandableContent = BlockElementUtils.createExpandableContent();
     blockDiv.appendChild(expandableContent);
-    
+
     // Ensure content starts hidden for new blocks
     if (isNewRender) {
       DOMUtils.applyStyles(expandableContent, {
@@ -1699,7 +1696,7 @@ export const createOrUpdateParamElement = (
 
   paramValueElement.setAttribute('data-param-value', JSON.stringify(value));
   ParamElementUtils.handleStreamingState(paramNameElement, paramValueElement, paramId, isStreaming);
-  
+
   // Handle auto-expansion for streaming content
   if (isStreaming) {
     const blockDiv = container.closest('.function-block') as HTMLDivElement;

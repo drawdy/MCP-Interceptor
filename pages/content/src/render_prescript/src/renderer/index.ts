@@ -100,9 +100,9 @@ const updateExistingFunctionBlock = (
 const updateParameters = (block: HTMLElement, functionInfo: FunctionInfo, options: RenderOptions): void => {
   // Get extracted parameters
   const parameters = extractParameters(
-      block.getAttribute('data-content') || '',
+    block.getAttribute('data-content') || '',
     block.getAttribute('data-block-id') || null,
-    );
+  );
 
   // Update parameter values
   const paramContainer = block.querySelector('.function-parameters');

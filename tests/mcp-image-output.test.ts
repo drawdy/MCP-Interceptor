@@ -302,9 +302,15 @@ try {
 
   assert.equal(findChatGPTSubmitButton(scopedComposer, scopedRoot), enabledThreadSend);
   formButtons = [disabledThreadSend, enabledThreadSend];
-  assert.equal(findChatGPTSubmitButton(scopedComposer, { querySelectorAll: () => [hiddenHomeSend] } as unknown as ParentNode), enabledThreadSend);
+  assert.equal(
+    findChatGPTSubmitButton(scopedComposer, { querySelectorAll: () => [hiddenHomeSend] } as unknown as ParentNode),
+    enabledThreadSend,
+  );
   formButtons = [disabledThreadSend];
-  assert.equal(findChatGPTSubmitButton(scopedComposer, { querySelectorAll: () => [hiddenHomeSend] } as unknown as ParentNode), null);
+  assert.equal(
+    findChatGPTSubmitButton(scopedComposer, { querySelectorAll: () => [hiddenHomeSend] } as unknown as ParentNode),
+    null,
+  );
 
   formButtons = [hiddenStop];
   assert.equal(isChatGPTStopButtonVisible(scopedComposer, scopedRoot), false);
@@ -362,7 +368,10 @@ const mockDoc = {
 
 const pushCss = getPushModeStylesheetText();
 assert.equal(pushCss.includes('!important,'), false);
-assert.match(pushCss, /html\.push-mode-enabled[\s\S]*width:\s*calc\(100%\s*-\s*var\(--sidebar-width-mcp,\s*320px\)\)\s*!important/);
+assert.match(
+  pushCss,
+  /html\.push-mode-enabled[\s\S]*width:\s*calc\(100%\s*-\s*var\(--sidebar-width-mcp,\s*320px\)\)\s*!important/,
+);
 assert.match(pushCss, /html\.push-mode-enabled\s+\.w-screen/);
 assert.match(pushCss, /html\.push-mode-enabled\s+body\s*>\s*div:not\(#mcp-sidebar-shadow-host\)/);
 assert.match(pushCss, /max-width:\s*100%\s*!important/);

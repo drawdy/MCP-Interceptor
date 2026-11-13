@@ -71,11 +71,7 @@ export function findChatGPTFilePreviews(composer: HTMLElement, fileName: string)
 
 export function isDisabledChatGPTButton(button: HTMLElement): boolean {
   const btn = button as HTMLButtonElement;
-  return (
-    btn.disabled === true ||
-    button.hasAttribute('disabled') ||
-    button.getAttribute('aria-disabled') === 'true'
-  );
+  return btn.disabled === true || button.hasAttribute('disabled') || button.getAttribute('aria-disabled') === 'true';
 }
 
 export function isChatGPTStopButtonVisible(
