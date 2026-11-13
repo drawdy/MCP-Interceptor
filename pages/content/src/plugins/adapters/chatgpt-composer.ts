@@ -1,6 +1,12 @@
 export const CHATGPT_COMPOSER_SELECTOR =
   '#prompt-textarea, .ProseMirror[contenteditable="true"], div[contenteditable="true"][data-id*="prompt"]';
 
+export const CHATGPT_SUBMIT_BUTTON_SELECTOR =
+  'button[data-testid="send-button"], button[data-testid="fruitjuice-send-button"], button[aria-label="Send prompt"], button[aria-label="Send message"], button[aria-label*="Send" i], button[aria-label*="发送"]';
+
+export const CHATGPT_STOP_BUTTON_SELECTOR =
+  'button[data-testid="stop-button"], button[aria-label="Stop streaming"], button[aria-label*="Stop" i], button[aria-label*="停止"]';
+
 export function isVisibleChatGPTElement(element: HTMLElement): boolean {
   const rect = element.getBoundingClientRect();
   const style = getComputedStyle(element);
@@ -60,5 +66,40 @@ export function findChatGPTFilePreviews(composer: HTMLElement, fileName: string)
       (element.getAttribute('alt') === fileName ||
         element.getAttribute('aria-label') === fileName ||
         element.textContent?.includes(fileName)),
+  );
+}
+
+export function isDisabledChatGPTButton(button: HTMLElement): boolean {
+  const btn = button as HTMLButtonElement;
+  return btn.disabled === true || button.hasAttribute('disabled') || button.getAttribute('aria-disabled') === 'true';
+}
+
+export function isChatGPTStopButtonVisible(
+  composer: HTMLElement | null = findChatGPTComposer(),
+  root: ParentNode = document,
+): boolean {
+  const form = composer?.closest('form');
+  const scope: ParentNode = form ?? root;
+  return Array.from(scope.querySelectorAll<HTMLElement>(CHATGPT_STOP_BUTTON_SELECTOR)).some(element =>
+    isVisibleChatGPTElement(element),
+  );
+}
+
+export function findChatGPTSubmitButton(
+  composer: HTMLElement | null = findChatGPTComposer(),
+  root: ParentNode = document,
+): HTMLButtonElement | null {
+  const form = composer?.closest('form');
+  if (form) {
+    const formMatch = Array.from(form.querySelectorAll<HTMLButtonElement>(CHATGPT_SUBMIT_BUTTON_SELECTOR)).find(
+      button => isVisibleChatGPTElement(button) && !isDisabledChatGPTButton(button),
+    );
+    if (formMatch) return formMatch;
+  }
+
+  return (
+    Array.from(root.querySelectorAll<HTMLButtonElement>(CHATGPT_SUBMIT_BUTTON_SELECTOR)).find(
+      button => isVisibleChatGPTElement(button) && !isDisabledChatGPTButton(button),
+    ) ?? null
   );
 }

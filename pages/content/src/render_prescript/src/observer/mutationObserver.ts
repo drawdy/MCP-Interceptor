@@ -153,10 +153,16 @@ export const checkForUnprocessedFunctionCalls = (): number => {
 
   // Get all pre/code elements in the document that might contain function calls
   const getTargetElements = (): HTMLElement[] => {
+    const seen = new Set<HTMLElement>();
     const elements: HTMLElement[] = [];
     for (const selector of CONFIG.targetSelectors) {
       const found = document.querySelectorAll<HTMLElement>(selector);
-      elements.push(...Array.from(found));
+      found.forEach(el => {
+        if (!seen.has(el)) {
+          seen.add(el);
+          elements.push(el);
+        }
+      });
     }
     return elements;
   };
@@ -164,13 +170,20 @@ export const checkForUnprocessedFunctionCalls = (): number => {
   // Process each target element
   const elements = getTargetElements();
   for (const element of elements) {
-    if (!processedElements.has(element) && !element.closest('.function-block')) {
-      const result = renderFunctionCall(element as HTMLPreElement, { current: false });
-      if (result) {
-        processedCount++;
-        const blockId = element.getAttribute('data-block-id');
-        if (blockId) monitorNode(element, blockId);
-      }
+    if (
+      processedElements.has(element) ||
+      element.closest('.function-block') ||
+      element.parentElement?.closest('[data-block-id]:not(.function-block)') ||
+      element.querySelector('.function-block, [data-block-id]')
+    ) {
+      continue;
+    }
+
+    const result = renderFunctionCall(element as HTMLPreElement, { current: false });
+    if (result) {
+      processedCount++;
+      const blockId = element.getAttribute('data-block-id');
+      if (blockId) monitorNode(element, blockId);
     }
   }
 

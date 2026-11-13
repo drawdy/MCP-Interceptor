@@ -1,6 +1,7 @@
 import type React from 'react';
 import type { SiteType } from './base/BaseSidebarManager';
 import { BaseSidebarManager } from './base/BaseSidebarManager';
+import { isPushModeDomIntact } from './base/pushMode';
 import { logMessage } from '@src/utils/helpers';
 import Sidebar from './Sidebar';
 import type { UserPreferences } from '@src/types/stores';
@@ -11,12 +12,19 @@ const getZustandPreferences = (): UserPreferences => {
   try {
     const zustandState = JSON.parse(localStorage.getItem('mcp-super-assistant-ui-store') || '{}');
     if (zustandState.state && zustandState.state.preferences) {
-      return zustandState.state.preferences;
+      const storedPrefs = zustandState.state.preferences;
+      const storedSidebar = zustandState.state.sidebar;
+      return {
+        ...storedPrefs,
+        sidebarWidth: storedSidebar?.width || storedPrefs.sidebarWidth || 320,
+        isMinimized:
+          typeof storedSidebar?.isMinimized === 'boolean' ? storedSidebar.isMinimized : storedPrefs.isMinimized,
+      };
     }
   } catch (error) {
     logMessage(`[SidebarManager] Error reading Zustand store: ${error}`);
   }
-  
+
   // Return default preferences
   return {
     autoSubmit: false,
@@ -236,11 +244,12 @@ export class SidebarManager extends BaseSidebarManager {
         // If it doesn't exist (first-time user), default to true
         // If it exists, use the stored value
         const sidebarState = zustandState.state?.sidebar;
-        const lastVisibleState = sidebarState && typeof sidebarState.isVisible === 'boolean'
-          ? sidebarState.isVisible
-          : true; // Default to true only for first-time users
+        const lastVisibleState =
+          sidebarState && typeof sidebarState.isVisible === 'boolean' ? sidebarState.isVisible : true; // Default to true only for first-time users
 
-        logMessage(`[SidebarManager] MCP enabled: ${mcpEnabled}, Last visibility state: ${lastVisibleState}, Storage exists: ${!!sidebarState}`);
+        logMessage(
+          `[SidebarManager] MCP enabled: ${mcpEnabled}, Last visibility state: ${lastVisibleState}, Storage exists: ${!!sidebarState}`,
+        );
 
         if (!mcpEnabled) {
           // MCP is disabled - don't initialize sidebar at all
@@ -298,7 +307,9 @@ export class SidebarManager extends BaseSidebarManager {
 
     // CRITICAL FIX: Ensure window reference is set before initialization
     if (!window.activeSidebarManager || window.activeSidebarManager !== this) {
-      logMessage('[SidebarManager] Ensuring window.activeSidebarManager reference is set in initializeCollapsedState()');
+      logMessage(
+        '[SidebarManager] Ensuring window.activeSidebarManager reference is set in initializeCollapsedState()',
+      );
       window.activeSidebarManager = this;
     }
 
@@ -352,10 +363,12 @@ export class SidebarManager extends BaseSidebarManager {
       setTimeout(() => {
         // CRITICAL FIX: Final verification of window reference before React render
         if (!window.activeSidebarManager || window.activeSidebarManager !== this) {
-          logMessage('[SidebarManager] Final check: Re-setting window.activeSidebarManager reference before React render');
+          logMessage(
+            '[SidebarManager] Final check: Re-setting window.activeSidebarManager reference before React render',
+          );
           window.activeSidebarManager = this;
         }
-        
+
         logMessage('[SidebarManager] Rendering React component with all initial state ready');
         this.render();
 
@@ -403,9 +416,7 @@ export class SidebarManager extends BaseSidebarManager {
     try {
       await this.initialize();
     } catch (error) {
-      logMessage(
-        `[SidebarManager] Error in safeInitialize: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      logMessage(`[SidebarManager] Error in safeInitialize: ${error instanceof Error ? error.message : String(error)}`);
       // Continue without throwing - just log the error
     }
   }
@@ -452,47 +463,28 @@ export class SidebarManager extends BaseSidebarManager {
    * @param isCollapsed Whether the sidebar should be in collapsed state
    */
   private verifyAndRetryPushMode(width: number, isCollapsed: boolean): void {
-    // Check if push mode styles are actually applied
-    const hasClass = document.documentElement.classList.contains('push-mode-enabled');
-    const hasMargin = document.documentElement.style.marginRight !== '';
-    const hasWidth = document.documentElement.style.width !== '';
+    const isPushModeApplied = isPushModeDomIntact(width, isCollapsed);
 
-    const isPushModeApplied = hasClass && hasMargin && hasWidth;
+    if (!isPushModeApplied) {
+      logMessage(
+        `[SidebarManager] Push mode verification failed (expected width: ${width}px, collapsed: ${isCollapsed}). Retrying...`,
+      );
 
-    // Also check computed styles to see if they match what we set
-    const computedStyle = window.getComputedStyle(document.documentElement);
-    const computedMarginRight = computedStyle.marginRight;
-    const expectedMargin = `${width}px`;
-    const marginApplied = computedMarginRight === expectedMargin;
-
-    if (!isPushModeApplied || !marginApplied) {
-      logMessage(`[SidebarManager] Push mode verification failed. Applied: ${isPushModeApplied}, Margin correct: ${marginApplied} (expected: ${expectedMargin}, got: ${computedMarginRight})`);
-
-      if (!marginApplied) {
-        // If margin-based approach isn't working, try transform-based approach
-        logMessage('[SidebarManager] Falling back to transform-based push mode');
-        document.documentElement.classList.add('push-mode-transform');
-        document.documentElement.style.setProperty('transform', `translateX(-${width}px)`, 'important');
-      }
-
-      // Retry applying push mode after a short delay
+      // Retry applying push mode after a short delay without falling back to transform-based shifting
       setTimeout(() => {
+        if (!this._isPushContentMode) return;
         this.setPushContentMode(true, width, isCollapsed);
 
-        // Verify again after retry
         setTimeout(() => {
-          const retryHasClass = document.documentElement.classList.contains('push-mode-enabled');
-          const retryHasMargin = document.documentElement.style.marginRight !== '';
-          const retryHasWidth = document.documentElement.style.width !== '';
-          const retryComputedStyle = window.getComputedStyle(document.documentElement);
-          const retryMarginApplied = retryComputedStyle.marginRight === expectedMargin || 
-                                    retryComputedStyle.transform.includes('translateX');
-
-          if (retryHasClass && (retryHasMargin || retryMarginApplied)) {
+          if (!this._isPushContentMode) return;
+          if (isPushModeDomIntact(width, isCollapsed)) {
             logMessage('[SidebarManager] Push mode successfully applied after retry');
           } else {
-            logMessage('[SidebarManager] Push mode still failed after retry - website may be interfering');
-            logMessage(`[SidebarManager] Final state - margin-right: ${retryComputedStyle.marginRight}, transform: ${retryComputedStyle.transform}`);
+            const retryComputedStyle = window.getComputedStyle(document.documentElement);
+            logMessage('[SidebarManager] Push mode still incomplete after retry - website may be interfering');
+            logMessage(
+              `[SidebarManager] Final state - margin-right: ${retryComputedStyle.marginRight}, width: ${retryComputedStyle.width}`,
+            );
           }
         }, 100);
       }, 50);
@@ -578,7 +570,7 @@ export class SidebarManager extends BaseSidebarManager {
       logMessage(`[SidebarManager] Synced Zustand visibility state to: ${isVisible}`);
     } catch (error) {
       logMessage(`[SidebarManager] Error syncing Zustand visibility state: ${error}`);
-      
+
       // Fallback to direct localStorage manipulation if store access fails
       try {
         const zustandState = JSON.parse(localStorage.getItem('mcp-super-assistant-ui-store') || '{}');
@@ -665,8 +657,7 @@ export class SidebarManager extends BaseSidebarManager {
    */
   private isNavigationEvent(): boolean {
     // If we're on a supported site and the URL is still valid, this is likely navigation
-    return window.location.hostname === 'gemini.google.com' && 
-           window.location.href.includes('/app');
+    return window.location.hostname === 'gemini.google.com' && window.location.href.includes('/app');
   }
 
   /**
@@ -677,7 +668,7 @@ export class SidebarManager extends BaseSidebarManager {
       logMessage(`[SidebarManager] Skipping destroy during navigation for ${this.siteType}`);
       return;
     }
-    
+
     logMessage(`[SidebarManager] Performing actual destroy for ${this.siteType}`);
     this.destroy();
   }
@@ -688,7 +679,7 @@ export class SidebarManager extends BaseSidebarManager {
   public async hide(): Promise<void> {
     // Sync Zustand store with actual visibility state when hiding
     this.syncZustandVisibilityState(false);
-    
+
     // Call the parent hide method
     return super.hide();
   }

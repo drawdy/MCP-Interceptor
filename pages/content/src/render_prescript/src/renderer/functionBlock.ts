@@ -91,7 +91,7 @@ function getAutomationState() {
       autoExecute: automationState.autoExecute || false,
     };
   }
-  
+
   // Fallback to legacy toggle state
   const legacyState = (window as any).toggleState;
   return {
@@ -420,7 +420,7 @@ const ScrollUtils = {
     if (preElement) {
       (preElement as any)._userHasScrolled = false;
     }
-    
+
     // Force scroll to bottom for streaming content
     ScrollUtils.performOptimizedScroll(paramValueElement, true);
   },
@@ -577,7 +577,8 @@ export const executionTracker: ExecutionTracker = {
   executedFunctions: new Set<string>(),
 
   isFunctionExecuted(callId: string, contentSignature: string, functionName?: string): boolean {
-    logger.debug(`isFunctionExecuted called with: callId='${callId}', signature='${contentSignature}', funcName='${functionName || 'undefined'}'`,
+    logger.debug(
+      `isFunctionExecuted called with: callId='${callId}', signature='${contentSignature}', funcName='${functionName || 'undefined'}'`,
     );
 
     let effectiveFunctionName = functionName;
@@ -601,15 +602,13 @@ export const executionTracker: ExecutionTracker = {
       const key = `${effectiveFunctionName}:${callId}:${contentSignature}`;
       const inMemory = this.executedFunctions.has(key);
       const inStorage = getPreviousExecution(effectiveFunctionName, callId, contentSignature) !== null;
-      logger.debug(`isFunctionExecuted (Standard Check): Key='${key}', inMemory=${inMemory}, inStorage=${inStorage}`,
-      );
+      logger.debug(`isFunctionExecuted (Standard Check): Key='${key}', inMemory=${inMemory}, inStorage=${inStorage}`);
       return inMemory || inStorage;
     } else {
       const key = `${callId}:${contentSignature}`;
       const inMemory = this.executedFunctions.has(key) || this.executedFunctions.has(`:${callId}:${contentSignature}`);
       const inStorage = getPreviousExecutionLegacy(callId, contentSignature) !== null;
-      logger.debug(`isFunctionExecuted (Legacy Check): Key='${key}', inMemory=${inMemory}, inStorage=${inStorage}`,
-      );
+      logger.debug(`isFunctionExecuted (Legacy Check): Key='${key}', inMemory=${inMemory}, inStorage=${inStorage}`);
       return inMemory || inStorage;
     }
   },
@@ -647,14 +646,14 @@ export const executionTracker: ExecutionTracker = {
 const AutoExpandUtils = {
   expandBlock: (blockDiv: HTMLDivElement, animate: boolean = true): void => {
     if (blockDiv.classList.contains('expanded')) return;
-    
+
     const expandButton = blockDiv.querySelector('.expand-button') as HTMLButtonElement;
     const expandableContent = blockDiv.querySelector('.expandable-content') as HTMLDivElement;
-    
+
     if (!expandButton || !expandableContent) return;
-    
+
     blockDiv.classList.add('expanded', 'auto-expanded');
-    
+
     if (animate) {
       // Smooth expansion animation
       DOMUtils.applyStyles(expandableContent, {
@@ -664,9 +663,9 @@ const AutoExpandUtils = {
         paddingTop: '0',
         paddingBottom: '0',
       });
-      
+
       const targetHeight = expandableContent.scrollHeight + 24;
-      
+
       requestAnimationFrame(() => {
         DOMUtils.applyStyles(expandableContent, {
           maxHeight: targetHeight + 'px',
@@ -675,7 +674,7 @@ const AutoExpandUtils = {
           paddingBottom: '12px',
           transition: 'all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
         });
-        
+
         const expandIcon = expandButton.querySelector('svg path');
         if (expandIcon) {
           expandIcon.setAttribute('d', 'M16 14l-4-4-4 4');
@@ -693,23 +692,23 @@ const AutoExpandUtils = {
       });
     }
   },
-  
+
   collapseBlock: (blockDiv: HTMLDivElement, animate: boolean = true): void => {
     if (!blockDiv.classList.contains('expanded') || !blockDiv.classList.contains('auto-expanded')) return;
-    
+
     const expandButton = blockDiv.querySelector('.expand-button') as HTMLButtonElement;
     const expandableContent = blockDiv.querySelector('.expandable-content') as HTMLDivElement;
-    
+
     if (!expandButton || !expandableContent) return;
-    
+
     blockDiv.classList.remove('expanded', 'auto-expanded');
-    
+
     if (animate) {
       // Smooth collapse animation
       const currentHeight = expandableContent.scrollHeight;
       expandableContent.style.maxHeight = currentHeight + 'px';
       expandableContent.offsetHeight; // Force reflow
-      
+
       requestAnimationFrame(() => {
         DOMUtils.applyStyles(expandableContent, {
           maxHeight: '0px',
@@ -718,14 +717,14 @@ const AutoExpandUtils = {
           paddingBottom: '0',
           transition: 'all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
         });
-        
+
         const expandIcon = expandButton.querySelector('svg path');
         if (expandIcon) {
           expandIcon.setAttribute('d', 'M8 10l4 4 4-4');
         }
         expandButton.title = 'Expand function details';
       });
-      
+
       // Hide after animation completes
       setTimeout(() => {
         if (!blockDiv.classList.contains('expanded')) {
@@ -743,14 +742,14 @@ const AutoExpandUtils = {
       });
     }
   },
-  
+
   scheduleAutoCollapse: (blockDiv: HTMLDivElement, delay: number = 2000): void => {
     const blockId = blockDiv.getAttribute('data-block-id');
     if (!blockId) return;
-    
+
     const timeoutKey = `auto-collapse-${blockId}`;
     PerformanceUtils.cleanupTimeout(timeoutKey);
-    
+
     PerformanceUtils.setManagedTimeout(
       timeoutKey,
       () => {
@@ -760,7 +759,7 @@ const AutoExpandUtils = {
           AutoExpandUtils.collapseBlock(blockDiv, true);
         }
       },
-      delay
+      delay,
     );
   },
 };
@@ -1026,7 +1025,7 @@ const ParamElementUtils = {
             willChange: 'auto',
             containIntrinsicSize: 'auto',
           });
-          
+
           // Check if block should auto-collapse when streaming ends
           const blockDiv = paramValueElement.closest('.function-block') as HTMLDivElement;
           if (blockDiv && blockDiv.classList.contains('auto-expanded')) {
@@ -1066,7 +1065,7 @@ const ParamElementUtils = {
 // Auto-execution utilities
 const AutoExecutionUtils = {
   setupOptimizedAutoExecution: (blockId: string, functionDetails: any): void => {
-  const setupAutoExecution = () => {
+    const setupAutoExecution = () => {
       const attempts = executionTracker.incrementAttempts(blockId);
 
       if (attempts > MAX_AUTO_EXECUTE_ATTEMPTS) {
@@ -1087,16 +1086,17 @@ const AutoExecutionUtils = {
         `auto-exec-${blockId}-${attempts}`,
         () => {
           let currentBlock = document.querySelector<HTMLDivElement>(`.function-block[data-block-id="${blockId}"]`);
+          if (currentBlock && (!currentBlock.isConnected || currentBlock.closest('[style*="display: none"]'))) {
+            currentBlock = null;
+          }
 
           if (!currentBlock) {
-            logger.debug(`Auto-execute: Original block ${blockId} not found. Searching for replacement...`);
+            logger.debug(`Auto-execute: Original block ${blockId} not found or hidden. Searching for replacement...`);
             currentBlock = AutoExecutionUtils.findReplacementBlock(functionDetails);
           }
 
           if (!currentBlock) {
-            logger.debug(
-              `Auto-execute: Block ${blockId} not found (attempt ${attempts}/${MAX_AUTO_EXECUTE_ATTEMPTS})`,
-            );
+            logger.debug(`Auto-execute: Block ${blockId} not found (attempt ${attempts}/${MAX_AUTO_EXECUTE_ATTEMPTS})`);
             if (attempts < MAX_AUTO_EXECUTE_ATTEMPTS) {
               setupAutoExecution();
             } else {
@@ -1106,11 +1106,17 @@ const AutoExecutionUtils = {
             return;
           }
 
-          const finalCheckExecuted = getPreviousExecution(
-            functionDetails.functionName,
-            functionDetails.callId,
-            functionDetails.contentSignature,
-          );
+          const finalCheckExecuted =
+            executionTracker.isFunctionExecuted(
+              String(functionDetails.callId),
+              functionDetails.contentSignature,
+              functionDetails.functionName,
+            ) ||
+            getPreviousExecution(
+              functionDetails.functionName,
+              functionDetails.callId,
+              functionDetails.contentSignature,
+            );
           if (finalCheckExecuted) {
             logger.debug(`Auto-execute: Function already executed, skipping.`);
             executionTracker.cleanupBlock(blockId);
@@ -1119,6 +1125,11 @@ const AutoExecutionUtils = {
 
           const executeButton = currentBlock.querySelector<HTMLButtonElement>('.execute-button');
           if (executeButton) {
+            executionTracker.markFunctionExecuted(
+              String(functionDetails.callId),
+              functionDetails.contentSignature,
+              functionDetails.functionName,
+            );
             logger.debug(`Auto-execute: Executing function ${functionDetails.functionName}`);
             executeButton.click();
             executionTracker.cleanupBlock(blockId);
@@ -1142,13 +1153,42 @@ const AutoExecutionUtils = {
   findReplacementBlock: (functionDetails: any): HTMLDivElement | null => {
     const potentialBlocks = document.querySelectorAll<HTMLDivElement>('.function-block');
     for (const block of potentialBlocks) {
+      if (!block.isConnected || block.closest('[style*="display: none"]')) continue;
+
+      const attrFuncName = block.getAttribute('data-function-name');
+      const attrCallId = block.getAttribute('data-call-id');
+      const attrSignature = block.getAttribute('data-content-signature');
+
+      if (
+        attrFuncName === functionDetails.functionName &&
+        ((attrSignature && attrSignature === functionDetails.contentSignature) ||
+          (attrCallId && String(attrCallId) === String(functionDetails.callId)))
+      ) {
+        const alreadyExecuted = getPreviousExecution(
+          functionDetails.functionName,
+          functionDetails.callId,
+          functionDetails.contentSignature,
+        );
+        if (!alreadyExecuted) {
+          logger.debug(`Auto-execute: Found replacement block via data attributes, attempting execution.`);
+          return block;
+        }
+      }
+
       const preElement = block.querySelector('pre');
       if (!preElement?.textContent) continue;
 
+      const jsonInfo = extractJSONFunctionInfo(preElement.textContent);
       const match = REGEX_CACHE.invokeMatch.exec(preElement.textContent);
       REGEX_CACHE.invokeMatch.lastIndex = 0;
 
-      if (match && match[1] === functionDetails.functionName && match[2] === functionDetails.callId) {
+      const matchedName = jsonInfo.functionName || match?.[1];
+      const matchedCallId = jsonInfo.callId || match?.[2];
+
+      if (
+        matchedName === functionDetails.functionName &&
+        String(matchedCallId ?? '') === String(functionDetails.callId ?? '')
+      ) {
         const alreadyExecuted = getPreviousExecution(
           functionDetails.functionName,
           functionDetails.callId,
@@ -1170,6 +1210,21 @@ if (typeof window !== 'undefined') {
   configureMonacoEditorForCSP();
 }
 
+export const getRawFunctionContent = (targetBlock: HTMLElement, isJSON: boolean): string => {
+  if (isJSON && targetBlock.tagName.toLowerCase() !== 'code') {
+    const codeChild = targetBlock.querySelector('code:not(.function-block code)');
+    if (codeChild?.textContent) {
+      return codeChild.textContent.trim();
+    }
+  }
+  if (targetBlock.querySelector('.function-block')) {
+    const cloned = targetBlock.cloneNode(true) as HTMLElement;
+    cloned.querySelectorAll('.function-block').forEach(el => el.remove());
+    return cloned.textContent?.trim() || '';
+  }
+  return targetBlock.textContent?.trim() || '';
+};
+
 /**
  * Main function to render a function call block
  */
@@ -1184,7 +1239,7 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
       detectedBlockType: functionInfo.detectedBlockType,
       isComplete: functionInfo.isComplete,
       hasParameters: functionInfo.hasParameters,
-      invokeName: functionInfo.invokeName
+      invokeName: functionInfo.invokeName,
     });
   }
 
@@ -1257,11 +1312,10 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
     previousCompletionStatus = existingDiv.classList.contains('function-complete');
   }
 
-  const rawContent = block.textContent?.trim() || '';
-  const { tag, content } = extractLanguageTag(rawContent);
-
   // Determine if JSON or XML format
   const isJSONFormat = functionInfo.detectedBlockType === 'json';
+  const rawContent = getRawFunctionContent(block, isJSONFormat);
+  const { tag, content } = extractLanguageTag(rawContent);
   let functionName: string;
   let callId: string;
   let partialParameters: Record<string, string>;
@@ -1288,10 +1342,12 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
     blockDiv.setAttribute('data-block-id', blockId);
     applyThemeClass(blockDiv);
     renderedFunctionBlocks.set(blockId, blockDiv);
-    
+
     // Ensure blocks start collapsed by default
     blockDiv.classList.remove('expanded', 'auto-expanded');
   }
+  blockDiv.setAttribute('data-function-name', functionName);
+  blockDiv.setAttribute('data-call-id', String(callId));
 
   // Handle state transitions
   if (!isNewRender) {
@@ -1371,7 +1427,7 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
   if (!expandableContent) {
     expandableContent = BlockElementUtils.createExpandableContent();
     blockDiv.appendChild(expandableContent);
-    
+
     // Ensure content starts hidden for new blocks
     if (isNewRender) {
       DOMUtils.applyStyles(expandableContent, {
@@ -1465,6 +1521,7 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
   let contentSignature: string | null = null;
   if (functionInfo.isComplete && completeParameters) {
     contentSignature = generateContentSignature(functionName, completeParameters);
+    blockDiv.setAttribute('data-content-signature', contentSignature);
   }
 
   // Replace original element on new render
@@ -1519,7 +1576,6 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
           return true;
         }
 
-        executionTracker.markFunctionExecuted(callId, contentSignature, functionName);
         executionTracker.markBlockExecuted(blockId);
 
         logger.debug(`Setting up auto-execution for block ${blockId} (${functionName})`);
@@ -1640,7 +1696,7 @@ export const createOrUpdateParamElement = (
 
   paramValueElement.setAttribute('data-param-value', JSON.stringify(value));
   ParamElementUtils.handleStreamingState(paramNameElement, paramValueElement, paramId, isStreaming);
-  
+
   // Handle auto-expansion for streaming content
   if (isStreaming) {
     const blockDiv = container.closest('.function-block') as HTMLDivElement;

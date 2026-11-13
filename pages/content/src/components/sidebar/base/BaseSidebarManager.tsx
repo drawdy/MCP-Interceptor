@@ -8,22 +8,20 @@ import {
   applyLightMode,
   injectTailwindToShadowDom,
 } from '@src/utils/shadowDom';
+import {
+  applyPushModeDomStyles,
+  clearPushModeDomStyles,
+  ensurePushModeStylesheet,
+  isPushModeDomIntact,
+  updatePushModeDomWidth,
+} from './pushMode';
 import '@src/components/sidebar/styles/sidebar.css';
 
 /**
  * Type definition for the site type
  */
 export type SiteType =
-  | 'perplexity'
-  | 'chatgpt'
-  | 'grok'
-  | 'zai'
-  | 'gemini'
-  | 'aistudio'
-  | 'openrouter'
-  | 'deepseek'
-  | 'kagi'
-  | 't3chat';
+  'perplexity' | 'chatgpt' | 'grok' | 'zai' | 'gemini' | 'aistudio' | 'openrouter' | 'deepseek' | 'kagi' | 't3chat';
 
 /**
  * BaseSidebarManager is a base class for creating sidebar managers
@@ -37,6 +35,10 @@ export abstract class BaseSidebarManager {
   protected shadowHost: HTMLDivElement | null = null;
   protected shadowRoot: ShadowRoot | null = null;
   protected _isPushContentMode: boolean = false;
+  protected _pushModeWidth: number = 320;
+  protected _isPushModeCollapsed: boolean = false;
+  private _pushModeObserver: MutationObserver | null = null;
+  private _isApplyingPushModeStyles: boolean = false;
   private _initializationPromise: Promise<void> | null = null;
   private _isInitialized = false;
 
@@ -103,46 +105,29 @@ export abstract class BaseSidebarManager {
   public setPushContentMode(enabled: boolean, sidebarWidth?: number, isCollapsed?: boolean): void {
     this._isPushContentMode = enabled;
 
+    // Ensure push mode stylesheet exists before applying classes/variables
+    this.ensurePushModeStyles();
+
     if (enabled) {
-      // Set sidebar width CSS variable
-      const width = isCollapsed ? 56 : sidebarWidth || 320;
-      document.documentElement.style.setProperty('--sidebar-width-mcp', `${width}px`);
+      const collapsed = !!isCollapsed;
+      const width = collapsed ? 56 : sidebarWidth || this._pushModeWidth || 320;
+      this._pushModeWidth = width;
+      this._isPushModeCollapsed = collapsed;
 
-      // Apply specific inline styles directly to the HTML element with !important
-      document.documentElement.style.setProperty('position', 'relative', 'important');
-      document.documentElement.style.setProperty('margin-right', `${width}px`, 'important');
-      document.documentElement.style.setProperty('width', `calc(100% - ${width}px)`, 'important');
-      document.documentElement.style.setProperty('min-height', '100vh', 'important');
-      document.documentElement.style.setProperty('box-sizing', 'border-box', 'important');
-
-      // Also apply styles to body for better compatibility with different website layouts
-      document.body.style.setProperty('margin-right', '0', 'important');
-      document.body.style.setProperty('padding-right', '0', 'important');
-      document.body.style.setProperty('box-sizing', 'border-box', 'important');
-      document.body.style.setProperty('max-width', 'none', 'important');
-
-      // Add classes to HTML root for CSS-based layout adjustments
-      document.documentElement.classList.add('push-mode-enabled');
-
-      // Add collapsed state class if needed
-      if (isCollapsed) {
-        document.documentElement.classList.add('sidebar-collapsed');
-      } else {
-        document.documentElement.classList.remove('sidebar-collapsed');
+      this._isApplyingPushModeStyles = true;
+      try {
+        applyPushModeDomStyles(width, collapsed);
+      } finally {
+        this._isApplyingPushModeStyles = false;
       }
+      this.startPushModeObserver();
 
       // Debug logging to verify styles are applied
       logMessage(`[BaseSidebarManager] Push mode enabled with width: ${width}px`);
-      logMessage(`[BaseSidebarManager] Applied styles - margin-right: ${document.documentElement.style.marginRight}, width: ${document.documentElement.style.width}`);
+      logMessage(
+        `[BaseSidebarManager] Applied styles - margin-right: ${document.documentElement.style.marginRight}, width: ${document.documentElement.style.width}`,
+      );
       logMessage(`[BaseSidebarManager] HTML classes: ${document.documentElement.className}`);
-
-      // Check if styles are being overridden
-      const computedStyle = window.getComputedStyle(document.documentElement);
-      logMessage(`[BaseSidebarManager] Computed styles - margin-right: ${computedStyle.marginRight}, width: ${computedStyle.width}`);
-
-      // Also check body styles
-      const bodyComputedStyle = window.getComputedStyle(document.body);
-      logMessage(`[BaseSidebarManager] Body computed styles - margin-right: ${bodyComputedStyle.marginRight}, max-width: ${bodyComputedStyle.maxWidth}`);
 
       // When push mode is enabled, ensure the sidebar is visible
       if (!this._isVisible || (this.shadowHost && this.shadowHost.style.display !== 'block')) {
@@ -151,26 +136,8 @@ export abstract class BaseSidebarManager {
         this.forceVisibility();
       }
     } else {
-      // Remove all inline styles when push mode is disabled
-      document.documentElement.style.removeProperty('position');
-      document.documentElement.style.removeProperty('margin-right');
-      document.documentElement.style.removeProperty('width');
-      document.documentElement.style.removeProperty('min-height');
-      document.documentElement.style.removeProperty('box-sizing');
-      document.documentElement.style.removeProperty('transform');
-
-      // Remove body styles
-      document.body.style.removeProperty('margin-right');
-      document.body.style.removeProperty('padding-right');
-      document.body.style.removeProperty('box-sizing');
-      document.body.style.removeProperty('max-width');
-
-      // Remove push mode classes when disabled
-      document.documentElement.classList.remove('push-mode-enabled', 'sidebar-collapsed', 'push-mode-transform');
+      this.removePushModeStyles();
     }
-
-    // Ensure push mode styles are in the document
-    this.ensurePushModeStyles();
 
     logMessage(`BaseSidebarManager: Push mode ${enabled ? 'enabled' : 'disabled'}`);
   }
@@ -213,9 +180,13 @@ export abstract class BaseSidebarManager {
    */
   public updatePushModeStyles(width: number): void {
     if (this._isPushContentMode) {
-      document.documentElement.style.setProperty('--sidebar-width-mcp', `${width}px`);
-      document.documentElement.style.setProperty('margin-right', `${width}px`, 'important');
-      document.documentElement.style.setProperty('width', `calc(100% - ${width}px)`, 'important');
+      this._pushModeWidth = width;
+      this._isApplyingPushModeStyles = true;
+      try {
+        updatePushModeDomWidth(width);
+      } finally {
+        this._isApplyingPushModeStyles = false;
+      }
       logMessage(`[BaseSidebarManager] Updated push mode styles to width: ${width}px`);
     }
   }
@@ -224,100 +195,65 @@ export abstract class BaseSidebarManager {
    * Remove all push mode styles (used for cleanup)
    */
   public removePushModeStyles(): void {
-    document.documentElement.style.removeProperty('position');
-    document.documentElement.style.removeProperty('margin-right');
-    document.documentElement.style.removeProperty('width');
-    document.documentElement.style.removeProperty('min-height');
-    document.documentElement.classList.remove('push-mode-enabled', 'sidebar-collapsed');
+    this.stopPushModeObserver();
+    this._isApplyingPushModeStyles = true;
+    try {
+      clearPushModeDomStyles();
+    } finally {
+      this._isApplyingPushModeStyles = false;
+    }
+  }
+
+  /**
+   * Observe host page mutations that clear or overwrite push mode classes/styles
+   * (e.g., React hydration or theme toggles on html/body) and self-heal them.
+   */
+  private startPushModeObserver(): void {
+    if (this._pushModeObserver || typeof MutationObserver === 'undefined') {
+      return;
+    }
+
+    this._pushModeObserver = new MutationObserver(() => {
+      if (this._isApplyingPushModeStyles || !this._isPushContentMode) {
+        return;
+      }
+
+      if (!isPushModeDomIntact(this._pushModeWidth, this._isPushModeCollapsed)) {
+        this._isApplyingPushModeStyles = true;
+        try {
+          ensurePushModeStylesheet();
+          applyPushModeDomStyles(this._pushModeWidth, this._isPushModeCollapsed);
+          logMessage('[BaseSidebarManager] Re-applied push mode styles after host DOM update');
+        } finally {
+          this._isApplyingPushModeStyles = false;
+        }
+      }
+    });
+
+    this._pushModeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class', 'style'],
+    });
+    if (document.body) {
+      this._pushModeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['style'],
+      });
+    }
+  }
+
+  private stopPushModeObserver(): void {
+    if (this._pushModeObserver) {
+      this._pushModeObserver.disconnect();
+      this._pushModeObserver = null;
+    }
   }
 
   /**
    * Ensures that push mode styles are added to the document
    */
   private ensurePushModeStyles(): void {
-    if (!document.getElementById('mcp-sidebar-push-styles')) {
-      const styleEl = document.createElement('style');
-      styleEl.id = 'mcp-sidebar-push-styles';
-      styleEl.textContent = `
-        /* High-priority push mode styles with !important to override website styles */
-        html.push-mode-enabled {
-          overflow-x: hidden !important;
-          transition: margin-right 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) !important, 
-                      width 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) !important,
-                      transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
-          box-sizing: border-box !important;
-        }
-        
-        /* Force position and dimensions for push mode */
-        html.push-mode-enabled {
-          position: relative !important;
-        }
-        
-        /* Alternative transform-based push mode for websites that override margin/width */
-        html.push-mode-enabled.push-mode-transform {
-          transform: translateX(calc(var(--sidebar-width-mcp, 320px) * -1)) !important;
-          width: 100vw !important;
-          margin-right: 0 !important;
-        }
-        
-        /* Ensure body also respects the new layout */
-        html.push-mode-enabled body {
-          margin-right: 0 !important;
-          padding-right: 0 !important;
-          overflow-x: hidden !important;
-          box-sizing: border-box !important;
-        }
-        
-        /* Ensure fixed elements don't overlap with sidebar */
-        html.push-mode-enabled .sidebar {
-          right: 0;
-        }
-
-        /* Add smooth resize styles */
-        .sidebar {
-          transition: width 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-        }
-        
-        .sidebar.resizing {
-          transition: none !important;
-        }
-        
-        /* Enhanced shadow host animations */
-        #mcp-sidebar-shadow-host {
-          opacity: 0;
-          transform: translateX(30px) scale(0.95);
-          transition: opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
-                      transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-        }
-        
-        #mcp-sidebar-shadow-host.initialized {
-          opacity: 1;
-          transform: translateX(0) scale(1);
-        }
-        
-        #mcp-sidebar-shadow-host.showing {
-          transition-duration: 0s;
-        }
-        
-        #mcp-sidebar-shadow-host.hiding {
-          opacity: 0;
-          transform: translateX(20px) scale(0.98);
-          transition: opacity 0.3s cubic-bezier(0.55, 0.085, 0.68, 0.53),
-                      transform 0.3s cubic-bezier(0.55, 0.085, 0.68, 0.53);
-        }
-        
-        /* Add subtle backdrop effect */
-        body:has(#mcp-sidebar-shadow-host.initialized) {
-          transition: filter 0.3s ease;
-        }
-        
-        /* Smooth page content adjustments */
-        body {
-          transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-        }
-      `;
-      document.head.appendChild(styleEl);
-    }
+    ensurePushModeStylesheet();
   }
 
   /**
