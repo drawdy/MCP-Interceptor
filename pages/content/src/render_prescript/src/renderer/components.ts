@@ -212,11 +212,12 @@ export const addRawXmlToggle = (blockDiv: HTMLDivElement, rawContent: string): v
   }
 
   // Get the original pre element that contains the function call
-  const blockId = blockDiv.getAttribute('data-block-id');
+  const blockId =
+    blockDiv.getAttribute('data-block-id') || blockDiv.closest('.function-block')?.getAttribute('data-block-id');
 
   if (blockId) {
     // Try to find the original element with the complete XML
-    const originalPre = document.querySelector(`div[data-block-id="${blockId}"]`);
+    const originalPre = document.querySelector(`[data-block-id="${blockId}"]:not(.function-block)`);
     if (originalPre) {
       // Extract clean JSON content for display (removes localized UI labels)
       rawContent = extractCleanContent(originalPre.textContent?.trim() || rawContent);

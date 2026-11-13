@@ -1,12 +1,18 @@
 import assert from 'node:assert/strict';
 
 Object.defineProperty(globalThis, 'window', {
-  value: { location: { href: 'https://chatgpt.com/' } },
+  value: {
+    location: { href: 'https://chatgpt.com/', hostname: 'chatgpt.com' },
+    addEventListener: () => undefined,
+  },
   configurable: true,
 });
 
-const { extractJSONParameters } = await import(
+const { containsJSONFunctionCalls, extractJSONParameters } = await import(
   '../pages/content/src/render_prescript/src/parser/jsonFunctionParser.ts'
+);
+const { getRawFunctionContent } = await import(
+  '../pages/content/src/render_prescript/src/renderer/functionBlock.ts'
 );
 
 const multilineArrayCall = [
@@ -73,5 +79,40 @@ const partialStringCall = [
 assert.deepEqual(extractJSONParameters(partialStringCall), {
   content: 'partial text still streaming',
 });
+
+const chatgptJsonl = [
+  '{"type":"function_call_start","name":"search_docs","call_id":"call_42"}',
+  '{"type":"parameter","key":"query","value":"chatgpt auto execute"}',
+  '{"type":"function_call_end","call_id":"call_42"}',
+].join('\n');
+
+const codeElement = {
+  tagName: 'CODE',
+  textContent: chatgptJsonl,
+  closest: () => null,
+  hasAttribute: () => false,
+  getAttribute: () => null,
+  querySelector: () => null,
+  cloneNode: () => ({ textContent: chatgptJsonl, querySelectorAll: () => [] }),
+} as unknown as HTMLElement;
+
+const preWrapperWithHeaderAndRenderedBlock = {
+  tagName: 'PRE',
+  textContent: `jsonl\nCopy\n${chatgptJsonl}\nsearch_docsRun`,
+  closest: () => null,
+  hasAttribute: () => false,
+  getAttribute: () => null,
+  querySelector: (selector: string) => {
+    if (selector === 'code:not(.function-block code)') return codeElement;
+    if (selector === '.function-block') return {} as Element;
+    return null;
+  },
+} as unknown as HTMLElement;
+
+const parsedNested = containsJSONFunctionCalls(preWrapperWithHeaderAndRenderedBlock);
+assert.equal(parsedNested.hasFunctionCalls, true);
+assert.equal(parsedNested.isComplete, true);
+assert.equal(parsedNested.invokeName, 'search_docs');
+assert.equal(getRawFunctionContent(preWrapperWithHeaderAndRenderedBlock, true), chatgptJsonl);
 
 console.log('json-function-parser multiline regression tests: passed');

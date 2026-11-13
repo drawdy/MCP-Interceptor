@@ -265,6 +265,10 @@ const detectFunctionChunk = (
 // Track previous content for chunk detection
 const previousContentCache = new Map<string, string>();
 
+const findMonitoredSourceElement = (blockId: string): HTMLElement | null =>
+  (document.querySelector(`[data-monitored-node="${blockId}"]`) as HTMLElement | null) ||
+  (document.querySelector(`[data-block-id="${blockId}"]:not(.function-block)`) as HTMLElement | null);
+
 /**
  * Immediate chunk processor for instant response
  */
@@ -276,7 +280,7 @@ const processChunkImmediate = (
   if (!chunkInfo.hasNewChunk || !chunkInfo.isSignificant) return;
 
   // Find target element immediately
-  const target = document.querySelector(`div[data-block-id="${blockId}"]`) as HTMLElement;
+  const target = findMonitoredSourceElement(blockId);
   if (!target) return;
 
   // Skip if already processing or complete
@@ -558,7 +562,7 @@ export const monitorNode = (node: HTMLElement, blockId: string): void => {
 
         // Get the content once for analysis
         const targetNode = mutation.target;
-        const textContent = targetNode.textContent || '';
+        const textContent = node.textContent || targetNode.textContent || '';
 
         // Use fast pattern matching for both XML and JSON
         if (!functionCallPattern) {
@@ -668,7 +672,11 @@ export const checkStreamingUpdates = (): void => {
   // Find all elements in these containers
   for (const container of targetContainers) {
     for (const selector of CONFIG.targetSelectors) {
-      const elements = container.querySelectorAll<HTMLElement>(selector);
+      const elements: HTMLElement[] = [];
+      if (container.matches(selector)) {
+        elements.push(container);
+      }
+      elements.push(...Array.from(container.querySelectorAll<HTMLElement>(selector)));
       for (const element of elements) {
         const blockId = element.getAttribute('data-block-id');
         if (!blockId) continue;
@@ -760,8 +768,8 @@ export const resyncWithOriginalContent = (blockId: string): void => {
   // Mark as resyncing to prevent conflicting updates
   resyncingBlocks.add(blockId);
 
-  // Find the original pre element
-  const originalPre = document.querySelector(`div[data-block-id="${blockId}"]`);
+  // Find the original pre/code element
+  const originalPre = findMonitoredSourceElement(blockId);
   if (!originalPre || !originalPre.textContent) {
     if (CONFIG.debug) {
       logger.debug(`Original pre element not found for block ${blockId}`);

@@ -1,6 +1,7 @@
 import type React from 'react';
 import type { SiteType } from './base/BaseSidebarManager';
 import { BaseSidebarManager } from './base/BaseSidebarManager';
+import { isPushModeDomIntact } from './base/pushMode';
 import { logMessage } from '@src/utils/helpers';
 import Sidebar from './Sidebar';
 import type { UserPreferences } from '@src/types/stores';
@@ -11,7 +12,14 @@ const getZustandPreferences = (): UserPreferences => {
   try {
     const zustandState = JSON.parse(localStorage.getItem('mcp-super-assistant-ui-store') || '{}');
     if (zustandState.state && zustandState.state.preferences) {
-      return zustandState.state.preferences;
+      const storedPrefs = zustandState.state.preferences;
+      const storedSidebar = zustandState.state.sidebar;
+      return {
+        ...storedPrefs,
+        sidebarWidth: storedSidebar?.width || storedPrefs.sidebarWidth || 320,
+        isMinimized:
+          typeof storedSidebar?.isMinimized === 'boolean' ? storedSidebar.isMinimized : storedPrefs.isMinimized,
+      };
     }
   } catch (error) {
     logMessage(`[SidebarManager] Error reading Zustand store: ${error}`);
@@ -452,47 +460,28 @@ export class SidebarManager extends BaseSidebarManager {
    * @param isCollapsed Whether the sidebar should be in collapsed state
    */
   private verifyAndRetryPushMode(width: number, isCollapsed: boolean): void {
-    // Check if push mode styles are actually applied
-    const hasClass = document.documentElement.classList.contains('push-mode-enabled');
-    const hasMargin = document.documentElement.style.marginRight !== '';
-    const hasWidth = document.documentElement.style.width !== '';
+    const isPushModeApplied = isPushModeDomIntact(width, isCollapsed);
 
-    const isPushModeApplied = hasClass && hasMargin && hasWidth;
+    if (!isPushModeApplied) {
+      logMessage(
+        `[SidebarManager] Push mode verification failed (expected width: ${width}px, collapsed: ${isCollapsed}). Retrying...`,
+      );
 
-    // Also check computed styles to see if they match what we set
-    const computedStyle = window.getComputedStyle(document.documentElement);
-    const computedMarginRight = computedStyle.marginRight;
-    const expectedMargin = `${width}px`;
-    const marginApplied = computedMarginRight === expectedMargin;
-
-    if (!isPushModeApplied || !marginApplied) {
-      logMessage(`[SidebarManager] Push mode verification failed. Applied: ${isPushModeApplied}, Margin correct: ${marginApplied} (expected: ${expectedMargin}, got: ${computedMarginRight})`);
-
-      if (!marginApplied) {
-        // If margin-based approach isn't working, try transform-based approach
-        logMessage('[SidebarManager] Falling back to transform-based push mode');
-        document.documentElement.classList.add('push-mode-transform');
-        document.documentElement.style.setProperty('transform', `translateX(-${width}px)`, 'important');
-      }
-
-      // Retry applying push mode after a short delay
+      // Retry applying push mode after a short delay without falling back to transform-based shifting
       setTimeout(() => {
+        if (!this._isPushContentMode) return;
         this.setPushContentMode(true, width, isCollapsed);
 
-        // Verify again after retry
         setTimeout(() => {
-          const retryHasClass = document.documentElement.classList.contains('push-mode-enabled');
-          const retryHasMargin = document.documentElement.style.marginRight !== '';
-          const retryHasWidth = document.documentElement.style.width !== '';
-          const retryComputedStyle = window.getComputedStyle(document.documentElement);
-          const retryMarginApplied = retryComputedStyle.marginRight === expectedMargin || 
-                                    retryComputedStyle.transform.includes('translateX');
-
-          if (retryHasClass && (retryHasMargin || retryMarginApplied)) {
+          if (!this._isPushContentMode) return;
+          if (isPushModeDomIntact(width, isCollapsed)) {
             logMessage('[SidebarManager] Push mode successfully applied after retry');
           } else {
-            logMessage('[SidebarManager] Push mode still failed after retry - website may be interfering');
-            logMessage(`[SidebarManager] Final state - margin-right: ${retryComputedStyle.marginRight}, transform: ${retryComputedStyle.transform}`);
+            const retryComputedStyle = window.getComputedStyle(document.documentElement);
+            logMessage('[SidebarManager] Push mode still incomplete after retry - website may be interfering');
+            logMessage(
+              `[SidebarManager] Final state - margin-right: ${retryComputedStyle.marginRight}, width: ${retryComputedStyle.width}`,
+            );
           }
         }, 100);
       }, 50);

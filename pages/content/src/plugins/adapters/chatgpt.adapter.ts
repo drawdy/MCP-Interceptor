@@ -1,10 +1,14 @@
 import { BaseAdapterPlugin } from './base.adapter';
 import {
   CHATGPT_COMPOSER_SELECTOR,
+  CHATGPT_SUBMIT_BUTTON_SELECTOR,
   findChatGPTComposer,
   findChatGPTButtonInsertionPoint,
   findChatGPTFileInput,
   findChatGPTFilePreviews,
+  findChatGPTSubmitButton,
+  isChatGPTStopButtonVisible,
+  isDisabledChatGPTButton,
   isVisibleChatGPTElement,
 } from './chatgpt-composer';
 import type { AdapterCapability, PluginContext } from '../plugin-types';
@@ -39,8 +43,7 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
     // Primary chat input selector (ProseMirror contenteditable)
     CHAT_INPUT: CHATGPT_COMPOSER_SELECTOR,
     // Submit button selectors (multiple fallbacks)
-    SUBMIT_BUTTON:
-      'button[data-testid="send-button"], button[aria-label*="Send"], button[data-testid="fruitjuice-send-button"], button:has(svg) + button:has(svg[viewBox="0 0 20 20"])',
+    SUBMIT_BUTTON: CHATGPT_SUBMIT_BUTTON_SELECTOR,
     // File upload related selectors
     FILE_UPLOAD_BUTTON:
       '#upload-file-btn, button[aria-label*="Add photos"], button[data-testid="composer-action-file-upload"] button',
@@ -224,6 +227,18 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
       // Create a new paragraph element with the text
       const newContent = originalContent ? originalContent + '\n' + text : text;
 
+      if (typeof InputEvent === 'function') {
+        targetElement.dispatchEvent(
+          new InputEvent('beforeinput', {
+            bubbles: true,
+            composed: true,
+            cancelable: true,
+            inputType: 'insertText',
+            data: newContent,
+          }),
+        );
+      }
+
       // Clear existing content and insert new content
       targetElement.innerHTML = '';
       const paragraph = document.createElement('p');
@@ -231,17 +246,28 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
       targetElement.appendChild(paragraph);
 
       // Position cursor at the end of the inserted text
-      const range = document.createRange();
-      const selection = window.getSelection();
-      if (selection && paragraph.firstChild) {
-        range.setStartAfter(paragraph.lastChild || paragraph);
-        range.collapse(true);
-        selection.removeAllRanges();
-        selection.addRange(range);
+      if (typeof document.createRange === 'function' && typeof window.getSelection === 'function') {
+        const range = document.createRange();
+        const selection = window.getSelection();
+        if (selection && paragraph.firstChild) {
+          range.setStartAfter(paragraph.lastChild || paragraph);
+          range.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
       }
 
       // Dispatch events to simulate user typing for better compatibility
-      targetElement.dispatchEvent(new Event('input', { bubbles: true }));
+      const inputEvent =
+        typeof InputEvent === 'function'
+          ? new InputEvent('input', {
+              bubbles: true,
+              composed: true,
+              inputType: 'insertText',
+              data: newContent,
+            })
+          : new Event('input', { bubbles: true });
+      targetElement.dispatchEvent(inputEvent);
       targetElement.dispatchEvent(new Event('change', { bubbles: true }));
       targetElement.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
       targetElement.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
@@ -271,67 +297,110 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
   }
 
   /**
-   * Submit the current text in the ChatGPT chat input
-   * Enhanced with multiple selector fallbacks and better error handling
+   * Submit the current text in the active ChatGPT chat input.
+   * Polls until streaming finishes and the send button is enabled, then falls back to Enter/form submit.
    */
   async submitForm(options?: { formElement?: HTMLFormElement }): Promise<boolean> {
     this.context.logger.debug('Attempting to submit ChatGPT chat input');
 
+    const maxWaitMs = 4000;
+    const pollIntervalMs = 100;
+    const startedAt = Date.now();
     let submitButton: HTMLButtonElement | null = null;
+    let composer = findChatGPTComposer();
 
-    // Try multiple selectors for better compatibility
-    const selectors = this.selectors.SUBMIT_BUTTON.split(', ');
-    for (const selector of selectors) {
-      submitButton = document.querySelector(selector.trim()) as HTMLButtonElement;
-      if (submitButton) {
-        this.context.logger.debug(`Found submit button using selector: ${selector.trim()}`);
-        break;
+    while (Date.now() - startedAt < maxWaitMs) {
+      composer = findChatGPTComposer();
+      if (!isChatGPTStopButtonVisible(composer)) {
+        const candidate = findChatGPTSubmitButton(composer);
+        if (candidate && !isDisabledChatGPTButton(candidate)) {
+          submitButton = candidate;
+          break;
+        }
+      }
+      await new Promise(resolve => window.setTimeout(resolve, pollIntervalMs));
+    }
+
+    if (submitButton && !isDisabledChatGPTButton(submitButton)) {
+      try {
+        submitButton.focus();
+        submitButton.click();
+
+        // Emit success event to the new event system
+        this.emitExecutionCompleted(
+          'submitForm',
+          {
+            formElement: options?.formElement?.tagName || 'unknown',
+          },
+          {
+            success: true,
+            method: 'submitButton.click',
+            buttonTestId: submitButton.getAttribute('data-testid') || undefined,
+          },
+        );
+
+        this.context.logger.debug('ChatGPT chat input submitted successfully');
+        return true;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.context.logger.warn(`ChatGPT send button click failed: ${errorMessage}`);
       }
     }
 
-    if (!submitButton) {
-      this.context.logger.error('Could not find ChatGPT submit button');
-      this.emitExecutionFailed('submitForm', 'Submit button not found');
-      return false;
+    composer = findChatGPTComposer();
+    if (!isChatGPTStopButtonVisible(composer)) {
+      this.context.logger.warn('ChatGPT send button unavailable; trying Enter key submission fallback');
+      return this.tryEnterKeySubmission(composer);
     }
 
+    this.context.logger.warn('ChatGPT is still streaming or send button unavailable; cannot submit');
+    this.emitExecutionFailed('submitForm', 'Submit button not available or disabled');
+    return false;
+  }
+
+  private async tryEnterKeySubmission(composer?: HTMLElement | null): Promise<boolean> {
     try {
-      // Check if the button is disabled
-      if (submitButton.disabled) {
-        this.context.logger.warn('ChatGPT submit button is disabled');
-        this.emitExecutionFailed('submitForm', 'Submit button is disabled');
+      const targetComposer = composer ?? findChatGPTComposer();
+      if (!targetComposer || !isVisibleChatGPTElement(targetComposer)) {
+        this.context.logger.error('Cannot find visible ChatGPT composer for Enter key submission');
+        this.emitExecutionFailed('submitForm', 'Chat input not found for Enter key submission');
         return false;
       }
 
-      // Check if the button is visible and clickable
-      const rect = submitButton.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) {
-        this.context.logger.warn('ChatGPT submit button is not visible');
-        this.emitExecutionFailed('submitForm', 'Submit button is not visible');
-        return false;
+      targetComposer.focus();
+      const keyEventInit: KeyboardEventInit = {
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13,
+        which: 13,
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+      };
+
+      const keydownNotCancelled = targetComposer.dispatchEvent(new KeyboardEvent('keydown', keyEventInit));
+      targetComposer.dispatchEvent(new KeyboardEvent('keypress', keyEventInit));
+      targetComposer.dispatchEvent(new KeyboardEvent('keyup', keyEventInit));
+
+      const form = targetComposer.closest('form') as HTMLFormElement | null;
+      if (keydownNotCancelled && form && typeof form.requestSubmit === 'function') {
+        form.requestSubmit();
       }
 
-      // Click the submit button to send the message
-      submitButton.click();
-
-      // Emit success event to the new event system
       this.emitExecutionCompleted(
         'submitForm',
-        {
-          formElement: options?.formElement?.tagName || 'unknown',
-        },
+        {},
         {
           success: true,
-          method: 'submitButton.click',
-          buttonSelector: selectors.find(s => document.querySelector(s.trim()) === submitButton),
+          method: 'enterKey',
+          fallback: true,
         },
       );
-
-      this.context.logger.debug('ChatGPT chat input submitted successfully');
+      this.context.logger.debug('ChatGPT chat input submitted using Enter key fallback');
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      this.context.logger.error(`Error submitting ChatGPT chat input: ${errorMessage}`);
+      this.context.logger.error(`Error submitting ChatGPT chat input via Enter key: ${errorMessage}`);
       this.emitExecutionFailed('submitForm', errorMessage);
       return false;
     }
@@ -1061,25 +1130,30 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
   private createToggleStateManager() {
     const context = this.context;
     const adapterName = this.name;
+    const getUIStore = () => (typeof context.stores.ui === 'function' ? context.stores.ui() : context.stores.ui);
 
     // Create the state manager object
     const stateManager = {
       getState: () => {
         try {
           // Get state from UI store - MCP enabled state should be the persistent MCP toggle state
-          const uiState = context.stores.ui;
+          const uiState = getUIStore();
 
           // Get the persistent MCP enabled state and other preferences
           const mcpEnabled = uiState?.mcpEnabled ?? false;
+          const autoInsertEnabled = uiState?.preferences?.autoInsert ?? false;
           const autoSubmitEnabled = uiState?.preferences?.autoSubmit ?? false;
+          const autoExecuteEnabled = uiState?.preferences?.autoExecute ?? false;
 
-          context.logger.debug(`Getting MCP toggle state: mcpEnabled=${mcpEnabled}, autoSubmit=${autoSubmitEnabled}`);
+          context.logger.debug(
+            `Getting MCP toggle state: mcpEnabled=${mcpEnabled}, autoInsert=${autoInsertEnabled}, autoSubmit=${autoSubmitEnabled}, autoExecute=${autoExecuteEnabled}`,
+          );
 
           return {
             mcpEnabled: mcpEnabled, // Use the persistent MCP state
-            autoInsert: autoSubmitEnabled,
+            autoInsert: autoInsertEnabled,
             autoSubmit: autoSubmitEnabled,
-            autoExecute: false, // Default for now, can be extended
+            autoExecute: autoExecuteEnabled,
           };
         } catch (error) {
           context.logger.error('Error getting toggle state:', error);
@@ -1099,16 +1173,17 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
         );
 
         try {
+          const uiStore = getUIStore();
           // Primary method: Control MCP state through UI store (which will automatically control sidebar)
-          if (context.stores.ui?.setMCPEnabled) {
-            context.stores.ui.setMCPEnabled(enabled, 'mcp-popover-toggle');
+          if (uiStore?.setMCPEnabled) {
+            uiStore.setMCPEnabled(enabled, 'mcp-popover-toggle');
             context.logger.debug(`MCP state set to: ${enabled} via UI store`);
           } else {
             context.logger.warn('UI store setMCPEnabled method not available');
 
             // Fallback: Control sidebar visibility directly if MCP state setter not available
-            if (context.stores.ui?.setSidebarVisibility) {
-              context.stores.ui.setSidebarVisibility(enabled, 'mcp-popover-toggle-fallback');
+            if (uiStore?.setSidebarVisibility) {
+              uiStore.setSidebarVisibility(enabled, 'mcp-popover-toggle-fallback');
               context.logger.debug(`Sidebar visibility set to: ${enabled} via UI store fallback`);
             }
           }
@@ -1145,9 +1220,7 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
         context.logger.debug(`Setting Auto Insert ${enabled ? 'enabled' : 'disabled'}`);
 
         // Update preferences through store
-        if (context.stores.ui?.updatePreferences) {
-          context.stores.ui.updatePreferences({ autoSubmit: enabled });
-        }
+        getUIStore()?.updatePreferences?.({ autoInsert: enabled });
 
         stateManager.updateUI();
       },
@@ -1156,16 +1229,17 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
         context.logger.debug(`Setting Auto Submit ${enabled ? 'enabled' : 'disabled'}`);
 
         // Update preferences through store
-        if (context.stores.ui?.updatePreferences) {
-          context.stores.ui.updatePreferences({ autoSubmit: enabled });
-        }
+        getUIStore()?.updatePreferences?.({ autoSubmit: enabled });
 
         stateManager.updateUI();
       },
 
       setAutoExecute: (enabled: boolean) => {
         context.logger.debug(`Setting Auto Execute ${enabled ? 'enabled' : 'disabled'}`);
-        // Can be extended to handle auto execute functionality
+
+        // Update preferences through store
+        getUIStore()?.updatePreferences?.({ autoExecute: enabled });
+
         stateManager.updateUI();
       },
 

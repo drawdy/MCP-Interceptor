@@ -65,7 +65,7 @@ const updateExistingFunctionBlock = (
     // Add execute button if not already present
     if (!block.querySelector('.execute-button')) {
       // Find the original pre element to get the raw content
-      const originalPre = document.querySelector(`div[data-block-id="${blockId}"]`);
+      const originalPre = document.querySelector(`[data-block-id="${blockId}"]:not(.function-block)`);
       if (originalPre && originalPre.textContent?.trim()) {
         addExecuteButton(block as HTMLDivElement, originalPre.textContent!.trim());
       }

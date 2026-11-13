@@ -95,7 +95,10 @@ export const useUIStore = create<UIState>()(
         },
 
         resizeSidebar: (width: number) => {
-          set(state => ({ sidebar: { ...state.sidebar, width } }));
+          set(state => ({
+            sidebar: { ...state.sidebar, width },
+            preferences: { ...state.preferences, sidebarWidth: width },
+          }));
           logger.debug(`Sidebar resized to: ${width}px`);
           eventBus.emit('ui:sidebar-resize', { width });
         },
@@ -281,14 +284,15 @@ export const useUIStore = create<UIState>()(
 
           logger.debug(`MCP toggle set to ${enabled}. Reason: ${reason || 'user action'}`);
 
-          // When disabling MCP, hide sidebar (but don't change visibility state when enabling)
-          // This allows sidebar visibility to be controlled independently when MCP is on
-          if (enabled !== previousState && !enabled) {
-            // MCP disabled - force hide sidebar
-            get().setSidebarVisibility(false, reason || 'mcp-toggle');
+          // When disabling MCP, hide sidebar. When re-enabling MCP after it was hidden,
+          // restore sidebar visibility so push mode and sidebar controls stay synchronized.
+          if (enabled !== previousState) {
+            if (!enabled) {
+              get().setSidebarVisibility(false, reason || 'mcp-toggle');
+            } else if (!get().sidebar.isVisible) {
+              get().setSidebarVisibility(true, reason || 'mcp-toggle');
+            }
           }
-          // Note: When enabling MCP, we DON'T automatically show sidebar
-          // The sidebar will check mcpEnabled and isVisible separately on initialization
 
           // Emit event for components that need to react to MCP state changes
           eventBus.emit('ui:mcp-toggle', { enabled, reason: reason || 'user action', previousState });
