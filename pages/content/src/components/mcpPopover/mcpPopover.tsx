@@ -1047,7 +1047,7 @@ const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adap
       const overlayHeight = 180; // approximate height for 4 buttons
 
       // Calculate position above the button
-      let x = rect.right - overlayWidth + 10; // Align to right edge with some offset
+      let x = rect.left; // Align to left edge of the MCP button
       let y = rect.top - overlayHeight - 10; // Position above with gap
 
       // Keep within viewport bounds
@@ -1141,6 +1141,23 @@ const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adap
     }
     return undefined;
   }, [isHoverOverlayVisible, updateHoverOverlayPosition]);
+
+  // Enforce inline !important geometry/layout styles to protect against host/push-mode !important rules
+  useEffect(() => {
+    const el = hoverOverlayRef.current;
+    if (isHoverOverlayVisible && el) {
+      el.style.setProperty('position', 'fixed', 'important');
+      el.style.setProperty('left', `${hoverOverlayPosition.x}px`, 'important');
+      el.style.setProperty('top', `${hoverOverlayPosition.y}px`, 'important');
+      el.style.setProperty('width', '150px', 'important');
+      el.style.setProperty('min-width', '150px', 'important');
+      el.style.setProperty('max-width', '150px', 'important');
+      el.style.setProperty('display', 'flex', 'important');
+      el.style.setProperty('flex-direction', 'column', 'important');
+      el.style.setProperty('box-sizing', 'border-box', 'important');
+      el.style.setProperty('z-index', '2147483647', 'important');
+    }
+  }, [isHoverOverlayVisible, hoverOverlayPosition]);
 
   // Cleanup hover timeout on unmount
   useEffect(() => {
@@ -1325,6 +1342,7 @@ const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adap
       {isHoverOverlayVisible &&
         createPortal(
           <div
+            id="mcp-hover-overlay-portal"
             className={`mcp-hover-overlay ${isHoverOverlayVisible ? 'visible' : ''}`}
             ref={hoverOverlayRef}
             onMouseEnter={handleHoverOverlayEnter}

@@ -29,7 +29,7 @@ export function getPushModeStylesheetText(): string {
       box-sizing: border-box !important;
     }
 
-    html.push-mode-enabled body > div:not(#mcp-sidebar-shadow-host):not(#mcp-popover-portal):not(.mcp-popover-container),
+    html.push-mode-enabled body > div:not(#mcp-sidebar-shadow-host):not(#mcp-popover-portal):not(.mcp-popover-container):not(.mcp-hover-overlay):not(#mcp-hover-overlay-portal),
     html.push-mode-enabled body > main,
     html.push-mode-enabled #__next,
     html.push-mode-enabled #root,
