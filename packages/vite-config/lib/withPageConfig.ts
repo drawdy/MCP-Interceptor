@@ -20,7 +20,8 @@ export const withPageConfig = (config: UserConfig) =>
     deepmerge(
       {
         define: {
-          'process.env': env,
+          'process.env.NODE_ENV': JSON.stringify(IS_DEV ? 'development' : 'production'),
+          'process.env': JSON.stringify(env),
         },
         base: '',
         plugins: [react(), IS_DEV && watchRebuildPlugin({ refresh: true })],

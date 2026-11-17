@@ -6,7 +6,8 @@ import { AutomationService } from '@src/services/automation.service';
 import { cn } from '@src/lib/utils';
 import { createLogger } from '@extension/shared/lib/logger';
 import { useLanguage } from '@src/utils/i18n';
-import { useSiteControl, getSiteDisplayName } from '@src/utils/siteControl';
+import { getSiteDisplayName } from '@src/utils/siteControl';
+import { useSiteControl } from '@src/utils/useSiteControl';
 
 // Default delay values in seconds
 

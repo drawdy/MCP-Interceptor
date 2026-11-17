@@ -9,7 +9,7 @@ import { createLogger } from '@extension/shared/lib/logger';
 import { getExtensionAssetUrl } from '../../utils/extensionUrl';
 import { MCPPopoverErrorBoundary } from './MCPPopoverErrorBoundary';
 import { useLanguage } from '../../utils/i18n';
-import { useSiteControl } from '../../utils/siteControl';
+import { useSiteControl } from '../../utils/useSiteControl';
 
 const logger = createLogger('mcpPopover');
 const mcpIconUrl = getExtensionAssetUrl('icon-34.png') || undefined;
@@ -1001,7 +1001,7 @@ const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adap
 
       const isPerplexity = activePlugin.name === 'Perplexity';
       const isGemini = activePlugin.name === 'Gemini';
-      let fileType = isPerplexity || isGemini ? 'text/plain' : 'text/markdown';
+      const fileType = isPerplexity || isGemini ? 'text/plain' : 'text/markdown';
       const fileExtension = fileType === 'text/plain' ? '.txt' : '.md';
       const fileName = `mcp_interceptor_instructions${fileExtension}`;
       const file = new File([instructions], fileName, { type: fileType });
