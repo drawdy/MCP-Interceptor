@@ -524,6 +524,10 @@ function useInjectStyles() {
     if (!document.getElementById('mcp-popover-styles')) {
       const styleEl = document.createElement('style');
       styleEl.id = 'mcp-popover-styles';
+      const nonce = document.querySelector('style[nonce], script[nonce]')?.getAttribute('nonce');
+      if (nonce) {
+        styleEl.setAttribute('nonce', nonce);
+      }
       styleEl.textContent = styles;
       document.head.appendChild(styleEl);
     }
@@ -1219,6 +1223,79 @@ const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adap
     }
   };
 
+  const hoverOverlayStyle: React.CSSProperties = {
+    position: 'fixed',
+    left: `${hoverOverlayPosition.x}px`,
+    top: `${hoverOverlayPosition.y}px`,
+    width: '150px',
+    minWidth: '150px',
+    maxWidth: '150px',
+    backgroundColor: isDarkMode ? '#1f2937' : '#ffffff',
+    border: `1px solid ${isDarkMode ? '#374151' : '#e1e5e9'}`,
+    borderRadius: '10px',
+    boxShadow: isDarkMode
+      ? '0 8px 25px rgba(0,0,0,0.3), 0 3px 10px rgba(0,0,0,0.2)'
+      : '0 6px 20px rgba(60,64,67,0.12), 0 2px 8px rgba(60,64,67,0.06)',
+    padding: '8px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    alignItems: 'stretch',
+    zIndex: 2147483647,
+    boxSizing: 'border-box',
+    pointerEvents: isHoverOverlayVisible ? 'auto' : 'none',
+    whiteSpace: 'nowrap',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    opacity: isHoverOverlayVisible ? 1 : 0,
+    visibility: isHoverOverlayVisible ? 'visible' : 'hidden',
+    transform: isHoverOverlayVisible ? 'translateY(0) scale(1)' : 'translateY(-8px) scale(0.95)',
+    transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+  };
+
+  const hoverButtonStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: '8px',
+    padding: '10px 12px',
+    borderRadius: '6px',
+    border: 'none',
+    backgroundColor: isDarkMode ? '#374151' : '#f8f9fa',
+    color: isDarkMode ? '#d1d5db' : '#374151',
+    fontSize: '13px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    width: '100%',
+    minWidth: '110px',
+    maxWidth: 'none',
+    boxSizing: 'border-box',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    textAlign: 'left',
+    letterSpacing: '-0.01em',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    lineHeight: 'normal',
+    margin: 0,
+    outline: 'none',
+  };
+
+  const handleHoverButtonMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.currentTarget.style.backgroundColor = isDarkMode ? '#1e3a8a' : '#e3f2fd';
+    e.currentTarget.style.color = isDarkMode ? '#93c5fd' : '#1565c0';
+    e.currentTarget.style.transform = 'scale(1.02)';
+    e.currentTarget.style.boxShadow = isDarkMode
+      ? '0 2px 8px rgba(147, 197, 253, 0.2)'
+      : '0 2px 8px rgba(21, 101, 192, 0.15)';
+  };
+
+  const handleHoverButtonMouseLeave = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.currentTarget.style.backgroundColor = isDarkMode ? '#374151' : '#f8f9fa';
+    e.currentTarget.style.color = isDarkMode ? '#d1d5db' : '#374151';
+    e.currentTarget.style.transform = 'none';
+    e.currentTarget.style.boxShadow = 'none';
+  };
+
   return (
     <div className="mcp-popover-container" ref={containerRef}>
       <div
@@ -1252,12 +1329,12 @@ const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adap
             ref={hoverOverlayRef}
             onMouseEnter={handleHoverOverlayEnter}
             onMouseLeave={handleHoverOverlayLeave}
-            style={{
-              left: `${hoverOverlayPosition.x}px`,
-              top: `${hoverOverlayPosition.y}px`,
-            }}>
+            style={hoverOverlayStyle}>
             <button
               className="mcp-hover-button"
+              style={hoverButtonStyle}
+              onMouseEnter={handleHoverButtonMouseEnter}
+              onMouseLeave={handleHoverButtonMouseLeave}
               onClick={handleInsert}
               title={t('Insert instructions', '插入提示词指令')}
               type="button">
@@ -1268,6 +1345,9 @@ const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adap
             </button>
             <button
               className="mcp-hover-button"
+              style={hoverButtonStyle}
+              onMouseEnter={handleHoverButtonMouseEnter}
+              onMouseLeave={handleHoverButtonMouseLeave}
               onClick={handleAttach}
               title={t('Attach instructions as file', '将提示词作为附件上传')}
               type="button">
@@ -1278,6 +1358,9 @@ const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adap
             </button>
             <button
               className="mcp-hover-button"
+              style={hoverButtonStyle}
+              onMouseEnter={handleHoverButtonMouseEnter}
+              onMouseLeave={handleHoverButtonMouseLeave}
               onClick={handleToggleSidebar}
               title={isSidebarVisible ? t('Hide sidebar', '隐藏侧边栏') : t('Show sidebar', '显示侧边栏')}
               type="button">
@@ -1294,6 +1377,9 @@ const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adap
             </button>
             <button
               className="mcp-hover-button"
+              style={hoverButtonStyle}
+              onMouseEnter={handleHoverButtonMouseEnter}
+              onMouseLeave={handleHoverButtonMouseLeave}
               onClick={() => setIsPopoverOpen(!isPopoverOpen)}
               title={t('Configure MCP settings', '配置 MCP 设置')}
               type="button">
