@@ -33,6 +33,7 @@ export function getPushModeStylesheetText(): string {
 
     html.push-mode-enabled body > div:not(#mcp-sidebar-shadow-host):not(#mcp-popover-portal):not(.mcp-popover-container):not(.mcp-hover-overlay):not(#mcp-hover-overlay-portal),
     html.push-mode-enabled body > main,
+    html.push-mode-enabled #web-mobile-root,
     html.push-mode-enabled #__next,
     html.push-mode-enabled #root,
     html.push-mode-enabled #app,
@@ -47,10 +48,37 @@ export function getPushModeStylesheetText(): string {
       box-sizing: border-box !important;
     }
 
-    /* ChatGPT's app shell is \`fixed inset-0\`, which is sized against the viewport and ignores the shrunk <html>.
-       Reserve the sidebar width on the right edge only (no width override, so inner layout is untouched). */
+    /* Classic ChatGPT & Tailwind platforms: fixed inset-0 app shell container */
     html.push-mode-enabled .fixed.inset-0:not(#mcp-sidebar-shadow-host):not(#mcp-popover-portal):not(.mcp-popover-container):not(.mcp-hover-overlay):not(#mcp-hover-overlay-portal) {
       right: var(--sidebar-width-mcp, 320px) !important;
+    }
+
+    /* Modern ChatGPT (Octane/Stylex): app shell header, main chat scroll view, and footer */
+    html.push-mode-enabled #web-mobile-root .xn9wirt,
+    html.push-mode-enabled #web-mobile-root header,
+    html.push-mode-enabled #web-mobile-root div:has(> header) {
+      width: auto !important;
+      right: var(--sidebar-width-mcp, 320px) !important;
+      transition: right 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
+                  width 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+    }
+
+    html.push-mode-enabled #web-mobile-root .x1ukdpfc,
+    html.push-mode-enabled #web-mobile-root main,
+    html.push-mode-enabled #web-mobile-root div:has(> main),
+    html.push-mode-enabled #web-mobile-root footer {
+      width: auto !important;
+      right: var(--sidebar-width-mcp, 320px) !important;
+      transition: right 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
+                  width 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+    }
+
+    /* Bottom disclaimer in Octane app shell */
+    html.push-mode-enabled #web-mobile-root .x1lliihq.xixxii4.x1d5zcf2 {
+      width: auto !important;
+      right: var(--sidebar-width-mcp, 320px) !important;
+      transition: right 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
+                  width 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
     }
 
     /* Ensure fixed sidebar stays anchored on the right edge */
