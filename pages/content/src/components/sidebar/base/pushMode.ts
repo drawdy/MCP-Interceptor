@@ -105,7 +105,7 @@ export function getPushModeStylesheetText(): string {
 
     #mcp-sidebar-shadow-host.initialized {
       opacity: 1;
-      transform: translateX(0) scale(1);
+      transform: none;
     }
 
     #mcp-sidebar-shadow-host.showing {

@@ -32,9 +32,71 @@ const checkActiveSidebarManager = (): boolean => {
 type Theme = 'light' | 'dark' | 'system';
 const THEME_CYCLE: Theme[] = ['light', 'dark', 'system']; // Define the cycle order
 
-// Define a constant for minimized width (should match BaseSidebarManager and CSS logic)
+// Define constants for minimized/default sidebar widths and draggable floating positioning
 const SIDEBAR_MINIMIZED_WIDTH = 56;
 const SIDEBAR_DEFAULT_WIDTH = 320;
+const FAB_SIZE = 44;
+const FAB_MARGIN = 12;
+const FAB_STORAGE_KEY = 'mcp-sidebar-fab-position';
+const PANEL_STORAGE_KEY = 'mcp-sidebar-panel-position';
+const DRAG_THRESHOLD = 5;
+
+interface FabPosition {
+  x: number;
+  y: number;
+}
+
+interface PanelPosition {
+  right: number;
+  top: number;
+}
+
+const clampFabPosition = (x: number, y: number): FabPosition => {
+  if (typeof window === 'undefined') return { x, y };
+  const maxX = Math.max(FAB_MARGIN, window.innerWidth - FAB_SIZE - FAB_MARGIN);
+  const maxY = Math.max(FAB_MARGIN, window.innerHeight - FAB_SIZE - FAB_MARGIN);
+  return {
+    x: Math.min(Math.max(FAB_MARGIN, x), maxX),
+    y: Math.min(Math.max(FAB_MARGIN, y), maxY),
+  };
+};
+
+const getDefaultFabPosition = (): FabPosition => {
+  if (typeof window === 'undefined') return { x: 16, y: 76 };
+  return clampFabPosition(window.innerWidth - FAB_SIZE - 16, 76);
+};
+
+const clampPanelPosition = (right: number, top: number, sidebarWidth: number): PanelPosition => {
+  if (typeof window === 'undefined') return { right, top };
+  const maxRight = Math.max(0, window.innerWidth - sidebarWidth);
+  const maxTop = Math.max(0, window.innerHeight - 120);
+  return {
+    right: Math.min(Math.max(0, right), maxRight),
+    top: Math.min(Math.max(0, top), maxTop),
+  };
+};
+
+const loadStoredPosition = <T,>(key: string, validate: (raw: Record<string, unknown>) => T | null): T | null => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      return validate(parsed as Record<string, unknown>);
+    }
+  } catch {
+    // Ignore storage access or malformed JSON errors
+  }
+  return null;
+};
+
+const saveStoredPosition = (key: string, value: unknown): void => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore storage write errors
+  }
+};
 
 interface SidebarProps {
   initialPreferences?: UserPreferences | null;
@@ -274,11 +336,74 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isInputMinimized, setIsInputMinimized] = useState(false);
 
+  const [fabPosition, setFabPosition] = useState<FabPosition>(() => {
+    const stored = loadStoredPosition<FabPosition>(FAB_STORAGE_KEY, raw =>
+      typeof raw.x === 'number' && Number.isFinite(raw.x) && typeof raw.y === 'number' && Number.isFinite(raw.y)
+        ? clampFabPosition(raw.x, raw.y)
+        : null,
+    );
+    return stored ?? getDefaultFabPosition();
+  });
+  const [isDraggingFab, setIsDraggingFab] = useState(false);
+
+  const [panelPosition, setPanelPosition] = useState<PanelPosition | null>(() =>
+    loadStoredPosition<PanelPosition>(PANEL_STORAGE_KEY, raw =>
+      typeof raw.right === 'number' &&
+      Number.isFinite(raw.right) &&
+      typeof raw.top === 'number' &&
+      Number.isFinite(raw.top)
+        ? clampPanelPosition(raw.right, raw.top, sidebarWidth)
+        : null,
+    ),
+  );
+  const [isDraggingPanel, setIsDraggingPanel] = useState(false);
+
   const sidebarRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
   const previousWidthRef = useRef(SIDEBAR_DEFAULT_WIDTH);
   const transitionTimerRef = useRef<number | null>(null);
+  const fabDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+    dragged: boolean;
+  } | null>(null);
+  const suppressNextFabClickRef = useRef(false);
+  const panelDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originRight: number;
+    originTop: number;
+    dragged: boolean;
+  } | null>(null);
+
+  // Keep draggable positions within the visible viewport on window resize or sidebar width changes
+  useEffect(() => {
+    const handleViewportResize = () => {
+      setFabPosition(prev => clampFabPosition(prev.x, prev.y));
+      setPanelPosition(prev => (prev ? clampPanelPosition(prev.right, prev.top, sidebarWidth) : prev));
+    };
+
+    handleViewportResize();
+    window.addEventListener('resize', handleViewportResize);
+    return () => window.removeEventListener('resize', handleViewportResize);
+  }, [sidebarWidth]);
+
+  // Reset detached panel position when push mode is active
+  useEffect(() => {
+    if (isPushMode) {
+      setPanelPosition(null);
+      try {
+        localStorage.removeItem(PANEL_STORAGE_KEY);
+      } catch {
+        // Ignore storage errors
+      }
+    }
+  }, [isPushMode]);
 
   // Helper function to wait for SidebarManager to become available with retry mechanism
   const waitForSidebarManager = useCallback(async (maxRetries = 10, baseDelay = 50): Promise<any> => {
@@ -581,6 +706,14 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
 
   const handlePushModeToggle = (checked: boolean) => {
     updatePreferences({ isPushMode: checked });
+    if (checked) {
+      setPanelPosition(null);
+      try {
+        localStorage.removeItem(PANEL_STORAGE_KEY);
+      } catch {
+        // Ignore storage errors
+      }
+    }
     if (!sidebarVisible) {
       setSidebarVisibility(true, 'push-mode-toggle');
     }
@@ -596,6 +729,141 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
       );
     }
     logMessage(`[Sidebar] Push mode ${checked ? 'enabled' : 'disabled'}`);
+  };
+
+  const handleFabPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    fabDragRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      originX: fabPosition.x,
+      originY: fabPosition.y,
+      dragged: false,
+    };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore environments where synthetic events lack active pointer capture
+    }
+  };
+
+  const handleFabPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = fabDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    if (!drag.dragged && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
+      drag.dragged = true;
+      setIsDraggingFab(true);
+    }
+
+    if (drag.dragged) {
+      setFabPosition(clampFabPosition(drag.originX + dx, drag.originY + dy));
+    }
+  };
+
+  const handleFabPointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = fabDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+
+    try {
+      if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Ignore release errors
+    }
+
+    if (drag.dragged) {
+      const finalPos = clampFabPosition(drag.originX + (e.clientX - drag.startX), drag.originY + (e.clientY - drag.startY));
+      setFabPosition(finalPos);
+      saveStoredPosition(FAB_STORAGE_KEY, finalPos);
+      suppressNextFabClickRef.current = true;
+      window.setTimeout(() => {
+        suppressNextFabClickRef.current = false;
+      }, 100);
+    }
+
+    fabDragRef.current = null;
+    setIsDraggingFab(false);
+  };
+
+  const handleFabClick = () => {
+    if (suppressNextFabClickRef.current) {
+      suppressNextFabClickRef.current = false;
+      return;
+    }
+    handleToggleMinimize();
+  };
+
+  const handlePanelPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isPushMode) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('button, a, input, select, textarea, [role="button"]')) {
+      return;
+    }
+
+    e.preventDefault();
+    const current = panelPosition ?? { right: 0, top: 0 };
+    panelDragRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      originRight: current.right,
+      originTop: current.top,
+      dragged: false,
+    };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore synthetic events without active pointer capture
+    }
+  };
+
+  const handlePanelPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = panelDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    if (!drag.dragged && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
+      drag.dragged = true;
+      setIsDraggingPanel(true);
+    }
+
+    if (drag.dragged) {
+      setPanelPosition(clampPanelPosition(drag.originRight - dx, drag.originTop + dy, sidebarWidth));
+    }
+  };
+
+  const handlePanelPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = panelDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+
+    try {
+      if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Ignore release errors
+    }
+
+    if (drag.dragged) {
+      const finalPos = clampPanelPosition(
+        drag.originRight - (e.clientX - drag.startX),
+        drag.originTop + (e.clientY - drag.startY),
+        sidebarWidth,
+      );
+      setPanelPosition(finalPos);
+      saveStoredPosition(PANEL_STORAGE_KEY, finalPos);
+    }
+
+    panelDragRef.current = null;
+    setIsDraggingPanel(false);
   };
 
   const handleAutoSubmitToggle = (checked: boolean) => {
@@ -659,35 +927,100 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
     }
   };
 
+  const activePanelPosition = !isPushMode ? panelPosition : null;
+
   return (
-    <div
-      ref={sidebarRef}
-      className={cn(
-        'fixed top-0 right-0 h-screen bg-white dark:bg-slate-900 shadow-lg z-50 flex flex-col border-l border-slate-200 dark:border-slate-700 sidebar',
-        isPushMode ? 'push-mode' : '',
-        isResizingRef.current ? 'resizing' : '',
-        isMinimized ? 'collapsed' : '',
-        isTransitioning ? 'sidebar-transitioning' : '',
-      )}
-      style={{ width: isMinimized ? `${SIDEBAR_MINIMIZED_WIDTH}px` : `${sidebarWidth}px` }}>
-      {/* Resize Handle - only visible when not minimized */}
-      {!isMinimized && (
-        <ResizeHandle
-          onResize={handleResize}
-          minWidth={SIDEBAR_DEFAULT_WIDTH}
-          maxWidth={500}
-          className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-indigo-400 dark:hover:bg-indigo-600 z-[60] transition-colors duration-300"
-        />
+    <>
+      {isMinimized && (
+        <button
+          type="button"
+          onPointerDown={handleFabPointerDown}
+          onPointerMove={handleFabPointerMove}
+          onPointerUp={handleFabPointerUp}
+          onPointerCancel={handleFabPointerUp}
+          onClick={handleFabClick}
+          aria-label={t('Expand sidebar', '展开侧边栏')}
+          title={t('Click to expand MCP-Interceptor (drag to move)', '点击展开 MCP 侧边栏（按住可自由拖动）')}
+          className={cn(
+            'mcp-floating-fab fixed z-[9999] flex items-center justify-center rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg hover:shadow-xl focus:outline-none',
+            isDraggingFab ? 'dragging cursor-grabbing scale-105' : 'cursor-grab',
+          )}
+          style={{
+            left: `${fabPosition.x}px`,
+            top: `${fabPosition.y}px`,
+            width: `${FAB_SIZE}px`,
+            height: `${FAB_SIZE}px`,
+            pointerEvents: 'auto',
+          }}>
+          {mcpIconUrl ? (
+            <img
+              src={mcpIconUrl}
+              alt="MCP"
+              className="w-6 h-6 rounded-md pointer-events-none select-none"
+              draggable={false}
+            />
+          ) : (
+            <Icon name="tools" size="sm" className="text-indigo-600 dark:text-indigo-400 pointer-events-none" />
+          )}
+          <span
+            aria-hidden="true"
+            className={cn(
+              'absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white dark:border-slate-800 pointer-events-none',
+              serverStatus === 'connected' ? 'bg-emerald-500' : 'bg-slate-400',
+            )}
+          />
+        </button>
       )}
 
-      {/* Header - Adjust content based on isMinimized */}
       <div
+        ref={sidebarRef}
         className={cn(
-          'bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex-shrink-0 shadow-sm sidebar-header',
-          isMinimized ? 'p-3 flex items-center justify-center' : 'px-4 py-3 flex flex-col w-full',
-        )}>
-        {!isMinimized ? (
-          <>
+          'fixed bg-white dark:bg-slate-900 shadow-lg z-50 flex flex-col border-l border-slate-200 dark:border-slate-700 sidebar',
+          isPushMode ? 'push-mode' : '',
+          isResizingRef.current || isDraggingPanel ? 'resizing' : '',
+          isMinimized ? 'collapsed' : '',
+          isTransitioning ? 'sidebar-transitioning' : '',
+          activePanelPosition && (activePanelPosition.right > 0 || activePanelPosition.top > 0)
+            ? 'border border-slate-200 dark:border-slate-700 rounded-tl-xl'
+            : '',
+        )}
+        style={
+          isMinimized
+            ? { display: 'none', width: `${sidebarWidth}px` }
+            : {
+                display: 'flex',
+                width: `${sidebarWidth}px`,
+                pointerEvents: 'auto',
+                top: `${activePanelPosition?.top ?? 0}px`,
+                right: `${activePanelPosition?.right ?? 0}px`,
+                height:
+                  activePanelPosition && activePanelPosition.top > 0
+                    ? `calc(100vh - ${activePanelPosition.top}px)`
+                    : '100vh',
+              }
+        }>
+        {/* Resize Handle - only visible when not minimized */}
+        {!isMinimized && (
+          <ResizeHandle
+            onResize={handleResize}
+            minWidth={SIDEBAR_DEFAULT_WIDTH}
+            maxWidth={500}
+            className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-indigo-400 dark:hover:bg-indigo-600 z-[60] transition-colors duration-300"
+          />
+        )}
+
+        {/* Header - draggable in overlay mode when !isPushMode */}
+        <div
+          onPointerDown={handlePanelPointerDown}
+          onPointerMove={handlePanelPointerMove}
+          onPointerUp={handlePanelPointerUp}
+          onPointerCancel={handlePanelPointerUp}
+          className={cn(
+            'bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex-shrink-0 shadow-sm sidebar-header px-4 py-3 flex flex-col w-full',
+            !isPushMode && (isDraggingPanel ? 'cursor-grabbing select-none' : 'cursor-grab'),
+          )}>
+          {!isMinimized && (
+            <>
             {/* Row 1: Logo + Extension Name on the left, Minimize button on the right */}
             <div className="flex items-center justify-between w-full">
               <div className="flex items-center space-x-2.5 min-w-0">
@@ -810,17 +1143,6 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
               </div>
             </div>
           </>
-        ) : (
-          // Expand Button when minimized
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleToggleMinimize}
-            aria-label={t('Expand sidebar', '展开侧边栏')}
-            title={t('Expand sidebar', '展开侧边栏')}
-            className="mx-auto hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all duration-200 hover:scale-110">
-            <Icon name="chevron-left" className="h-4 w-4 text-slate-700 dark:text-slate-300" />
-          </Button>
         )}
       </div>
 
@@ -1028,6 +1350,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

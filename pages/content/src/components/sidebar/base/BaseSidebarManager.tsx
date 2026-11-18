@@ -103,20 +103,21 @@ export abstract class BaseSidebarManager {
    * @param isCollapsed Optional flag indicating if the sidebar is collapsed
    */
   public setPushContentMode(enabled: boolean, sidebarWidth?: number, isCollapsed?: boolean): void {
-    this._isPushContentMode = enabled;
+    const collapsed = !!isCollapsed;
+    const shouldApplyPushMode = enabled && !collapsed;
+    this._isPushContentMode = shouldApplyPushMode;
+    this._isPushModeCollapsed = collapsed;
 
     // Ensure push mode stylesheet exists before applying classes/variables
     this.ensurePushModeStyles();
 
-    if (enabled) {
-      const collapsed = !!isCollapsed;
-      const width = collapsed ? 56 : sidebarWidth || this._pushModeWidth || 320;
+    if (shouldApplyPushMode) {
+      const width = sidebarWidth || this._pushModeWidth || 320;
       this._pushModeWidth = width;
-      this._isPushModeCollapsed = collapsed;
 
       this._isApplyingPushModeStyles = true;
       try {
-        applyPushModeDomStyles(width, collapsed);
+        applyPushModeDomStyles(width, false);
       } finally {
         this._isApplyingPushModeStyles = false;
       }
@@ -139,7 +140,7 @@ export abstract class BaseSidebarManager {
       this.removePushModeStyles();
     }
 
-    logMessage(`BaseSidebarManager: Push mode ${enabled ? 'enabled' : 'disabled'}`);
+    logMessage(`BaseSidebarManager: Push mode ${shouldApplyPushMode ? 'enabled' : 'disabled'}`);
   }
 
   /**
@@ -314,14 +315,18 @@ export abstract class BaseSidebarManager {
           });
         }
 
-        // Create and setup the shadow host
+        // Create and setup the shadow host as a zero-sized anchor so fixed children inside
+        // the shadow DOM use the viewport cleanly and never block clicks across a 100vh strip.
         this.shadowHost = document.createElement('div');
         this.shadowHost.id = 'mcp-sidebar-shadow-host';
         this.shadowHost.style.position = 'fixed';
         this.shadowHost.style.top = '0';
         this.shadowHost.style.right = '0';
+        this.shadowHost.style.width = '0px';
+        this.shadowHost.style.height = '0px';
+        this.shadowHost.style.overflow = 'visible';
+        this.shadowHost.style.transform = 'none';
         this.shadowHost.style.zIndex = '9999';
-        this.shadowHost.style.height = '100vh';
         this.shadowHost.style.pointerEvents = 'none'; // Allow clicks 'through' the host
         this.shadowHost.style.display = 'none'; // Initialize as hidden
         // Add specific attributes for Shadow DOM targeting
@@ -337,9 +342,10 @@ export abstract class BaseSidebarManager {
         // Create container for React
         this.container = document.createElement('div');
         this.container.id = 'sidebar-container';
-        this.container.style.pointerEvents = 'auto';
-        this.container.style.height = '100%';
-        this.container.style.width = '100%';
+        this.container.style.pointerEvents = 'none';
+        this.container.style.height = '0px';
+        this.container.style.width = '0px';
+        this.container.style.overflow = 'visible';
         this.shadowRoot.appendChild(this.container);
 
         // Inject CSS into Shadow DOM - make this completely non-blocking
@@ -412,12 +418,13 @@ export abstract class BaseSidebarManager {
       return;
     }
 
-    // Now safe to set visible and render with enhanced animations
+    // Now safe to set visible and render without applying transform on the shadow host
+    // (any non-none transform would turn the host into a containing block for fixed children).
     if (this.shadowHost) {
       // Start with immediate visibility but with opacity 0 for smooth transition
       this.shadowHost.style.display = 'block';
       this.shadowHost.style.opacity = '0';
-      this.shadowHost.style.transform = 'translateX(30px) scale(0.95)';
+      this.shadowHost.style.transform = 'none';
 
       // Add showing class for CSS animations
       this.shadowHost.classList.add('showing');
@@ -428,10 +435,9 @@ export abstract class BaseSidebarManager {
       // Trigger the smooth appearance animation
       requestAnimationFrame(() => {
         if (this.shadowHost) {
-          this.shadowHost.style.transition =
-            'opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)';
+          this.shadowHost.style.transition = 'opacity 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
           this.shadowHost.style.opacity = '1';
-          this.shadowHost.style.transform = 'translateX(0) scale(1)';
+          this.shadowHost.style.transform = 'none';
 
           // Add initialized class after animation starts
           setTimeout(() => {
@@ -463,21 +469,20 @@ export abstract class BaseSidebarManager {
       this.shadowHost.classList.remove('initialized', 'showing');
 
       // Start the hiding animation
-      this.shadowHost.style.transition =
-        'opacity 0.3s cubic-bezier(0.55, 0.085, 0.68, 0.53), transform 0.3s cubic-bezier(0.55, 0.085, 0.68, 0.53)';
+      this.shadowHost.style.transition = 'opacity 0.25s cubic-bezier(0.55, 0.085, 0.68, 0.53)';
       this.shadowHost.style.opacity = '0';
-      this.shadowHost.style.transform = 'translateX(20px) scale(0.98)';
+      this.shadowHost.style.transform = 'none';
 
       // After animation completes, hide completely
       setTimeout(() => {
         if (this.shadowHost) {
           this.shadowHost.style.display = 'none';
           this.shadowHost.classList.remove('hiding');
-          // Reset transform for next show
-          this.shadowHost.style.transform = '';
+          // Keep transform disabled so fixed children anchor to the viewport
+          this.shadowHost.style.transform = 'none';
           logMessage('[BaseSidebarManager] Sidebar hidden with smooth animation');
         }
-      }, 300);
+      }, 260);
     }
 
     const previouslyVisible = this._isVisible;

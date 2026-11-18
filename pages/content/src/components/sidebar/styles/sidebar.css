@@ -12,7 +12,7 @@
 
 /* Prevent any flash during initial loading */
 .sidebar.initial-render.collapsed {
-  width: 56px !important;
+  display: none !important;
   transition: none !important;
 }
 
@@ -44,7 +44,7 @@
 
 #mcp-sidebar-shadow-host.initialized:not(.showing):not(.hiding) {
   opacity: 1;
-  transform: translateX(0) scale(1);
+  transform: none;
 }
 
 /* Smooth appearing animation with subtle 3D effect */
@@ -70,7 +70,7 @@
   }
   100% {
     opacity: 1;
-    transform: translateX(0) scale(1) rotateY(0deg);
+    transform: none;
     filter: blur(0px);
   }
 }
@@ -132,11 +132,26 @@
   transform: scale(1.01);
 }
 
-/* Collapsed state */
+/* Collapsed state - hidden in favor of compact draggable floating button */
 .sidebar.collapsed {
-  width: 56px;
-  overflow: hidden;
-  transition: width 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+  display: none !important;
+}
+
+/* Compact draggable floating button when sidebar is collapsed */
+.mcp-floating-fab {
+  user-select: none;
+  touch-action: none;
+  backdrop-filter: blur(12px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.mcp-floating-fab:hover:not(.dragging) {
+  transform: scale(1.08);
+}
+
+.mcp-floating-fab.dragging {
+  transition: none !important;
+  cursor: grabbing !important;
 }
 
 /* Push mode */
@@ -177,23 +192,16 @@
   transition-delay: 0.15s;
 }
 
-/* Prevent flash on initial load when sidebar should start minimized */
+/* Prevent flash on initial load when sidebar should start minimized without constraining shadow host */
 [data-initial-minimized="true"] {
-  /* Apply to the shadow host itself */
-  width: 56px !important;
-  max-width: 56px !important;
+  width: 0px !important;
+  height: 0px !important;
+  overflow: visible !important;
 }
 
-[data-initial-minimized="true"] .sidebar {
-  width: 56px !important;
-  max-width: 56px !important;
-  transition: none !important; /* Disable transitions during initial load */
-}
-
-[data-initial-minimized="true"] .sidebar .sidebar-inner-content {
-  opacity: 0 !important;
-  transform: translateX(100%) !important;
-  transition: none !important; /* Disable transitions during initial load */
+[data-initial-minimized="true"] .sidebar.collapsed {
+  display: none !important;
+  transition: none !important;
 }
 
 /* Header should not resize or shift */

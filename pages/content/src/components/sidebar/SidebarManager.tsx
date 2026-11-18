@@ -332,8 +332,6 @@ export class SidebarManager extends BaseSidebarManager {
         // Set initial state attributes FIRST - this is what React will read
         if (wasMinimized) {
           this.shadowHost.setAttribute('data-initial-minimized', 'true');
-          // Force immediate width for minimized state
-          this.shadowHost.style.width = '56px';
         } else {
           // Ensure the attribute is explicitly set to false for expanded state
           this.shadowHost.setAttribute('data-initial-minimized', 'false');
@@ -342,6 +340,7 @@ export class SidebarManager extends BaseSidebarManager {
         // Make sidebar visible
         this.shadowHost.style.display = 'block';
         this.shadowHost.style.opacity = '1';
+        this.shadowHost.style.transform = 'none';
         this.shadowHost.classList.add('initialized');
       }
       this._isVisible = true;
@@ -350,13 +349,14 @@ export class SidebarManager extends BaseSidebarManager {
       // The visibility state should only be updated when user explicitly toggles
       // this.syncZustandVisibilityState(true);
 
-      // Set push content mode with appropriate width immediately
-      if (isPushMode) {
-        const initialWidth = wasMinimized ? 56 : sidebarWidth;
-        this.setPushContentMode(true, initialWidth, wasMinimized);
+      // Push content mode only applies when expanded; collapsed state uses a compact floating button.
+      if (isPushMode && !wasMinimized) {
+        this.setPushContentMode(true, sidebarWidth, false);
 
         // Verify push mode was applied correctly and retry if needed
-        this.verifyAndRetryPushMode(initialWidth, wasMinimized);
+        this.verifyAndRetryPushMode(sidebarWidth, false);
+      } else {
+        this.setPushContentMode(false);
       }
 
       // Render React component with all setup complete
