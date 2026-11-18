@@ -47,6 +47,12 @@ export function getPushModeStylesheetText(): string {
       box-sizing: border-box !important;
     }
 
+    /* ChatGPT's app shell is \`fixed inset-0\`, which is sized against the viewport and ignores the shrunk <html>.
+       Reserve the sidebar width on the right edge only (no width override, so inner layout is untouched). */
+    html.push-mode-enabled .fixed.inset-0:not(#mcp-sidebar-shadow-host):not(#mcp-popover-portal):not(.mcp-popover-container):not(.mcp-hover-overlay):not(#mcp-hover-overlay-portal) {
+      right: var(--sidebar-width-mcp, 320px) !important;
+    }
+
     /* Ensure fixed sidebar stays anchored on the right edge */
     html.push-mode-enabled .sidebar {
       right: 0;

@@ -383,6 +383,7 @@ assert.match(
 );
 assert.match(pushCss, /html\.push-mode-enabled\s+\.w-screen/);
 assert.match(pushCss, /html\.push-mode-enabled\s+body\s*>\s*div:not\(#mcp-sidebar-shadow-host\)/);
+assert.match(pushCss, /html\.push-mode-enabled\s+\.fixed\.inset-0[^{]*\{\s*right:\s*var\(--sidebar-width-mcp/);
 assert.match(pushCss, /:not\(\.mcp-hover-overlay\)/);
 assert.match(pushCss, /:not\(#mcp-hover-overlay-portal\)/);
 assert.match(pushCss, /max-width:\s*100%\s*!important/);
