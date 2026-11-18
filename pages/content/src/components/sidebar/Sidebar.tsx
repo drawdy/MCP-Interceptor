@@ -777,7 +777,10 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
     }
 
     if (drag.dragged) {
-      const finalPos = clampFabPosition(drag.originX + (e.clientX - drag.startX), drag.originY + (e.clientY - drag.startY));
+      const finalPos = clampFabPosition(
+        drag.originX + (e.clientX - drag.startX),
+        drag.originY + (e.clientY - drag.startY),
+      );
       setFabPosition(finalPos);
       saveStoredPosition(FAB_STORAGE_KEY, finalPos);
       suppressNextFabClickRef.current = true;
@@ -1021,310 +1024,312 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
           )}>
           {!isMinimized && (
             <>
-            {/* Row 1: Logo + Extension Name on the left, Minimize button on the right */}
-            <div className="flex items-center justify-between w-full">
-              <div className="flex items-center space-x-2.5 min-w-0">
-                <a
-                  href="https://github.com/drawdy/MCP-Interceptor"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="Visit MCP-Interceptor Repository"
-                  className="block flex-shrink-0">
-                  <img src={mcpIconUrl} alt="MCP Logo" className="w-7 h-7 rounded-md" />
-                </a>
-                <div className="flex items-center space-x-1 min-w-0">
+              {/* Row 1: Logo + Extension Name on the left, Minimize button on the right */}
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center space-x-2.5 min-w-0">
                   <a
                     href="https://github.com/drawdy/MCP-Interceptor"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-slate-800 dark:text-slate-100 hover:text-slate-600 dark:hover:text-slate-300 transition-colors duration-150 no-underline"
-                    aria-label="Visit MCP-Interceptor Repository">
-                    <Typography variant="h4" className="font-bold text-base whitespace-nowrap">
-                      MCP-Interceptor
-                    </Typography>
+                    aria-label="Visit MCP-Interceptor Repository"
+                    className="block flex-shrink-0">
+                    <img src={mcpIconUrl} alt="MCP Logo" className="w-7 h-7 rounded-md" />
                   </a>
-                  <a
-                    href="https://github.com/drawdy/MCP-Interceptor"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors duration-150 flex-shrink-0"
-                    aria-label="Visit MCP-Interceptor Repository">
-                    <Icon name="arrow-up-right" size="xs" className="inline-block" />
-                  </a>
+                  <div className="flex items-center space-x-1 min-w-0">
+                    <a
+                      href="https://github.com/drawdy/MCP-Interceptor"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-slate-800 dark:text-slate-100 hover:text-slate-600 dark:hover:text-slate-300 transition-colors duration-150 no-underline"
+                      aria-label="Visit MCP-Interceptor Repository">
+                      <Typography variant="h4" className="font-bold text-base whitespace-nowrap">
+                        MCP-Interceptor
+                      </Typography>
+                    </a>
+                    <a
+                      href="https://github.com/drawdy/MCP-Interceptor"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors duration-150 flex-shrink-0"
+                      aria-label="Visit MCP-Interceptor Repository">
+                      <Icon name="arrow-up-right" size="xs" className="inline-block" />
+                    </a>
+                  </div>
                 </div>
-              </div>
-              {/* Minimize Button */}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleToggleMinimize}
-                aria-label={t('Minimize sidebar', '收起侧边栏')}
-                title={t('Minimize sidebar', '收起侧边栏')}
-                className="h-7 w-7 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all duration-200 hover:scale-105 flex-shrink-0 -mr-1 ml-auto">
-                <Icon name="chevron-right" className="h-4 w-4 text-slate-700 dark:text-slate-300" />
-              </Button>
-            </div>
-
-            {/* Row 2: Language Switch & Theme Switch */}
-            <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between w-full text-xs">
-              {/* Language Switch */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('Language', '语言')}</span>
-                <div className="inline-flex items-center p-0.5 bg-slate-100 dark:bg-slate-700/60 rounded-md border border-slate-200/60 dark:border-slate-600/40">
-                  <button
-                    type="button"
-                    onClick={() => !isZh && toggleLanguage()}
-                    className={cn(
-                      'px-2 py-0.5 text-xs rounded transition-all font-medium',
-                      isZh
-                        ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs font-semibold'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200',
-                    )}>
-                    中文
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => isZh && toggleLanguage()}
-                    className={cn(
-                      'px-2 py-0.5 text-xs rounded transition-all font-medium',
-                      !isZh
-                        ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs font-semibold'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200',
-                    )}>
-                    EN
-                  </button>
-                </div>
+                {/* Minimize Button */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleToggleMinimize}
+                  aria-label={t('Minimize sidebar', '收起侧边栏')}
+                  title={t('Minimize sidebar', '收起侧边栏')}
+                  className="h-7 w-7 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all duration-200 hover:scale-105 flex-shrink-0 -mr-1 ml-auto">
+                  <Icon name="chevron-right" className="h-4 w-4 text-slate-700 dark:text-slate-300" />
+                </Button>
               </div>
 
-              {/* Theme Switch */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('Theme', '皮肤')}</span>
-                <div className="inline-flex items-center p-0.5 bg-slate-100 dark:bg-slate-700/60 rounded-md border border-slate-200/60 dark:border-slate-600/40">
-                  <button
-                    type="button"
-                    onClick={() => setTheme('light')}
-                    aria-label={t('Light theme', '浅色模式')}
-                    title={t('Light theme', '浅色模式')}
-                    className={cn(
-                      'p-1 text-xs rounded transition-all flex items-center justify-center',
-                      theme === 'light'
-                        ? 'bg-white dark:bg-slate-800 text-amber-500 dark:text-amber-400 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200',
-                    )}>
-                    <Icon name="sun" size="xs" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTheme('dark')}
-                    aria-label={t('Dark theme', '深色模式')}
-                    title={t('Dark theme', '深色模式')}
-                    className={cn(
-                      'p-1 text-xs rounded transition-all flex items-center justify-center',
-                      theme === 'dark'
-                        ? 'bg-white dark:bg-slate-800 text-indigo-400 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200',
-                    )}>
-                    <Icon name="moon" size="xs" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTheme('system')}
-                    aria-label={t('Follow system', '跟随系统')}
-                    title={t('Follow system', '跟随系统')}
-                    className={cn(
-                      'p-1 text-xs rounded transition-all flex items-center justify-center',
-                      theme === 'system'
-                        ? 'bg-white dark:bg-slate-800 text-blue-500 dark:text-blue-400 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200',
-                    )}>
-                    <Icon name="laptop" size="xs" />
-                  </button>
+              {/* Row 2: Language Switch & Theme Switch */}
+              <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between w-full text-xs">
+                {/* Language Switch */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    {t('Language', '语言')}
+                  </span>
+                  <div className="inline-flex items-center p-0.5 bg-slate-100 dark:bg-slate-700/60 rounded-md border border-slate-200/60 dark:border-slate-600/40">
+                    <button
+                      type="button"
+                      onClick={() => !isZh && toggleLanguage()}
+                      className={cn(
+                        'px-2 py-0.5 text-xs rounded transition-all font-medium',
+                        isZh
+                          ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs font-semibold'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200',
+                      )}>
+                      中文
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => isZh && toggleLanguage()}
+                      className={cn(
+                        'px-2 py-0.5 text-xs rounded transition-all font-medium',
+                        !isZh
+                          ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs font-semibold'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200',
+                      )}>
+                      EN
+                    </button>
+                  </div>
+                </div>
+
+                {/* Theme Switch */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('Theme', '皮肤')}</span>
+                  <div className="inline-flex items-center p-0.5 bg-slate-100 dark:bg-slate-700/60 rounded-md border border-slate-200/60 dark:border-slate-600/40">
+                    <button
+                      type="button"
+                      onClick={() => setTheme('light')}
+                      aria-label={t('Light theme', '浅色模式')}
+                      title={t('Light theme', '浅色模式')}
+                      className={cn(
+                        'p-1 text-xs rounded transition-all flex items-center justify-center',
+                        theme === 'light'
+                          ? 'bg-white dark:bg-slate-800 text-amber-500 dark:text-amber-400 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200',
+                      )}>
+                      <Icon name="sun" size="xs" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTheme('dark')}
+                      aria-label={t('Dark theme', '深色模式')}
+                      title={t('Dark theme', '深色模式')}
+                      className={cn(
+                        'p-1 text-xs rounded transition-all flex items-center justify-center',
+                        theme === 'dark'
+                          ? 'bg-white dark:bg-slate-800 text-indigo-400 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200',
+                      )}>
+                      <Icon name="moon" size="xs" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTheme('system')}
+                      aria-label={t('Follow system', '跟随系统')}
+                      title={t('Follow system', '跟随系统')}
+                      className={cn(
+                        'p-1 text-xs rounded transition-all flex items-center justify-center',
+                        theme === 'system'
+                          ? 'bg-white dark:bg-slate-800 text-blue-500 dark:text-blue-400 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200',
+                      )}>
+                      <Icon name="laptop" size="xs" />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Main Content Area - Using sliding panel approach */}
-      <div className="sidebar-inner-content flex-1 relative overflow-hidden bg-white dark:bg-slate-900">
-        {/* Virtual slide - content always at full width */}
-        <div
-          ref={contentRef}
-          className={cn(
-            'absolute top-0 bottom-0 right-0 transition-transform duration-200 ease-in-out',
-            isMinimized ? 'translate-x-full' : 'translate-x-0',
-            isTransitioning ? 'will-change-transform' : '',
+            </>
           )}
-          style={{ width: `${sidebarWidth}px` }}>
-          <div className="flex flex-col h-full">
-            {/* Critical Error Display - Only show for severe failures, never block UI */}
-            {initializationError && (
-              <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 p-3 flex-shrink-0">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-start space-x-2">
-                    <Icon name="alert-triangle" size="sm" className="text-red-600 dark:text-red-400 mt-0.5" />
-                    <div className="flex-1">
-                      <Typography variant="subtitle" className="text-red-800 dark:text-red-200 font-medium">
-                        {extensionContextInvalid ? t('Extension Reloaded', '扩展已重新加载') : t('Warning', '警告')}
-                      </Typography>
-                      <Typography variant="caption" className="text-red-700 dark:text-red-300">
-                        {extensionContextInvalid
-                          ? t(
-                              'The extension was reloaded. Please refresh this page to restore full functionality.',
-                              '扩展已重新加载，请刷新当前页面以恢复完整功能。',
-                            )
-                          : t(
-                              `Some features may be limited: ${initializationError}`,
-                              `部分功能可能受限：${initializationError}`,
-                            )}
-                      </Typography>
-                      {extensionContextInvalid && (
-                        <div className="mt-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => window.location.reload()}
-                            className="border-red-300 dark:border-red-600 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-800 mr-2">
-                            {t('Refresh Page', '刷新页面')}
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {!extensionContextInvalid && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setInitializationError(null)}
-                      className="border-red-300 dark:border-red-600 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-800">
-                      {t('Dismiss', '忽略')}
-                    </Button>
-                  )}
-                </div>
-              </div>
+        </div>
+
+        {/* Main Content Area - Using sliding panel approach */}
+        <div className="sidebar-inner-content flex-1 relative overflow-hidden bg-white dark:bg-slate-900">
+          {/* Virtual slide - content always at full width */}
+          <div
+            ref={contentRef}
+            className={cn(
+              'absolute top-0 bottom-0 right-0 transition-transform duration-200 ease-in-out',
+              isMinimized ? 'translate-x-full' : 'translate-x-0',
+              isTransitioning ? 'will-change-transform' : '',
             )}
-
-            {/* Status and Settings section */}
-            <div className="py-4 px-4 space-y-4 overflow-y-auto flex-shrink-0">
-              <ServerStatus status={serverStatus} />
-
-              {/* Settings */}
-              <Card className="sidebar-card border-slate-200 dark:border-slate-700 dark:bg-slate-800 flex-shrink-0 overflow-hidden rounded-lg shadow-sm transition-shadow duration-300">
-                <CardContent className="p-3 space-y-3">
+            style={{ width: `${sidebarWidth}px` }}>
+            <div className="flex flex-col h-full">
+              {/* Critical Error Display - Only show for severe failures, never block UI */}
+              {initializationError && (
+                <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 p-3 flex-shrink-0">
                   <div className="flex items-center justify-between">
-                    <Typography variant="subtitle" className="text-slate-700 dark:text-slate-300 font-medium">
-                      {t('Push Content Mode', '推挤页面内容模式')}
-                    </Typography>
-                    <ToggleWithoutLabel
-                      label={t('Push Content Mode', '推挤页面内容模式')}
-                      checked={isPushMode}
-                      onChange={handlePushModeToggle}
-                    />
+                    <div className="flex items-start space-x-2">
+                      <Icon name="alert-triangle" size="sm" className="text-red-600 dark:text-red-400 mt-0.5" />
+                      <div className="flex-1">
+                        <Typography variant="subtitle" className="text-red-800 dark:text-red-200 font-medium">
+                          {extensionContextInvalid ? t('Extension Reloaded', '扩展已重新加载') : t('Warning', '警告')}
+                        </Typography>
+                        <Typography variant="caption" className="text-red-700 dark:text-red-300">
+                          {extensionContextInvalid
+                            ? t(
+                                'The extension was reloaded. Please refresh this page to restore full functionality.',
+                                '扩展已重新加载，请刷新当前页面以恢复完整功能。',
+                              )
+                            : t(
+                                `Some features may be limited: ${initializationError}`,
+                                `部分功能可能受限：${initializationError}`,
+                              )}
+                        </Typography>
+                        {extensionContextInvalid && (
+                          <div className="mt-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => window.location.reload()}
+                              className="border-red-300 dark:border-red-600 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-800 mr-2">
+                              {t('Refresh Page', '刷新页面')}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {!extensionContextInvalid && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setInitializationError(null)}
+                        className="border-red-300 dark:border-red-600 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-800">
+                        {t('Dismiss', '忽略')}
+                      </Button>
+                    )}
                   </div>
-                  {/* DEBUG BUTTON - ONLY FOR DEVELOPMENT - REMOVE IN PRODUCTION */}
-                  {process.env.NODE_ENV === 'development' && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full mt-2 border-slate-200 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
-                      onClick={() => {
-                        const shadowHost = (window as any).activeSidebarManager?.getShadowHost();
-                        if (shadowHost && shadowHost.shadowRoot) {
-                          logMessage('Shadow DOM debug requested');
-                          // Debug functionality removed - use browser dev tools instead
-                        } else {
-                          logMessage('Cannot debug: Shadow DOM not found');
-                        }
-                      }}>
-                      Debug Styles
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
+                </div>
+              )}
 
-              {/* Tabs for Tools/Instructions */}
-              <div className="border-b border-slate-200 dark:border-slate-700 mb-2">
-                <div className="flex">
-                  <button
-                    className={cn(
-                      'py-2 px-4 font-medium text-sm transition-all duration-200',
-                      activeTab === 'availableTools'
-                        ? 'border-b-2 border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
-                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-t-lg',
+              {/* Status and Settings section */}
+              <div className="py-4 px-4 space-y-4 overflow-y-auto flex-shrink-0">
+                <ServerStatus status={serverStatus} />
+
+                {/* Settings */}
+                <Card className="sidebar-card border-slate-200 dark:border-slate-700 dark:bg-slate-800 flex-shrink-0 overflow-hidden rounded-lg shadow-sm transition-shadow duration-300">
+                  <CardContent className="p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Typography variant="subtitle" className="text-slate-700 dark:text-slate-300 font-medium">
+                        {t('Push Content Mode', '推挤页面内容模式')}
+                      </Typography>
+                      <ToggleWithoutLabel
+                        label={t('Push Content Mode', '推挤页面内容模式')}
+                        checked={isPushMode}
+                        onChange={handlePushModeToggle}
+                      />
+                    </div>
+                    {/* DEBUG BUTTON - ONLY FOR DEVELOPMENT - REMOVE IN PRODUCTION */}
+                    {process.env.NODE_ENV === 'development' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full mt-2 border-slate-200 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
+                        onClick={() => {
+                          const shadowHost = (window as any).activeSidebarManager?.getShadowHost();
+                          if (shadowHost && shadowHost.shadowRoot) {
+                            logMessage('Shadow DOM debug requested');
+                            // Debug functionality removed - use browser dev tools instead
+                          } else {
+                            logMessage('Cannot debug: Shadow DOM not found');
+                          }
+                        }}>
+                        Debug Styles
+                      </Button>
                     )}
-                    onClick={() => setActiveTab('availableTools')}>
-                    {t('Available Tools', '可用工具')}
-                  </button>
-                  <button
-                    className={cn(
-                      'py-2 px-4 font-medium text-sm transition-all duration-200',
-                      activeTab === 'instructions'
-                        ? 'border-b-2 border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
-                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-t-lg',
-                    )}
-                    onClick={() => setActiveTab('instructions')}>
-                    {t('Instructions', '指令提示词')}
-                  </button>
-                  <button
-                    className={cn(
-                      'py-2 px-4 font-medium text-sm transition-all duration-200',
-                      activeTab === 'settings'
-                        ? 'border-b-2 border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
-                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-t-lg',
-                    )}
-                    onClick={() => setActiveTab('settings')}>
-                    {t('Settings', '设置')}
-                  </button>
+                  </CardContent>
+                </Card>
+
+                {/* Tabs for Tools/Instructions */}
+                <div className="border-b border-slate-200 dark:border-slate-700 mb-2">
+                  <div className="flex">
+                    <button
+                      className={cn(
+                        'py-2 px-4 font-medium text-sm transition-all duration-200',
+                        activeTab === 'availableTools'
+                          ? 'border-b-2 border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                          : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-t-lg',
+                      )}
+                      onClick={() => setActiveTab('availableTools')}>
+                      {t('Available Tools', '可用工具')}
+                    </button>
+                    <button
+                      className={cn(
+                        'py-2 px-4 font-medium text-sm transition-all duration-200',
+                        activeTab === 'instructions'
+                          ? 'border-b-2 border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                          : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-t-lg',
+                      )}
+                      onClick={() => setActiveTab('instructions')}>
+                      {t('Instructions', '指令提示词')}
+                    </button>
+                    <button
+                      className={cn(
+                        'py-2 px-4 font-medium text-sm transition-all duration-200',
+                        activeTab === 'settings'
+                          ? 'border-b-2 border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                          : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-t-lg',
+                      )}
+                      onClick={() => setActiveTab('settings')}>
+                      {t('Settings', '设置')}
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Tab Content Area - scrollable area with flex-grow to fill available space */}
-            <div className="flex-1 min-h-0 px-4 pb-4 overflow-hidden">
-              {/* AvailableTools */}
-              <div
-                className={cn(
-                  'h-full overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent',
-                  { hidden: activeTab !== 'availableTools' },
-                )}>
-                <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-300">
-                  <CardContent className="p-0">
-                    <AvailableTools
-                      tools={availableTools}
-                      onExecute={sendMessage}
-                      onRefresh={handleRefreshTools}
-                      isRefreshing={isRefreshing}
-                    />
-                  </CardContent>
-                </Card>
+              {/* Tab Content Area - scrollable area with flex-grow to fill available space */}
+              <div className="flex-1 min-h-0 px-4 pb-4 overflow-hidden">
+                {/* AvailableTools */}
+                <div
+                  className={cn(
+                    'h-full overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent',
+                    { hidden: activeTab !== 'availableTools' },
+                  )}>
+                  <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-300">
+                    <CardContent className="p-0">
+                      <AvailableTools
+                        tools={availableTools}
+                        onExecute={sendMessage}
+                        onRefresh={handleRefreshTools}
+                        isRefreshing={isRefreshing}
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Instructions */}
+                <div
+                  className={cn(
+                    'h-full overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent',
+                    { hidden: activeTab !== 'instructions' },
+                  )}>
+                  <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-300">
+                    <CardContent className="p-0">
+                      <InstructionManager adapter={adapter} tools={formattedTools} />
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Settings */}
+                <div
+                  className={cn(
+                    'h-full overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent',
+                    { hidden: activeTab !== 'settings' },
+                  )}>
+                  <Settings />
+                </div>
               </div>
 
-              {/* Instructions */}
-              <div
-                className={cn(
-                  'h-full overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent',
-                  { hidden: activeTab !== 'instructions' },
-                )}>
-                <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-300">
-                  <CardContent className="p-0">
-                    <InstructionManager adapter={adapter} tools={formattedTools} />
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Settings */}
-              <div
-                className={cn(
-                  'h-full overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent',
-                  { hidden: activeTab !== 'settings' },
-                )}>
-                <Settings />
-              </div>
-            </div>
-
-            {/* Input Area (Always at the bottom) */}
-            {/* <div className="border-t border-slate-200 dark:border-slate-700 flex-shrink-0 bg-white dark:bg-slate-800 shadow-inner">
+              {/* Input Area (Always at the bottom) */}
+              {/* <div className="border-t border-slate-200 dark:border-slate-700 flex-shrink-0 bg-white dark:bg-slate-800 shadow-inner">
               {!isInputMinimized ? (
                 <div className="relative">
                   <Button variant="ghost" size="sm" onClick={toggleInputMinimize} className="absolute top-2 right-2">
@@ -1346,10 +1351,10 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
                 </Button>
               )}
             </div> */}
+            </div>
           </div>
         </div>
       </div>
-    </div>
     </>
   );
 };
