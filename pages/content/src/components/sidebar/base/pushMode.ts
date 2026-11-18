@@ -40,25 +40,11 @@ export function getPushModeStylesheetText(): string {
     html.push-mode-enabled .w-dvw,
     html.push-mode-enabled .w-svw,
     html.push-mode-enabled .w-lvw,
-    html.push-mode-enabled .min-w-screen,
-    html.push-mode-enabled .min-w-dvw,
-    html.push-mode-enabled .min-w-svw,
-    html.push-mode-enabled .min-w-lvw,
     html.push-mode-enabled [class*="w-[100vw]"],
-    html.push-mode-enabled [class*="w-[100dvw]"],
-    html.push-mode-enabled [class*="min-w-[100vw]"],
-    html.push-mode-enabled [class*="min-w-[100dvw]"] {
+    html.push-mode-enabled [class*="w-[100dvw]"] {
       width: 100% !important;
       max-width: 100% !important;
-      min-width: 0px !important;
       box-sizing: border-box !important;
-    }
-
-    html.push-mode-enabled [class*="fixed"][class*="inset-0"]:not(#mcp-sidebar-shadow-host):not(#mcp-popover-portal):not(.mcp-popover-container):not(.mcp-hover-overlay):not(#mcp-hover-overlay-portal),
-    html.push-mode-enabled [class*="absolute"][class*="inset-0"]:not(#mcp-sidebar-shadow-host):not(#mcp-popover-portal):not(.mcp-popover-container):not(.mcp-hover-overlay):not(#mcp-hover-overlay-portal) {
-      right: var(--sidebar-width-mcp, 320px) !important;
-      width: calc(100vw - var(--sidebar-width-mcp, 320px)) !important;
-      max-width: calc(100vw - var(--sidebar-width-mcp, 320px)) !important;
     }
 
     /* Ensure fixed sidebar stays anchored on the right edge */
