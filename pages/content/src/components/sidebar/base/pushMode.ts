@@ -1,5 +1,59 @@
 export const PUSH_MODE_STYLE_ID = 'mcp-sidebar-push-styles';
 
+export const PUSH_MODE_CONTAINER_SELECTOR = [
+  'body > div:not(#mcp-sidebar-shadow-host):not(#mcp-popover-portal):not(.mcp-popover-container):not(.mcp-hover-overlay):not(#mcp-hover-overlay-portal)',
+  'body > main',
+  '#__next',
+  '#root',
+  '#app',
+  '.w-screen',
+  '.w-dvw',
+  '.w-svw',
+  '.w-lvw',
+  '.min-w-screen',
+  '.min-w-dvw',
+  '.min-w-svw',
+  '.min-w-lvw',
+  '[class*="w-[100vw]"]',
+  '[class*="w-[100dvw]"]',
+  '[class*="min-w-[100vw]"]',
+  '[class*="min-w-[100dvw]"]',
+].join(', ');
+
+const EXCLUDED_CONTAINER_SELECTOR =
+  '#mcp-sidebar-shadow-host, #mcp-popover-portal, .mcp-popover-container, .mcp-hover-overlay, #mcp-hover-overlay-portal';
+
+const adoptedPushSheets = new WeakMap<Document, CSSStyleSheet>();
+
+function getPushModeContainers(doc: Document = document): HTMLElement[] {
+  if (!doc || typeof doc.querySelectorAll !== 'function') {
+    return [];
+  }
+
+  const elements = Array.from(doc.querySelectorAll(PUSH_MODE_CONTAINER_SELECTOR)) as HTMLElement[];
+  return elements.filter(el => {
+    if (!el) return false;
+    if (typeof el.matches === 'function' && el.matches(EXCLUDED_CONTAINER_SELECTOR)) {
+      return false;
+    }
+    if (typeof el.closest === 'function' && el.closest(EXCLUDED_CONTAINER_SELECTOR)) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function applyPushModeContainerStyles(width: number, doc: Document = document): void {
+  const maxWidth = `calc(100vw - ${width}px)`;
+  for (const el of getPushModeContainers(doc)) {
+    el.setAttribute?.('data-mcp-push-styled', 'true');
+    el.style?.setProperty('width', '100%', 'important');
+    el.style?.setProperty('max-width', maxWidth, 'important');
+    el.style?.setProperty('min-width', '0px', 'important');
+    el.style?.setProperty('box-sizing', 'border-box', 'important');
+  }
+}
+
 /**
  * Returns the stylesheet injected into the host document to support push content mode
  * across sites using viewport-width root containers (such as ChatGPT's `.w-screen`).
@@ -38,10 +92,17 @@ export function getPushModeStylesheetText(): string {
     html.push-mode-enabled .w-dvw,
     html.push-mode-enabled .w-svw,
     html.push-mode-enabled .w-lvw,
+    html.push-mode-enabled .min-w-screen,
+    html.push-mode-enabled .min-w-dvw,
+    html.push-mode-enabled .min-w-svw,
+    html.push-mode-enabled .min-w-lvw,
     html.push-mode-enabled [class*="w-[100vw]"],
-    html.push-mode-enabled [class*="w-[100dvw]"] {
+    html.push-mode-enabled [class*="w-[100dvw]"],
+    html.push-mode-enabled [class*="min-w-[100vw]"],
+    html.push-mode-enabled [class*="min-w-[100dvw]"] {
       width: 100% !important;
       max-width: 100% !important;
+      min-width: 0px !important;
       box-sizing: border-box !important;
     }
 
@@ -104,6 +165,25 @@ export function ensurePushModeStylesheet(doc: Document = document): HTMLStyleEle
   }
 
   const nextCss = getPushModeStylesheetText();
+
+  // Constructable stylesheets bypass CSP style-src blocks on inline <style> tags when supported.
+  try {
+    if (typeof CSSStyleSheet === 'function' && 'adoptedStyleSheets' in doc) {
+      let sheet = adoptedPushSheets.get(doc);
+      if (!sheet) {
+        sheet = new CSSStyleSheet();
+        adoptedPushSheets.set(doc, sheet);
+      }
+      sheet.replaceSync(nextCss);
+      const currentSheets = Array.from(doc.adoptedStyleSheets || []);
+      if (!currentSheets.includes(sheet)) {
+        doc.adoptedStyleSheets = [...currentSheets, sheet];
+      }
+    }
+  } catch {
+    // Ignore Constructable Stylesheet failures and rely on inline styles + <style> element.
+  }
+
   const existing = doc.getElementById(PUSH_MODE_STYLE_ID) as HTMLStyleElement | null;
   if (existing) {
     if (existing.textContent !== nextCss) {
@@ -114,13 +194,23 @@ export function ensurePushModeStylesheet(doc: Document = document): HTMLStyleEle
 
   const styleEl = doc.createElement('style');
   styleEl.id = PUSH_MODE_STYLE_ID;
+  if (typeof doc.querySelectorAll === 'function' && typeof styleEl.setAttribute === 'function') {
+    const candidates = Array.from(doc.querySelectorAll('style[nonce], script[nonce], style, script'));
+    for (const node of candidates) {
+      const nonce = (node as HTMLElement).nonce || node.getAttribute?.('nonce');
+      if (nonce) {
+        styleEl.setAttribute('nonce', nonce);
+        break;
+      }
+    }
+  }
   styleEl.textContent = nextCss;
   doc.head.appendChild(styleEl);
   return styleEl;
 }
 
 /**
- * Applies push content mode inline styles and classes to `html` and `body`.
+ * Applies push content mode inline styles and classes to `html`, `body`, and root containers.
  */
 export function applyPushModeDomStyles(width: number, isCollapsed: boolean, doc: Document = document): void {
   const html = doc.documentElement;
@@ -135,15 +225,20 @@ export function applyPushModeDomStyles(width: number, isCollapsed: boolean, doc:
   html.style.setProperty('width', `calc(100% - ${width}px)`, 'important');
   html.style.setProperty('max-width', `calc(100% - ${width}px)`, 'important');
   html.style.setProperty('min-height', '100vh', 'important');
+  html.style.setProperty('overflow-x', 'hidden', 'important');
   html.style.setProperty('box-sizing', 'border-box', 'important');
 
   if (doc.body) {
     doc.body.style.setProperty('width', '100%', 'important');
     doc.body.style.setProperty('max-width', '100%', 'important');
+    doc.body.style.setProperty('min-width', '0px', 'important');
     doc.body.style.setProperty('margin-right', '0', 'important');
     doc.body.style.setProperty('padding-right', '0', 'important');
+    doc.body.style.setProperty('overflow-x', 'hidden', 'important');
     doc.body.style.setProperty('box-sizing', 'border-box', 'important');
   }
+
+  applyPushModeContainerStyles(width, doc);
 
   html.classList.add('push-mode-enabled');
   if (isCollapsed) {
@@ -164,10 +259,12 @@ export function updatePushModeDomWidth(width: number, doc: Document = document):
   html.style.setProperty('margin-right', `${width}px`, 'important');
   html.style.setProperty('width', `calc(100% - ${width}px)`, 'important');
   html.style.setProperty('max-width', `calc(100% - ${width}px)`, 'important');
+
+  applyPushModeContainerStyles(width, doc);
 }
 
 /**
- * Removes all push content mode inline styles and classes from `html` and `body`.
+ * Removes all push content mode inline styles and classes from `html`, `body`, and root containers.
  */
 export function clearPushModeDomStyles(doc: Document = document): void {
   const html = doc.documentElement;
@@ -178,6 +275,7 @@ export function clearPushModeDomStyles(doc: Document = document): void {
     html.style.removeProperty('width');
     html.style.removeProperty('max-width');
     html.style.removeProperty('min-height');
+    html.style.removeProperty('overflow-x');
     html.style.removeProperty('box-sizing');
     html.style.removeProperty('transform');
     html.classList.remove('push-mode-enabled', 'sidebar-collapsed', 'push-mode-transform');
@@ -186,14 +284,28 @@ export function clearPushModeDomStyles(doc: Document = document): void {
   if (doc.body) {
     doc.body.style.removeProperty('width');
     doc.body.style.removeProperty('max-width');
+    doc.body.style.removeProperty('min-width');
     doc.body.style.removeProperty('margin-right');
     doc.body.style.removeProperty('padding-right');
+    doc.body.style.removeProperty('overflow-x');
     doc.body.style.removeProperty('box-sizing');
+  }
+
+  if (typeof doc?.querySelectorAll === 'function') {
+    const styled = Array.from(doc.querySelectorAll('[data-mcp-push-styled="true"]')) as HTMLElement[];
+    const targets = new Set<HTMLElement>([...styled, ...getPushModeContainers(doc)]);
+    for (const el of targets) {
+      el.style?.removeProperty('width');
+      el.style?.removeProperty('max-width');
+      el.style?.removeProperty('min-width');
+      el.style?.removeProperty('box-sizing');
+      el.removeAttribute?.('data-mcp-push-styled');
+    }
   }
 }
 
 /**
- * Checks whether push mode classes and inline dimensions are still intact on `html` and `body`.
+ * Checks whether push mode classes and inline dimensions are still intact on `html`, `body`, and containers.
  */
 export function isPushModeDomIntact(width: number, isCollapsed: boolean, doc: Document = document): boolean {
   const html = doc.documentElement;
@@ -208,6 +320,10 @@ export function isPushModeDomIntact(width: number, isCollapsed: boolean, doc: Do
   const hasMargin = html.style.getPropertyValue('margin-right').trim() === expectedWidth;
   const hasWidth = html.style.getPropertyValue('width').trim() === `calc(100% - ${expectedWidth})`;
   const bodyIntact = !doc.body || doc.body.style.getPropertyValue('max-width').trim() === '100%';
+  const expectedContainerMaxWidth = `calc(100vw - ${expectedWidth})`;
+  const containersIntact = getPushModeContainers(doc).every(
+    el => el.style?.getPropertyValue('max-width').trim() === expectedContainerMaxWidth,
+  );
 
-  return hasPushClass && collapsedMatches && hasCssVar && hasMargin && hasWidth && bodyIntact;
+  return hasPushClass && collapsedMatches && hasCssVar && hasMargin && hasWidth && bodyIntact && containersIntact;
 }

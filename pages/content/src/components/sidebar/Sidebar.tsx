@@ -421,8 +421,10 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
           logMessage(`[Sidebar] activeSidebarManager available: true`);
 
           try {
-            // Apply push mode settings when visible
-            if (sidebarVisible) {
+            // Apply push mode settings when visible in store or in SidebarManager
+            const isActuallyVisible =
+              sidebarVisible || (typeof sidebarManager.getIsVisible === 'function' && sidebarManager.getIsVisible());
+            if (isActuallyVisible) {
               logMessage(
                 `[Sidebar] Applying push mode (${isPushMode}, minimized: ${isMinimized}) and width (${sidebarWidth})`,
               );
@@ -579,6 +581,20 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
 
   const handlePushModeToggle = (checked: boolean) => {
     updatePreferences({ isPushMode: checked });
+    if (!sidebarVisible) {
+      setSidebarVisibility(true, 'push-mode-toggle');
+    }
+    try {
+      type ActiveSidebar = { setPushContentMode?: (enabled: boolean, width?: number, collapsed?: boolean) => void };
+      const sidebarManager = (window as Window & { activeSidebarManager?: ActiveSidebar }).activeSidebarManager;
+      if (sidebarManager && typeof sidebarManager.setPushContentMode === 'function') {
+        sidebarManager.setPushContentMode(checked, isMinimized ? SIDEBAR_MINIMIZED_WIDTH : sidebarWidth, isMinimized);
+      }
+    } catch (error) {
+      logMessage(
+        `[Sidebar] Error applying push mode in toggle handler: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
     logMessage(`[Sidebar] Push mode ${checked ? 'enabled' : 'disabled'}`);
   };
 

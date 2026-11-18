@@ -353,6 +353,13 @@ mockHtml.style.setProperty('transform', 'translateX(-320px)');
 const mockBody = {
   style: createMockStyle(),
 };
+const mockScreenContainer = {
+  style: createMockStyle(),
+  setAttribute: () => {},
+  removeAttribute: () => {},
+  matches: () => false,
+  closest: () => null,
+};
 const mockDoc = {
   documentElement: mockHtml,
   body: mockBody,
@@ -363,6 +370,8 @@ const mockDoc = {
     },
   },
   getElementById: (id: string) => headChildren.find(el => el.id === id) ?? null,
+  querySelectorAll: (selector: string) =>
+    selector.includes('.w-screen') || selector.includes('data-mcp-push-styled') ? [mockScreenContainer] : [],
   createElement: () => ({ id: '', textContent: '' }),
 } as unknown as Document;
 
@@ -393,9 +402,12 @@ assert.equal(mockHtml.style.getPropertyValue('width'), 'calc(100% - 360px)');
 assert.equal(mockHtml.style.getPropertyValue('max-width'), 'calc(100% - 360px)');
 assert.equal(mockBody.style.getPropertyValue('width'), '100%');
 assert.equal(mockBody.style.getPropertyValue('max-width'), '100%');
+assert.equal(mockScreenContainer.style.getPropertyValue('width'), '100%');
+assert.equal(mockScreenContainer.style.getPropertyValue('max-width'), 'calc(100vw - 360px)');
+assert.equal(mockScreenContainer.style.getPropertyValue('min-width'), '0px');
 assert.equal(isPushModeDomIntact(360, false, mockDoc), true);
 
-// Host page clears class or body max-width -> detected as not intact and restored cleanly
+// Host page clears class or body/container max-width -> detected as not intact and restored cleanly
 mockHtml.classList.remove('push-mode-enabled');
 assert.equal(isPushModeDomIntact(360, false, mockDoc), false);
 applyPushModeDomStyles(360, false, mockDoc);
@@ -404,10 +416,16 @@ assert.equal(isPushModeDomIntact(360, false, mockDoc), true);
 updatePushModeDomWidth(420, mockDoc);
 assert.equal(isPushModeDomIntact(420, false, mockDoc), true);
 assert.equal(mockHtml.style.getPropertyValue('max-width'), 'calc(100% - 420px)');
+assert.equal(mockScreenContainer.style.getPropertyValue('max-width'), 'calc(100vw - 420px)');
+
+mockScreenContainer.style.removeProperty('max-width');
+assert.equal(isPushModeDomIntact(420, false, mockDoc), false);
 
 clearPushModeDomStyles(mockDoc);
 assert.equal(isPushModeDomIntact(420, false, mockDoc), false);
 assert.equal(mockHtml.style.getPropertyValue('--sidebar-width-mcp'), '');
 assert.equal(mockHtml.style.getPropertyValue('margin-right'), '');
 assert.equal(mockBody.style.getPropertyValue('max-width'), '');
+assert.equal(mockScreenContainer.style.getPropertyValue('max-width'), '');
+assert.equal(mockScreenContainer.style.getPropertyValue('width'), '');
 console.log('Push content mode regression tests: passed');

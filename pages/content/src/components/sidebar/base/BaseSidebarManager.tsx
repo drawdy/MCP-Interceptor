@@ -237,7 +237,8 @@ export abstract class BaseSidebarManager {
     if (document.body) {
       this._pushModeObserver.observe(document.body, {
         attributes: true,
-        attributeFilter: ['style'],
+        attributeFilter: ['class', 'style'],
+        childList: true,
       });
     }
   }
