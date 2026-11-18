@@ -50,7 +50,7 @@ const initialUserPreferences: UserPreferences = {
   notifications: true,
   theme: 'system', // Default theme
   language: navigator.language || 'en-US',
-  sidebarWidth: 320,
+  sidebarWidth: 380,
   isMinimized: false,
   customInstructions: '',
   customInstructionsEnabled: false,

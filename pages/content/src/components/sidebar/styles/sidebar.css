@@ -99,23 +99,16 @@
   }
 }
 
-/* Base sidebar container */
+/* Base sidebar container - floating rectangular card */
 .sidebar {
   position: fixed;
-  top: 0;
-  right: 0;
-  height: 100vh;
   z-index: 9999;
   display: flex;
   flex-direction: column;
-  /* Smooth, natural width transitions with subtle elastic feel */
-  transition:
-    width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow-y: auto;
+  overflow: hidden;
   box-shadow:
-    0 4px 24px rgba(0, 0, 0, 0.08),
-    0 1px 6px rgba(0, 0, 0, 0.04);
+    0 20px 45px -10px rgba(0, 0, 0, 0.25),
+    0 4px 16px rgba(0, 0, 0, 0.08);
   font-family:
     'Inter',
     -apple-system,
@@ -125,11 +118,10 @@
     Helvetica,
     Arial,
     sans-serif;
-  will-change: width, transform;
+  will-change: width, height, transform;
   transform: translateZ(0); /* Force GPU acceleration */
   contain: layout style;
   backdrop-filter: blur(20px);
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 /* Sidebar in transitioning state */
@@ -217,6 +209,7 @@
   flex-shrink: 0;
   width: 100%;
   box-sizing: border-box;
+  touch-action: none;
 }
 
 /* Make sure the header title is properly spaced */

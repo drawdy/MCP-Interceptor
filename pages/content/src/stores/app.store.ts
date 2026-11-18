@@ -32,7 +32,7 @@ const initialState = {
     theme: 'system' as GlobalSettings['theme'],
     autoSubmit: false,
     debugMode: false,
-    sidebarWidth: 320,
+    sidebarWidth: 380,
     language: navigator.language || 'en-US',
     notifications: true,
   },

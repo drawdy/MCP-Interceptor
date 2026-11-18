@@ -25,7 +25,7 @@ const TOOL_ENABLEMENT_KEY = 'mcp_tool_enablement';
 
 // Default preferences
 const DEFAULT_PREFERENCES: SidebarPreferences = {
-  sidebarWidth: 320,
+  sidebarWidth: 380,
   isMinimized: false,
   autoSubmit: false,
   theme: 'system',

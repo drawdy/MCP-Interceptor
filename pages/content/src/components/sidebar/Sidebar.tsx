@@ -32,9 +32,13 @@ const checkActiveSidebarManager = (): boolean => {
 type Theme = 'light' | 'dark' | 'system';
 const THEME_CYCLE: Theme[] = ['light', 'dark', 'system']; // Define the cycle order
 
-// Define constants for minimized/default sidebar widths and draggable floating positioning
-const SIDEBAR_MINIMIZED_WIDTH = 56;
-const SIDEBAR_DEFAULT_WIDTH = 320;
+// Define constants for floating card dimensions and draggable positioning
+const CARD_DEFAULT_WIDTH = 380;
+const CARD_MIN_WIDTH = 320;
+const CARD_MAX_WIDTH = 580;
+const CARD_DEFAULT_HEIGHT = 600;
+const CARD_MIN_HEIGHT = 380;
+const CARD_MARGIN = 16;
 const FAB_SIZE = 44;
 const FAB_MARGIN = 12;
 const FAB_STORAGE_KEY = 'mcp-sidebar-fab-position';
@@ -49,6 +53,7 @@ interface FabPosition {
 interface PanelPosition {
   right: number;
   top: number;
+  height?: number;
 }
 
 const clampFabPosition = (x: number, y: number): FabPosition => {
@@ -66,14 +71,26 @@ const getDefaultFabPosition = (): FabPosition => {
   return clampFabPosition(window.innerWidth - FAB_SIZE - 16, 76);
 };
 
-const clampPanelPosition = (right: number, top: number, sidebarWidth: number): PanelPosition => {
-  if (typeof window === 'undefined') return { right, top };
-  const maxRight = Math.max(0, window.innerWidth - sidebarWidth);
-  const maxTop = Math.max(0, window.innerHeight - 120);
+const clampPanelPosition = (right: number, top: number, cardWidth: number, cardHeight: number): PanelPosition => {
+  if (typeof window === 'undefined') return { right, top, height: cardHeight };
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1024;
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 768;
+  const maxRight = Math.max(CARD_MARGIN, viewportWidth - cardWidth - CARD_MARGIN);
+  const maxTop = Math.max(CARD_MARGIN, viewportHeight - cardHeight - CARD_MARGIN);
+  const clampedHeight = Math.min(
+    Math.max(CARD_MIN_HEIGHT, cardHeight),
+    Math.max(CARD_MIN_HEIGHT, viewportHeight - CARD_MARGIN * 2),
+  );
   return {
-    right: Math.min(Math.max(0, right), maxRight),
-    top: Math.min(Math.max(0, top), maxTop),
+    right: Math.min(Math.max(CARD_MARGIN, right), maxRight),
+    top: Math.min(Math.max(CARD_MARGIN, top), maxTop),
+    height: clampedHeight,
   };
+};
+
+const getDefaultPanelPosition = (width: number, height: number): PanelPosition => {
+  if (typeof window === 'undefined') return { right: 20, top: 70, height };
+  return clampPanelPosition(20, 70, width, height);
 };
 
 const loadStoredPosition = <T,>(key: string, validate: (raw: Record<string, unknown>) => T | null): T | null => {
@@ -319,15 +336,16 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
 
   // Use store values with fallbacks to initial preferences
   const isMinimized = storeSidebarMinimized ?? initialPreferences?.isMinimized ?? false;
-  const sidebarWidth = storeSidebarWidth || initialPreferences?.sidebarWidth || SIDEBAR_DEFAULT_WIDTH;
+  const cardWidth = Math.max(
+    CARD_MIN_WIDTH,
+    Math.min(CARD_MAX_WIDTH, storeSidebarWidth || initialPreferences?.sidebarWidth || CARD_DEFAULT_WIDTH),
+  );
   const autoSubmit = preferences.autoSubmit ?? initialPreferences?.autoSubmit ?? false;
 
   // Debug logging for state tracking
   useEffect(() => {
-    logMessage(
-      `[Sidebar] State update - visible: ${sidebarVisible}, minimized: ${isMinimized}, width: ${sidebarWidth}`,
-    );
-  }, [sidebarVisible, isMinimized, sidebarWidth]);
+    logMessage(`[Sidebar] State update - visible: ${sidebarVisible}, minimized: ${isMinimized}, width: ${cardWidth}`);
+  }, [sidebarVisible, isMinimized, cardWidth]);
 
   // Local UI state that doesn't need to be in the store
   const [activeTab, setActiveTab] = useState<'availableTools' | 'instructions' | 'settings'>('availableTools');
@@ -345,22 +363,27 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
   });
   const [isDraggingFab, setIsDraggingFab] = useState(false);
 
-  const [panelPosition, setPanelPosition] = useState<PanelPosition | null>(() =>
-    loadStoredPosition<PanelPosition>(PANEL_STORAGE_KEY, raw =>
-      typeof raw.right === 'number' &&
-      Number.isFinite(raw.right) &&
-      typeof raw.top === 'number' &&
-      Number.isFinite(raw.top)
-        ? clampPanelPosition(raw.right, raw.top, sidebarWidth)
-        : null,
-    ),
-  );
+  const [panelPosition, setPanelPosition] = useState<PanelPosition>(() => {
+    const defaultPos = getDefaultPanelPosition(cardWidth, CARD_DEFAULT_HEIGHT);
+    const stored = loadStoredPosition<PanelPosition>(PANEL_STORAGE_KEY, raw => {
+      const right = typeof raw.right === 'number' && Number.isFinite(raw.right) ? raw.right : null;
+      const top = typeof raw.top === 'number' && Number.isFinite(raw.top) ? raw.top : null;
+      const height = typeof raw.height === 'number' && Number.isFinite(raw.height) ? raw.height : CARD_DEFAULT_HEIGHT;
+      if (right === null || top === null) return null;
+      const initialRight = right === 0 && top === 0 ? 20 : right;
+      const initialTop = right === 0 && top === 0 ? 70 : top;
+      return clampPanelPosition(initialRight, initialTop, cardWidth, height);
+    });
+    return stored ?? defaultPos;
+  });
   const [isDraggingPanel, setIsDraggingPanel] = useState(false);
+
+  const cardHeight = panelPosition.height ?? CARD_DEFAULT_HEIGHT;
 
   const sidebarRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
-  const previousWidthRef = useRef(SIDEBAR_DEFAULT_WIDTH);
+  const previousWidthRef = useRef(CARD_DEFAULT_WIDTH);
   const transitionTimerRef = useRef<number | null>(null);
   const fabDragRef = useRef<{
     pointerId: number;
@@ -380,17 +403,17 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
     dragged: boolean;
   } | null>(null);
 
-  // Keep draggable positions within the visible viewport on window resize or sidebar width changes
+  // Keep draggable positions within the visible viewport on window resize or sidebar dimensions changes
   useEffect(() => {
     const handleViewportResize = () => {
       setFabPosition(prev => clampFabPosition(prev.x, prev.y));
-      setPanelPosition(prev => (prev ? clampPanelPosition(prev.right, prev.top, sidebarWidth) : prev));
+      setPanelPosition(prev => clampPanelPosition(prev.right, prev.top, cardWidth, prev.height ?? CARD_DEFAULT_HEIGHT));
     };
 
     handleViewportResize();
     window.addEventListener('resize', handleViewportResize);
     return () => window.removeEventListener('resize', handleViewportResize);
-  }, [sidebarWidth]);
+  }, [cardWidth]);
 
   // Helper function to wait for SidebarManager to become available with retry mechanism
   const waitForSidebarManager = useCallback(async (maxRetries = 10, baseDelay = 50): Promise<any> => {
@@ -570,13 +593,23 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
         }
       }
 
-      // Enforce minimum width constraint
-      const constrainedWidth = Math.max(SIDEBAR_DEFAULT_WIDTH, width);
+      // Enforce width constraints
+      const constrainedWidth = Math.max(CARD_MIN_WIDTH, Math.min(CARD_MAX_WIDTH, width));
 
       // Debounce the state update for better performance
       if (window.requestAnimationFrame) {
         window.requestAnimationFrame(() => {
           resizeSidebar(constrainedWidth);
+          setPanelPosition(prev => {
+            const clamped = clampPanelPosition(
+              prev.right,
+              prev.top,
+              constrainedWidth,
+              prev.height ?? CARD_DEFAULT_HEIGHT,
+            );
+            saveStoredPosition(PANEL_STORAGE_KEY, clamped);
+            return clamped;
+          });
 
           // End resize after a short delay
           if (transitionTimerRef.current !== null) {
@@ -680,13 +713,12 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
     }
 
     e.preventDefault();
-    const current = panelPosition ?? { right: 0, top: 0 };
     panelDragRef.current = {
       pointerId: e.pointerId,
       startX: e.clientX,
       startY: e.clientY,
-      originRight: current.right,
-      originTop: current.top,
+      originRight: panelPosition.right,
+      originTop: panelPosition.top,
       dragged: false,
     };
     try {
@@ -708,7 +740,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
     }
 
     if (drag.dragged) {
-      setPanelPosition(clampPanelPosition(drag.originRight - dx, drag.originTop + dy, sidebarWidth));
+      setPanelPosition(clampPanelPosition(drag.originRight - dx, drag.originTop + dy, cardWidth, cardHeight));
     }
   };
 
@@ -728,7 +760,8 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
       const finalPos = clampPanelPosition(
         drag.originRight - (e.clientX - drag.startX),
         drag.originTop + (e.clientY - drag.startY),
-        sidebarWidth,
+        cardWidth,
+        cardHeight,
       );
       setPanelPosition(finalPos);
       saveStoredPosition(PANEL_STORAGE_KEY, finalPos);
@@ -736,6 +769,130 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
 
     panelDragRef.current = null;
     setIsDraggingPanel(false);
+  };
+
+  const bottomDragRef = useRef<{
+    pointerId: number;
+    startY: number;
+    startHeight: number;
+    dragged: boolean;
+  } | null>(null);
+
+  const cornerDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startWidth: number;
+    startHeight: number;
+    dragged: boolean;
+  } | null>(null);
+
+  const handleBottomPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    bottomDragRef.current = {
+      pointerId: e.pointerId,
+      startY: e.clientY,
+      startHeight: cardHeight,
+      dragged: false,
+    };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore
+    }
+  };
+
+  const handleBottomPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = bottomDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const dy = e.clientY - drag.startY;
+    if (!drag.dragged && Math.abs(dy) > DRAG_THRESHOLD) {
+      drag.dragged = true;
+    }
+    const newHeight = Math.max(CARD_MIN_HEIGHT, drag.startHeight + dy);
+    setPanelPosition(prev => clampPanelPosition(prev.right, prev.top, cardWidth, newHeight));
+  };
+
+  const handleBottomPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = bottomDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    try {
+      if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Ignore
+    }
+    if (drag.dragged) {
+      const finalHeight = Math.max(CARD_MIN_HEIGHT, drag.startHeight + (e.clientY - drag.startY));
+      setPanelPosition(prev => {
+        const clamped = clampPanelPosition(prev.right, prev.top, cardWidth, finalHeight);
+        saveStoredPosition(PANEL_STORAGE_KEY, clamped);
+        return clamped;
+      });
+    }
+    bottomDragRef.current = null;
+  };
+
+  const handleCornerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    cornerDragRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      startWidth: cardWidth,
+      startHeight: cardHeight,
+      dragged: false,
+    };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore
+    }
+  };
+
+  const handleCornerPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = cornerDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const dx = drag.startX - e.clientX; // drag left increases width
+    const dy = e.clientY - drag.startY; // drag down increases height
+    if (!drag.dragged && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
+      drag.dragged = true;
+    }
+    const newWidth = Math.max(CARD_MIN_WIDTH, Math.min(CARD_MAX_WIDTH, drag.startWidth + dx));
+    const newHeight = Math.max(CARD_MIN_HEIGHT, drag.startHeight + dy);
+    resizeSidebar(newWidth);
+    setPanelPosition(prev => clampPanelPosition(prev.right, prev.top, newWidth, newHeight));
+  };
+
+  const handleCornerPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = cornerDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    try {
+      if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Ignore
+    }
+    if (drag.dragged) {
+      const finalWidth = Math.max(
+        CARD_MIN_WIDTH,
+        Math.min(CARD_MAX_WIDTH, drag.startWidth + (drag.startX - e.clientX)),
+      );
+      const finalHeight = Math.max(CARD_MIN_HEIGHT, drag.startHeight + (e.clientY - drag.startY));
+      resizeSidebar(finalWidth);
+      setPanelPosition(prev => {
+        const clamped = clampPanelPosition(prev.right, prev.top, finalWidth, finalHeight);
+        saveStoredPosition(PANEL_STORAGE_KEY, clamped);
+        return clamped;
+      });
+    }
+    cornerDragRef.current = null;
   };
 
   const handleAutoSubmitToggle = (checked: boolean) => {
@@ -799,8 +956,6 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
     }
   };
 
-  const activePanelPosition = panelPosition;
-
   return (
     <>
       {isMinimized && (
@@ -847,51 +1002,77 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
       <div
         ref={sidebarRef}
         className={cn(
-          'fixed bg-white dark:bg-slate-900 shadow-lg z-50 flex flex-col border-l border-slate-200 dark:border-slate-700 sidebar',
-          isResizingRef.current || isDraggingPanel ? 'resizing' : '',
+          'fixed bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-2xl z-50 flex flex-col border border-slate-200 dark:border-slate-700/80 rounded-2xl sidebar overflow-hidden',
+          isResizingRef.current || isDraggingPanel ? 'resizing select-none' : '',
           isMinimized ? 'collapsed' : '',
           isTransitioning ? 'sidebar-transitioning' : '',
-          activePanelPosition && (activePanelPosition.right > 0 || activePanelPosition.top > 0)
-            ? 'border border-slate-200 dark:border-slate-700 rounded-tl-xl'
-            : '',
         )}
         style={
           isMinimized
-            ? { display: 'none', width: `${sidebarWidth}px` }
+            ? { display: 'none', width: `${cardWidth}px` }
             : {
                 display: 'flex',
-                width: `${sidebarWidth}px`,
+                width: `${cardWidth}px`,
+                height: `${cardHeight}px`,
+                maxHeight: 'calc(100vh - 24px)',
+                maxWidth: 'calc(100vw - 24px)',
                 pointerEvents: 'auto',
-                top: `${activePanelPosition?.top ?? 0}px`,
-                right: `${activePanelPosition?.right ?? 0}px`,
-                height:
-                  activePanelPosition && activePanelPosition.top > 0
-                    ? `calc(100vh - ${activePanelPosition.top}px)`
-                    : '100vh',
+                top: `${panelPosition.top}px`,
+                right: `${panelPosition.right}px`,
               }
         }>
-        {/* Resize Handle - only visible when not minimized */}
+        {/* Resize Handle - left edge for width */}
         {!isMinimized && (
           <ResizeHandle
             onResize={handleResize}
-            minWidth={SIDEBAR_DEFAULT_WIDTH}
-            maxWidth={500}
-            className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-indigo-400 dark:hover:bg-indigo-600 z-[60] transition-colors duration-300"
+            minWidth={CARD_MIN_WIDTH}
+            maxWidth={CARD_MAX_WIDTH}
+            defaultWidth={cardWidth}
+            className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-indigo-400 dark:hover:bg-indigo-600 z-[60] transition-colors duration-200"
           />
         )}
 
-        {/* Header - draggable by panel header */}
+        {/* Resize Handle - bottom edge for height */}
+        {!isMinimized && (
+          <div
+            onPointerDown={handleBottomPointerDown}
+            onPointerMove={handleBottomPointerMove}
+            onPointerUp={handleBottomPointerUp}
+            onPointerCancel={handleBottomPointerUp}
+            className="absolute bottom-0 left-3 right-3 h-1.5 cursor-ns-resize hover:bg-indigo-400 dark:hover:bg-indigo-600 z-[60] transition-colors duration-200"
+          />
+        )}
+
+        {/* Resize Handle - bottom-left corner for width & height */}
+        {!isMinimized && (
+          <div
+            onPointerDown={handleCornerPointerDown}
+            onPointerMove={handleCornerPointerMove}
+            onPointerUp={handleCornerPointerUp}
+            onPointerCancel={handleCornerPointerUp}
+            className="absolute bottom-0 left-0 w-4 h-4 cursor-nesw-resize hover:bg-indigo-400/40 z-[61] rounded-bl-2xl transition-colors flex items-end justify-start p-1 text-slate-400 dark:text-slate-500 select-none pointer-events-auto"
+            title={t('Drag to resize', '拖动调整大小')}>
+            <svg width="6" height="6" viewBox="0 0 6 6" fill="currentColor" className="opacity-60">
+              <path d="M6 6H0L6 0V6Z" />
+            </svg>
+          </div>
+        )}
+
+        {/* Header - draggable card header */}
         <div
           onPointerDown={handlePanelPointerDown}
           onPointerMove={handlePanelPointerMove}
           onPointerUp={handlePanelPointerUp}
           onPointerCancel={handlePanelPointerUp}
           className={cn(
-            'bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex-shrink-0 shadow-sm sidebar-header px-4 py-3 flex flex-col w-full',
+            'bg-slate-50/90 dark:bg-slate-800/90 border-b border-slate-200/80 dark:border-slate-700/80 flex-shrink-0 shadow-sm sidebar-header px-4 pt-2 pb-3 flex flex-col w-full rounded-t-2xl',
             isDraggingPanel ? 'cursor-grabbing select-none' : 'cursor-grab',
           )}>
           {!isMinimized && (
             <>
+              {/* Drag indicator handle */}
+              <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-600 self-center mb-2 opacity-70 pointer-events-none" />
+
               {/* Row 1: Logo + Extension Name on the left, Minimize button on the right */}
               <div className="flex items-center justify-between w-full">
                 <div className="flex items-center space-x-2.5 min-w-0">
@@ -1029,7 +1210,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
               isMinimized ? 'translate-x-full' : 'translate-x-0',
               isTransitioning ? 'will-change-transform' : '',
             )}
-            style={{ width: `${sidebarWidth}px` }}>
+            style={{ width: `${cardWidth}px` }}>
             <div className="flex flex-col h-full">
               {/* Critical Error Display - Only show for severe failures, never block UI */}
               {initializationError && (

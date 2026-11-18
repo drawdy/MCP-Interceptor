@@ -15,7 +15,7 @@ const getZustandPreferences = (): UserPreferences => {
       const storedSidebar = zustandState.state.sidebar;
       return {
         ...storedPrefs,
-        sidebarWidth: storedSidebar?.width || storedPrefs.sidebarWidth || 320,
+        sidebarWidth: storedSidebar?.width || storedPrefs.sidebarWidth || 380,
         isMinimized:
           typeof storedSidebar?.isMinimized === 'boolean' ? storedSidebar.isMinimized : storedPrefs.isMinimized,
       };
@@ -35,7 +35,7 @@ const getZustandPreferences = (): UserPreferences => {
     notifications: true,
     theme: 'system',
     language: navigator.language || 'en-US',
-    sidebarWidth: 320,
+    sidebarWidth: 380,
     isMinimized: false,
     customInstructions: '',
     customInstructionsEnabled: false,
@@ -318,7 +318,7 @@ export class SidebarManager extends BaseSidebarManager {
       // Get preferences from Zustand store
       const preferences = getZustandPreferences();
       const wasMinimized = preferences.isMinimized ?? false;
-      const sidebarWidth = preferences.sidebarWidth || 320;
+      const sidebarWidth = preferences.sidebarWidth || 380;
 
       logMessage(
         `[SidebarManager] Using Zustand preferences for initialization: minimized=${wasMinimized}, width=${sidebarWidth}`,
