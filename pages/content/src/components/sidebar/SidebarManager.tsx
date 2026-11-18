@@ -1,7 +1,6 @@
 import type React from 'react';
 import type { SiteType } from './base/BaseSidebarManager';
 import { BaseSidebarManager } from './base/BaseSidebarManager';
-import { isPushModeDomIntact } from './base/pushMode';
 import { logMessage } from '@src/utils/helpers';
 import Sidebar from './Sidebar';
 import type { UserPreferences } from '@src/types/stores';
@@ -36,7 +35,6 @@ const getZustandPreferences = (): UserPreferences => {
     notifications: true,
     theme: 'system',
     language: navigator.language || 'en-US',
-    isPushMode: false,
     sidebarWidth: 320,
     isMinimized: false,
     customInstructions: '',
@@ -320,11 +318,10 @@ export class SidebarManager extends BaseSidebarManager {
       // Get preferences from Zustand store
       const preferences = getZustandPreferences();
       const wasMinimized = preferences.isMinimized ?? false;
-      const isPushMode = preferences.isPushMode ?? false;
       const sidebarWidth = preferences.sidebarWidth || 320;
 
       logMessage(
-        `[SidebarManager] Using Zustand preferences for initialization: minimized=${wasMinimized}, pushMode=${isPushMode}, width=${sidebarWidth}`,
+        `[SidebarManager] Using Zustand preferences for initialization: minimized=${wasMinimized}, width=${sidebarWidth}`,
       );
 
       // Set ALL attributes and styles BEFORE making sidebar visible and rendering React
@@ -345,20 +342,6 @@ export class SidebarManager extends BaseSidebarManager {
       }
       this._isVisible = true;
 
-      // REMOVED: Don't sync visibility state here - we're reading it, not setting it
-      // The visibility state should only be updated when user explicitly toggles
-      // this.syncZustandVisibilityState(true);
-
-      // Push content mode only applies when expanded; collapsed state uses a compact floating button.
-      if (isPushMode && !wasMinimized) {
-        this.setPushContentMode(true, sidebarWidth, false);
-
-        // Verify push mode was applied correctly and retry if needed
-        this.verifyAndRetryPushMode(sidebarWidth, false);
-      } else {
-        this.setPushContentMode(false);
-      }
-
       // Render React component with all setup complete
       setTimeout(() => {
         // CRITICAL FIX: Final verification of window reference before React render
@@ -373,7 +356,7 @@ export class SidebarManager extends BaseSidebarManager {
         this.render();
 
         // Mark as fully initialized
-        logMessage(`[SidebarManager] Sidebar fully initialized: minimized=${wasMinimized}, pushMode=${isPushMode}`);
+        logMessage(`[SidebarManager] Sidebar fully initialized: minimized=${wasMinimized}`);
       }, 20);
     } catch (error) {
       logMessage(
@@ -454,42 +437,6 @@ export class SidebarManager extends BaseSidebarManager {
       logMessage(
         `[SidebarManager] Even fallback initialization failed: ${error instanceof Error ? error.message : String(error)}`,
       );
-    }
-  }
-
-  /**
-   * Verify that push mode has been applied correctly and retry if needed
-   * @param width The expected sidebar width
-   * @param isCollapsed Whether the sidebar should be in collapsed state
-   */
-  private verifyAndRetryPushMode(width: number, isCollapsed: boolean): void {
-    const isPushModeApplied = isPushModeDomIntact(width, isCollapsed);
-
-    if (!isPushModeApplied) {
-      logMessage(
-        `[SidebarManager] Push mode verification failed (expected width: ${width}px, collapsed: ${isCollapsed}). Retrying...`,
-      );
-
-      // Retry applying push mode after a short delay without falling back to transform-based shifting
-      setTimeout(() => {
-        if (!this._isPushContentMode) return;
-        this.setPushContentMode(true, width, isCollapsed);
-
-        setTimeout(() => {
-          if (!this._isPushContentMode) return;
-          if (isPushModeDomIntact(width, isCollapsed)) {
-            logMessage('[SidebarManager] Push mode successfully applied after retry');
-          } else {
-            const retryComputedStyle = window.getComputedStyle(document.documentElement);
-            logMessage('[SidebarManager] Push mode still incomplete after retry - website may be interfering');
-            logMessage(
-              `[SidebarManager] Final state - margin-right: ${retryComputedStyle.marginRight}, width: ${retryComputedStyle.width}`,
-            );
-          }
-        }, 100);
-      }, 50);
-    } else {
-      logMessage('[SidebarManager] Push mode verification successful');
     }
   }
 

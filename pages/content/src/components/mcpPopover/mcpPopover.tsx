@@ -1142,7 +1142,7 @@ const MCPPopoverContent: React.FC<MCPPopoverProps> = ({ toggleStateManager, adap
     return undefined;
   }, [isHoverOverlayVisible, updateHoverOverlayPosition]);
 
-  // Enforce inline !important geometry/layout styles to protect against host/push-mode !important rules
+  // Enforce inline !important geometry/layout styles to protect against host !important rules
   useEffect(() => {
     const el = hoverOverlayRef.current;
     if (isHoverOverlayVisible && el) {

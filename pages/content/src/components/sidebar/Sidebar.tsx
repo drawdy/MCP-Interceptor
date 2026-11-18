@@ -10,7 +10,7 @@ import Settings from './Settings/Settings';
 import { useMcpCommunication } from '@src/hooks/useMcpCommunication';
 import { logMessage } from '@src/utils/helpers';
 import { eventBus } from '@src/events/event-bus';
-import { Typography, Toggle, ToggleWithoutLabel, ResizeHandle, Icon, Button } from './ui';
+import { Typography, Toggle, ResizeHandle, Icon, Button } from './ui';
 import { cn } from '@src/lib/utils';
 import { Card, CardContent } from '@src/components/ui/card';
 import type { UserPreferences } from '@src/types/stores';
@@ -235,7 +235,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
     const monitorInterval = setInterval(() => {
       const available = checkActiveSidebarManager();
       if (!available) {
-        logMessage('[Sidebar] WARNING: activeSidebarManager reference lost - this may cause push mode issues');
+        logMessage('[Sidebar] WARNING: activeSidebarManager reference lost');
       }
     }, 2000); // Check every 2 seconds
 
@@ -320,15 +320,14 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
   // Use store values with fallbacks to initial preferences
   const isMinimized = storeSidebarMinimized ?? initialPreferences?.isMinimized ?? false;
   const sidebarWidth = storeSidebarWidth || initialPreferences?.sidebarWidth || SIDEBAR_DEFAULT_WIDTH;
-  const isPushMode = preferences.isPushMode ?? initialPreferences?.isPushMode ?? false;
   const autoSubmit = preferences.autoSubmit ?? initialPreferences?.autoSubmit ?? false;
 
   // Debug logging for state tracking
   useEffect(() => {
     logMessage(
-      `[Sidebar] State update - visible: ${sidebarVisible}, minimized: ${isMinimized}, pushMode: ${isPushMode}, width: ${sidebarWidth}`,
+      `[Sidebar] State update - visible: ${sidebarVisible}, minimized: ${isMinimized}, width: ${sidebarWidth}`,
     );
-  }, [sidebarVisible, isMinimized, isPushMode, sidebarWidth]);
+  }, [sidebarVisible, isMinimized, sidebarWidth]);
 
   // Local UI state that doesn't need to be in the store
   const [activeTab, setActiveTab] = useState<'availableTools' | 'instructions' | 'settings'>('availableTools');
@@ -392,18 +391,6 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
     window.addEventListener('resize', handleViewportResize);
     return () => window.removeEventListener('resize', handleViewportResize);
   }, [sidebarWidth]);
-
-  // Reset detached panel position when push mode is active
-  useEffect(() => {
-    if (isPushMode) {
-      setPanelPosition(null);
-      try {
-        localStorage.removeItem(PANEL_STORAGE_KEY);
-      } catch {
-        // Ignore storage errors
-      }
-    }
-  }, [isPushMode]);
 
   // Helper function to wait for SidebarManager to become available with retry mechanism
   const waitForSidebarManager = useCallback(async (maxRetries = 10, baseDelay = 50): Promise<any> => {
@@ -530,82 +517,6 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
   //   // Track URL changes to clear detected tools on navigation
   //   let lastUrl = window.location.href;
 
-  // Apply push mode when settings change - with robust retry mechanism
-  useEffect(() => {
-    logMessage(
-      `[Sidebar] Push mode effect triggered - visible: ${sidebarVisible}, pushMode: ${isPushMode}, minimized: ${isMinimized}, width: ${sidebarWidth}`,
-    );
-
-    // Use async function to handle the retry mechanism
-    const applyPushModeSettings = async () => {
-      try {
-        // Wait for SidebarManager to become available with retry
-        const sidebarManager = await waitForSidebarManager();
-
-        if (sidebarManager) {
-          logMessage(`[Sidebar] activeSidebarManager available: true`);
-
-          try {
-            // Apply push mode settings when visible in store or in SidebarManager
-            const isActuallyVisible =
-              sidebarVisible || (typeof sidebarManager.getIsVisible === 'function' && sidebarManager.getIsVisible());
-            if (isActuallyVisible) {
-              logMessage(
-                `[Sidebar] Applying push mode (${isPushMode}, minimized: ${isMinimized}) and width (${sidebarWidth})`,
-              );
-              sidebarManager.setPushContentMode(
-                isPushMode,
-                isMinimized ? SIDEBAR_MINIMIZED_WIDTH : sidebarWidth,
-                isMinimized,
-              );
-            } else {
-              // Ensure push mode is disabled when sidebar is hidden
-              logMessage('[Sidebar] Disabling push mode - sidebar not visible');
-              sidebarManager.setPushContentMode(false);
-            }
-          } catch (error) {
-            logMessage(
-              `[Sidebar] Error applying push mode settings: ${error instanceof Error ? error.message : String(error)}`,
-            );
-          }
-        } else {
-          logMessage('[Sidebar] activeSidebarManager not available after retries - cannot apply push mode');
-        }
-      } catch (error) {
-        logMessage(
-          `[Sidebar] Error in push mode application process: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-    };
-
-    // Execute the async function
-    applyPushModeSettings();
-  }, [isPushMode, sidebarWidth, isMinimized, sidebarVisible, waitForSidebarManager]);
-
-  // Cleanup: Ensure push mode is disabled when component unmounts - with retry mechanism
-  useEffect(() => {
-    return () => {
-      // Use async cleanup with retry mechanism
-      const cleanupPushMode = async () => {
-        try {
-          const sidebarManager = await waitForSidebarManager(5, 50); // Shorter retry for cleanup
-          if (sidebarManager) {
-            logMessage('[Sidebar] Component unmounting - disabling push mode');
-            sidebarManager.setPushContentMode(false);
-          } else {
-            logMessage('[Sidebar] Component unmounting - could not access SidebarManager for cleanup');
-          }
-        } catch (error) {
-          logMessage(
-            `[Sidebar] Error during push mode cleanup: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
-      };
-
-      cleanupPushMode();
-    };
-  }, [waitForSidebarManager]);
-
   // Simple transition management
   const startTransition = () => {
     // Clear any existing timer
@@ -662,20 +573,6 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
       // Enforce minimum width constraint
       const constrainedWidth = Math.max(SIDEBAR_DEFAULT_WIDTH, width);
 
-      // Update push mode styles if enabled
-      if (isPushMode) {
-        try {
-          const sidebarManager = (window as any).activeSidebarManager;
-          if (sidebarManager && typeof sidebarManager.updatePushModeStyles === 'function') {
-            sidebarManager.updatePushModeStyles(constrainedWidth);
-          }
-        } catch (error) {
-          logMessage(
-            `[Sidebar] Error updating push mode styles: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
-      }
-
       // Debounce the state update for better performance
       if (window.requestAnimationFrame) {
         window.requestAnimationFrame(() => {
@@ -701,35 +598,8 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
         resizeSidebar(constrainedWidth);
       }
     },
-    [isPushMode],
+    [resizeSidebar],
   );
-
-  const handlePushModeToggle = (checked: boolean) => {
-    updatePreferences({ isPushMode: checked });
-    if (checked) {
-      setPanelPosition(null);
-      try {
-        localStorage.removeItem(PANEL_STORAGE_KEY);
-      } catch {
-        // Ignore storage errors
-      }
-    }
-    if (!sidebarVisible) {
-      setSidebarVisibility(true, 'push-mode-toggle');
-    }
-    try {
-      type ActiveSidebar = { setPushContentMode?: (enabled: boolean, width?: number, collapsed?: boolean) => void };
-      const sidebarManager = (window as Window & { activeSidebarManager?: ActiveSidebar }).activeSidebarManager;
-      if (sidebarManager && typeof sidebarManager.setPushContentMode === 'function') {
-        sidebarManager.setPushContentMode(checked, isMinimized ? SIDEBAR_MINIMIZED_WIDTH : sidebarWidth, isMinimized);
-      }
-    } catch (error) {
-      logMessage(
-        `[Sidebar] Error applying push mode in toggle handler: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-    logMessage(`[Sidebar] Push mode ${checked ? 'enabled' : 'disabled'}`);
-  };
 
   const handleFabPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -802,7 +672,6 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
   };
 
   const handlePanelPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (isPushMode) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
 
     const target = e.target as HTMLElement | null;
@@ -930,7 +799,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
     }
   };
 
-  const activePanelPosition = !isPushMode ? panelPosition : null;
+  const activePanelPosition = panelPosition;
 
   return (
     <>
@@ -979,7 +848,6 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
         ref={sidebarRef}
         className={cn(
           'fixed bg-white dark:bg-slate-900 shadow-lg z-50 flex flex-col border-l border-slate-200 dark:border-slate-700 sidebar',
-          isPushMode ? 'push-mode' : '',
           isResizingRef.current || isDraggingPanel ? 'resizing' : '',
           isMinimized ? 'collapsed' : '',
           isTransitioning ? 'sidebar-transitioning' : '',
@@ -1012,7 +880,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
           />
         )}
 
-        {/* Header - draggable in overlay mode when !isPushMode */}
+        {/* Header - draggable by panel header */}
         <div
           onPointerDown={handlePanelPointerDown}
           onPointerMove={handlePanelPointerMove}
@@ -1020,7 +888,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
           onPointerCancel={handlePanelPointerUp}
           className={cn(
             'bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex-shrink-0 shadow-sm sidebar-header px-4 py-3 flex flex-col w-full',
-            !isPushMode && (isDraggingPanel ? 'cursor-grabbing select-none' : 'cursor-grab'),
+            isDraggingPanel ? 'cursor-grabbing select-none' : 'cursor-grab',
           )}>
           {!isMinimized && (
             <>
@@ -1210,43 +1078,9 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
                 </div>
               )}
 
-              {/* Status and Settings section */}
+              {/* Status section */}
               <div className="py-4 px-4 space-y-4 overflow-y-auto flex-shrink-0">
                 <ServerStatus status={serverStatus} />
-
-                {/* Settings */}
-                <Card className="sidebar-card border-slate-200 dark:border-slate-700 dark:bg-slate-800 flex-shrink-0 overflow-hidden rounded-lg shadow-sm transition-shadow duration-300">
-                  <CardContent className="p-3 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Typography variant="subtitle" className="text-slate-700 dark:text-slate-300 font-medium">
-                        {t('Push Content Mode', '推挤页面内容模式')}
-                      </Typography>
-                      <ToggleWithoutLabel
-                        label={t('Push Content Mode', '推挤页面内容模式')}
-                        checked={isPushMode}
-                        onChange={handlePushModeToggle}
-                      />
-                    </div>
-                    {/* DEBUG BUTTON - ONLY FOR DEVELOPMENT - REMOVE IN PRODUCTION */}
-                    {process.env.NODE_ENV === 'development' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full mt-2 border-slate-200 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
-                        onClick={() => {
-                          const shadowHost = (window as any).activeSidebarManager?.getShadowHost();
-                          if (shadowHost && shadowHost.shadowRoot) {
-                            logMessage('Shadow DOM debug requested');
-                            // Debug functionality removed - use browser dev tools instead
-                          } else {
-                            logMessage('Cannot debug: Shadow DOM not found');
-                          }
-                        }}>
-                        Debug Styles
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
 
                 {/* Tabs for Tools/Instructions */}
                 <div className="border-b border-slate-200 dark:border-slate-700 mb-2">

@@ -507,13 +507,6 @@ Hover over the MCP button and open **Configure** to see the automation switches:
 
 For your first use, leave **Auto Insert**, **Auto Submit**, and **Auto Execute** off. Review each tool call and click **Run** yourself. Turn on automation only after you trust the configured servers and understand the actions their tools can perform.
 
-<details>
-<summary>Optional: Push Content Mode</summary>
-
-The **Push Content Mode** switch is at the top of the sidebar. It changes the page layout to make room for the sidebar instead of letting the sidebar cover part of the page. Turn it on if the sidebar overlaps the website's content; otherwise, leave it off.
-
-</details>
-
 ## 6. Troubleshooting
 
 | What you see | What to check |

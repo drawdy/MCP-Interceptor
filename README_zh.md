@@ -500,15 +500,6 @@ AI 需要先获得调用工具的说明，才能按照 MCP-Interceptor 支持的
 
 首次使用时，建议关闭 **Auto Insert**、**Auto Submit** 和 **Auto Execute**。先人工检查每次工具调用，并点击 **Run** 执行。只有在确认 MCP Server 可信、理解工具的实际操作范围后，再考虑启用自动化。
 
-<details>
-<summary>可选：Push Content Mode</summary>
-
-侧边栏顶部有一个 **Push Content Mode** 开关。启用后，扩展会调整网页内容区域，为侧边栏腾出空间，而不是让侧边栏覆盖网页内容。
-
-如果侧边栏遮挡了网页内容，可以打开这个开关；如果没有遮挡，则保持关闭即可。
-
-</details>
-
 ## 六、常见问题
 
 | 现象 | 检查方法 |

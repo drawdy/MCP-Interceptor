@@ -8,13 +8,6 @@ import {
   applyLightMode,
   injectTailwindToShadowDom,
 } from '@src/utils/shadowDom';
-import {
-  applyPushModeDomStyles,
-  clearPushModeDomStyles,
-  ensurePushModeStylesheet,
-  isPushModeDomIntact,
-  updatePushModeDomWidth,
-} from './pushMode';
 import '@src/components/sidebar/styles/sidebar.css';
 
 /**
@@ -34,11 +27,6 @@ export abstract class BaseSidebarManager {
   protected siteType: SiteType;
   protected shadowHost: HTMLDivElement | null = null;
   protected shadowRoot: ShadowRoot | null = null;
-  protected _isPushContentMode: boolean = false;
-  protected _pushModeWidth: number = 320;
-  protected _isPushModeCollapsed: boolean = false;
-  private _pushModeObserver: MutationObserver | null = null;
-  private _isApplyingPushModeStyles: boolean = false;
   private _initializationPromise: Promise<void> | null = null;
   private _isInitialized = false;
 
@@ -93,175 +81,6 @@ export abstract class BaseSidebarManager {
 
     logMessage(`[BaseSidebarManager] Applied ${theme} theme (CSS-only, no re-render)`);
     return true;
-  }
-
-  /**
-   * Set push content mode
-   * This is the single source of truth for push mode functionality
-   * @param enabled Whether push mode should be enabled
-   * @param sidebarWidth Optional width of the sidebar (for collapsed state handling)
-   * @param isCollapsed Optional flag indicating if the sidebar is collapsed
-   */
-  public setPushContentMode(enabled: boolean, sidebarWidth?: number, isCollapsed?: boolean): void {
-    const collapsed = !!isCollapsed;
-    const shouldApplyPushMode = enabled && !collapsed;
-    this._isPushContentMode = shouldApplyPushMode;
-    this._isPushModeCollapsed = collapsed;
-
-    // Ensure push mode stylesheet exists before applying classes/variables
-    this.ensurePushModeStyles();
-
-    if (shouldApplyPushMode) {
-      const width = sidebarWidth || this._pushModeWidth || 320;
-      this._pushModeWidth = width;
-
-      this._isApplyingPushModeStyles = true;
-      try {
-        applyPushModeDomStyles(width, false);
-      } finally {
-        this._isApplyingPushModeStyles = false;
-      }
-      this.startPushModeObserver();
-
-      // Debug logging to verify styles are applied
-      logMessage(`[BaseSidebarManager] Push mode enabled with width: ${width}px`);
-      logMessage(
-        `[BaseSidebarManager] Applied styles - margin-right: ${document.documentElement.style.marginRight}, width: ${document.documentElement.style.width}`,
-      );
-      logMessage(`[BaseSidebarManager] HTML classes: ${document.documentElement.className}`);
-
-      // When push mode is enabled, ensure the sidebar is visible
-      if (!this._isVisible || (this.shadowHost && this.shadowHost.style.display !== 'block')) {
-        logMessage('[BaseSidebarManager] Push mode enabled but sidebar not visible, showing sidebar');
-        // Use a non-async version of show to ensure immediate visibility
-        this.forceVisibility();
-      }
-    } else {
-      this.removePushModeStyles();
-    }
-
-    logMessage(`BaseSidebarManager: Push mode ${shouldApplyPushMode ? 'enabled' : 'disabled'}`);
-  }
-
-  /**
-   * Force sidebar to be visible immediately (non-async version of show)
-   * Used in emergency situations when we must ensure visibility
-   */
-  private forceVisibility(): void {
-    if (!this._isInitialized) {
-      logMessage('[BaseSidebarManager] Cannot force visibility: not initialized');
-      return;
-    }
-
-    if (!this.shadowHost) {
-      logMessage('[BaseSidebarManager] Cannot force visibility: no shadow host');
-      return;
-    }
-
-    this._isVisible = true;
-    this.shadowHost.style.display = 'block';
-    this.shadowHost.style.opacity = '1';
-    this.shadowHost.classList.add('initialized');
-
-    // Remove any transition classes to ensure immediate visibility
-    this.shadowHost.classList.remove('showing');
-
-    // Force browser reflow
-    void this.shadowHost.offsetHeight;
-
-    // Render content
-    this.render();
-
-    logMessage('[BaseSidebarManager] Forced sidebar visibility');
-  }
-
-  /**
-   * Update push mode styles for resize operations
-   * @param width The new width of the sidebar
-   */
-  public updatePushModeStyles(width: number): void {
-    if (this._isPushContentMode) {
-      this._pushModeWidth = width;
-      this._isApplyingPushModeStyles = true;
-      try {
-        updatePushModeDomWidth(width);
-      } finally {
-        this._isApplyingPushModeStyles = false;
-      }
-      logMessage(`[BaseSidebarManager] Updated push mode styles to width: ${width}px`);
-    }
-  }
-
-  /**
-   * Remove all push mode styles (used for cleanup)
-   */
-  public removePushModeStyles(): void {
-    this.stopPushModeObserver();
-    this._isApplyingPushModeStyles = true;
-    try {
-      clearPushModeDomStyles();
-    } finally {
-      this._isApplyingPushModeStyles = false;
-    }
-  }
-
-  /**
-   * Observe host page mutations that clear or overwrite push mode classes/styles
-   * (e.g., React hydration or theme toggles on html/body) and self-heal them.
-   */
-  private startPushModeObserver(): void {
-    if (this._pushModeObserver || typeof MutationObserver === 'undefined') {
-      return;
-    }
-
-    this._pushModeObserver = new MutationObserver(() => {
-      if (this._isApplyingPushModeStyles || !this._isPushContentMode) {
-        return;
-      }
-
-      if (!isPushModeDomIntact(this._pushModeWidth, this._isPushModeCollapsed)) {
-        this._isApplyingPushModeStyles = true;
-        try {
-          ensurePushModeStylesheet();
-          applyPushModeDomStyles(this._pushModeWidth, this._isPushModeCollapsed);
-          logMessage('[BaseSidebarManager] Re-applied push mode styles after host DOM update');
-        } finally {
-          this._isApplyingPushModeStyles = false;
-        }
-      }
-    });
-
-    this._pushModeObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class', 'style'],
-    });
-    if (document.body) {
-      this._pushModeObserver.observe(document.body, {
-        attributes: true,
-        attributeFilter: ['style'],
-      });
-    }
-  }
-
-  private stopPushModeObserver(): void {
-    if (this._pushModeObserver) {
-      this._pushModeObserver.disconnect();
-      this._pushModeObserver = null;
-    }
-  }
-
-  /**
-   * Ensures that push mode styles are added to the document
-   */
-  private ensurePushModeStyles(): void {
-    ensurePushModeStylesheet();
-  }
-
-  /**
-   * Get current push content mode state
-   */
-  public getPushContentMode(): boolean {
-    return this._isPushContentMode;
   }
 
   /**
@@ -488,9 +307,6 @@ export abstract class BaseSidebarManager {
     const previouslyVisible = this._isVisible;
     this._isVisible = false;
 
-    // Ensure push mode is explicitly turned off when hiding
-    this.setPushContentMode(false);
-
     if (previouslyVisible) {
       logMessage('[BaseSidebarManager] Sidebar hidden (was previously visible).');
     } else {
@@ -547,9 +363,6 @@ export abstract class BaseSidebarManager {
    */
   public destroy(): void {
     window.removeEventListener('mcpToolsUpdated', this.handleToolsUpdated);
-
-    // Ensure all push mode styles are removed
-    this.removePushModeStyles();
 
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);
