@@ -1,7 +1,6 @@
 import type React from 'react';
 import type { SiteType } from './base/BaseSidebarManager';
 import { BaseSidebarManager } from './base/BaseSidebarManager';
-import { isPushModeDomIntact } from './base/pushMode';
 import { logMessage } from '@src/utils/helpers';
 import Sidebar from './Sidebar';
 import type { UserPreferences } from '@src/types/stores';
@@ -16,7 +15,7 @@ const getZustandPreferences = (): UserPreferences => {
       const storedSidebar = zustandState.state.sidebar;
       return {
         ...storedPrefs,
-        sidebarWidth: storedSidebar?.width || storedPrefs.sidebarWidth || 320,
+        sidebarWidth: storedSidebar?.width || storedPrefs.sidebarWidth || 380,
         isMinimized:
           typeof storedSidebar?.isMinimized === 'boolean' ? storedSidebar.isMinimized : storedPrefs.isMinimized,
       };
@@ -36,8 +35,7 @@ const getZustandPreferences = (): UserPreferences => {
     notifications: true,
     theme: 'system',
     language: navigator.language || 'en-US',
-    isPushMode: false,
-    sidebarWidth: 320,
+    sidebarWidth: 380,
     isMinimized: false,
     customInstructions: '',
     customInstructionsEnabled: false,
@@ -320,11 +318,10 @@ export class SidebarManager extends BaseSidebarManager {
       // Get preferences from Zustand store
       const preferences = getZustandPreferences();
       const wasMinimized = preferences.isMinimized ?? false;
-      const isPushMode = preferences.isPushMode ?? false;
-      const sidebarWidth = preferences.sidebarWidth || 320;
+      const sidebarWidth = preferences.sidebarWidth || 380;
 
       logMessage(
-        `[SidebarManager] Using Zustand preferences for initialization: minimized=${wasMinimized}, pushMode=${isPushMode}, width=${sidebarWidth}`,
+        `[SidebarManager] Using Zustand preferences for initialization: minimized=${wasMinimized}, width=${sidebarWidth}`,
       );
 
       // Set ALL attributes and styles BEFORE making sidebar visible and rendering React
@@ -332,8 +329,6 @@ export class SidebarManager extends BaseSidebarManager {
         // Set initial state attributes FIRST - this is what React will read
         if (wasMinimized) {
           this.shadowHost.setAttribute('data-initial-minimized', 'true');
-          // Force immediate width for minimized state
-          this.shadowHost.style.width = '56px';
         } else {
           // Ensure the attribute is explicitly set to false for expanded state
           this.shadowHost.setAttribute('data-initial-minimized', 'false');
@@ -342,22 +337,10 @@ export class SidebarManager extends BaseSidebarManager {
         // Make sidebar visible
         this.shadowHost.style.display = 'block';
         this.shadowHost.style.opacity = '1';
+        this.shadowHost.style.transform = 'none';
         this.shadowHost.classList.add('initialized');
       }
       this._isVisible = true;
-
-      // REMOVED: Don't sync visibility state here - we're reading it, not setting it
-      // The visibility state should only be updated when user explicitly toggles
-      // this.syncZustandVisibilityState(true);
-
-      // Set push content mode with appropriate width immediately
-      if (isPushMode) {
-        const initialWidth = wasMinimized ? 56 : sidebarWidth;
-        this.setPushContentMode(true, initialWidth, wasMinimized);
-
-        // Verify push mode was applied correctly and retry if needed
-        this.verifyAndRetryPushMode(initialWidth, wasMinimized);
-      }
 
       // Render React component with all setup complete
       setTimeout(() => {
@@ -373,7 +356,7 @@ export class SidebarManager extends BaseSidebarManager {
         this.render();
 
         // Mark as fully initialized
-        logMessage(`[SidebarManager] Sidebar fully initialized: minimized=${wasMinimized}, pushMode=${isPushMode}`);
+        logMessage(`[SidebarManager] Sidebar fully initialized: minimized=${wasMinimized}`);
       }, 20);
     } catch (error) {
       logMessage(
@@ -454,42 +437,6 @@ export class SidebarManager extends BaseSidebarManager {
       logMessage(
         `[SidebarManager] Even fallback initialization failed: ${error instanceof Error ? error.message : String(error)}`,
       );
-    }
-  }
-
-  /**
-   * Verify that push mode has been applied correctly and retry if needed
-   * @param width The expected sidebar width
-   * @param isCollapsed Whether the sidebar should be in collapsed state
-   */
-  private verifyAndRetryPushMode(width: number, isCollapsed: boolean): void {
-    const isPushModeApplied = isPushModeDomIntact(width, isCollapsed);
-
-    if (!isPushModeApplied) {
-      logMessage(
-        `[SidebarManager] Push mode verification failed (expected width: ${width}px, collapsed: ${isCollapsed}). Retrying...`,
-      );
-
-      // Retry applying push mode after a short delay without falling back to transform-based shifting
-      setTimeout(() => {
-        if (!this._isPushContentMode) return;
-        this.setPushContentMode(true, width, isCollapsed);
-
-        setTimeout(() => {
-          if (!this._isPushContentMode) return;
-          if (isPushModeDomIntact(width, isCollapsed)) {
-            logMessage('[SidebarManager] Push mode successfully applied after retry');
-          } else {
-            const retryComputedStyle = window.getComputedStyle(document.documentElement);
-            logMessage('[SidebarManager] Push mode still incomplete after retry - website may be interfering');
-            logMessage(
-              `[SidebarManager] Final state - margin-right: ${retryComputedStyle.marginRight}, width: ${retryComputedStyle.width}`,
-            );
-          }
-        }, 100);
-      }, 50);
-    } else {
-      logMessage('[SidebarManager] Push mode verification successful');
     }
   }
 

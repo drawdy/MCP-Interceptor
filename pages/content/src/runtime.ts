@@ -48,7 +48,6 @@ import {
 
 const logger = createLogger('content_script');
 
-let recoveryIntervalId: ReturnType<typeof setInterval> | null = null;
 let isExtensionActiveOnSite = false;
 let hasInitializedOnce = false;
 let runtimeCancelled = false;
@@ -56,76 +55,6 @@ let runtimeCancelled = false;
   runtimeCancelled = true;
   void teardownExtensionForCurrentSite();
 };
-
-function stopSidebarRecovery(): void {
-  if (recoveryIntervalId !== null) {
-    clearInterval(recoveryIntervalId);
-    recoveryIntervalId = null;
-  }
-}
-
-function setupSidebarRecovery(): void {
-  stopSidebarRecovery();
-  // Watch for the case where push mode is enabled but sidebar isn't visible
-  recoveryIntervalId = setInterval(() => {
-    try {
-      if (!isExtensionActiveOnSite) return;
-      // Check if there's an active sidebar manager
-      const sidebarManager = (window as any).activeSidebarManager;
-      if (!sidebarManager) return;
-
-      // Get HTML element to check for push-mode-enabled class
-      const htmlElement = document.documentElement;
-
-      // Check if push mode is enabled but host is invisible or missing
-      if (htmlElement.classList.contains('push-mode-enabled')) {
-        const shadowHost = sidebarManager.getShadowHost();
-
-        // If shadow host exists but is not visible, force it
-        if (shadowHost) {
-          if (
-            shadowHost.style.display !== 'block' ||
-            window.getComputedStyle(shadowHost).display === 'none' ||
-            shadowHost.style.opacity !== '1' ||
-            parseFloat(window.getComputedStyle(shadowHost).opacity) < 0.9
-          ) {
-            logMessage('[SidebarRecovery] Detected invisible sidebar with push mode enabled, forcing visibility');
-            shadowHost.style.display = 'block';
-            shadowHost.style.opacity = '1';
-            shadowHost.classList.add('initialized');
-
-            // OPTIMIZATION: Don't force a re-render unless absolutely necessary
-            // The sidebar content should automatically update through React state management
-            logMessage(
-              '[SidebarRecovery] Sidebar visibility restored - skipping re-render to avoid performance issues',
-            );
-            // sidebarManager.refreshContent();
-          }
-        } else {
-          // If shadow host doesn't exist but push mode is enabled,
-          // try to re-initialize the sidebar
-          logMessage('[SidebarRecovery] Push mode enabled but shadow host missing, re-initializing sidebar');
-          sidebarManager.initialize().then(() => {
-            sidebarManager.show();
-          });
-        }
-      }
-    } catch (error) {
-      logger.error('[SidebarRecovery] Error:', error);
-    }
-  }, 1000); // Check every second
-
-  // Clean up when navigating away
-  // pagehide is supported on restricted pages where unload is disallowed.
-  window.addEventListener('pagehide', event => {
-    // Keep the interval while the page is in the back-forward cache.
-    if (!event.persisted) {
-      stopSidebarRecovery();
-    }
-  });
-
-  logMessage('[SidebarRecovery] Sidebar recovery mechanism set up');
-}
 
 /**
  * Content Script Entry Point - Session 10 Implementation
@@ -178,7 +107,6 @@ async function teardownExtensionForCurrentSite(): Promise<void> {
   logMessage(`[Content Script] Disabling MCP-Interceptor on ${window.location.hostname}...`);
   isExtensionActiveOnSite = false;
   rendererInitialized = false;
-  stopSidebarRecovery();
 
   try {
     stopDirectMonitoring();
@@ -203,7 +131,7 @@ async function teardownExtensionForCurrentSite(): Promise<void> {
     logger.warn('Error during application cleanup on site disable:', error);
   }
 
-  // Ensure any injected UI containers or push-mode styles are removed cleanly
+  // Ensure any injected UI containers or residual styles are removed cleanly
   try {
     document.documentElement.classList.remove('push-mode-enabled');
     document.documentElement.style.removeProperty('--sidebar-width-mcp');
@@ -226,8 +154,6 @@ async function startExtensionForCurrentSite(): Promise<void> {
 
   isExtensionActiveOnSite = true;
   hasInitializedOnce = true;
-
-  setupSidebarRecovery();
 
   try {
     initializeRenderer();

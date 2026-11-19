@@ -50,8 +50,7 @@ const initialUserPreferences: UserPreferences = {
   notifications: true,
   theme: 'system', // Default theme
   language: navigator.language || 'en-US',
-  isPushMode: false,
-  sidebarWidth: 320,
+  sidebarWidth: 380,
   isMinimized: false,
   customInstructions: '',
   customInstructionsEnabled: false,
@@ -303,7 +302,7 @@ export const useUIStore = create<UIState>()(
           logger.debug(`MCP toggle set to ${enabled}. Reason: ${reason || 'user action'}`);
 
           // When disabling MCP, hide sidebar. When re-enabling MCP after it was hidden,
-          // restore sidebar visibility so push mode and sidebar controls stay synchronized.
+          // restore sidebar visibility so sidebar controls stay synchronized.
           if (enabled !== previousState) {
             if (!enabled) {
               get().setSidebarVisibility(false, reason || 'mcp-toggle');

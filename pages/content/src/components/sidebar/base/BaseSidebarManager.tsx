@@ -8,13 +8,6 @@ import {
   applyLightMode,
   injectTailwindToShadowDom,
 } from '@src/utils/shadowDom';
-import {
-  applyPushModeDomStyles,
-  clearPushModeDomStyles,
-  ensurePushModeStylesheet,
-  isPushModeDomIntact,
-  updatePushModeDomWidth,
-} from './pushMode';
 import '@src/components/sidebar/styles/sidebar.css';
 
 /**
@@ -34,11 +27,6 @@ export abstract class BaseSidebarManager {
   protected siteType: SiteType;
   protected shadowHost: HTMLDivElement | null = null;
   protected shadowRoot: ShadowRoot | null = null;
-  protected _isPushContentMode: boolean = false;
-  protected _pushModeWidth: number = 320;
-  protected _isPushModeCollapsed: boolean = false;
-  private _pushModeObserver: MutationObserver | null = null;
-  private _isApplyingPushModeStyles: boolean = false;
   private _initializationPromise: Promise<void> | null = null;
   private _isInitialized = false;
 
@@ -96,174 +84,6 @@ export abstract class BaseSidebarManager {
   }
 
   /**
-   * Set push content mode
-   * This is the single source of truth for push mode functionality
-   * @param enabled Whether push mode should be enabled
-   * @param sidebarWidth Optional width of the sidebar (for collapsed state handling)
-   * @param isCollapsed Optional flag indicating if the sidebar is collapsed
-   */
-  public setPushContentMode(enabled: boolean, sidebarWidth?: number, isCollapsed?: boolean): void {
-    this._isPushContentMode = enabled;
-
-    // Ensure push mode stylesheet exists before applying classes/variables
-    this.ensurePushModeStyles();
-
-    if (enabled) {
-      const collapsed = !!isCollapsed;
-      const width = collapsed ? 56 : sidebarWidth || this._pushModeWidth || 320;
-      this._pushModeWidth = width;
-      this._isPushModeCollapsed = collapsed;
-
-      this._isApplyingPushModeStyles = true;
-      try {
-        applyPushModeDomStyles(width, collapsed);
-      } finally {
-        this._isApplyingPushModeStyles = false;
-      }
-      this.startPushModeObserver();
-
-      // Debug logging to verify styles are applied
-      logMessage(`[BaseSidebarManager] Push mode enabled with width: ${width}px`);
-      logMessage(
-        `[BaseSidebarManager] Applied styles - margin-right: ${document.documentElement.style.marginRight}, width: ${document.documentElement.style.width}`,
-      );
-      logMessage(`[BaseSidebarManager] HTML classes: ${document.documentElement.className}`);
-
-      // When push mode is enabled, ensure the sidebar is visible
-      if (!this._isVisible || (this.shadowHost && this.shadowHost.style.display !== 'block')) {
-        logMessage('[BaseSidebarManager] Push mode enabled but sidebar not visible, showing sidebar');
-        // Use a non-async version of show to ensure immediate visibility
-        this.forceVisibility();
-      }
-    } else {
-      this.removePushModeStyles();
-    }
-
-    logMessage(`BaseSidebarManager: Push mode ${enabled ? 'enabled' : 'disabled'}`);
-  }
-
-  /**
-   * Force sidebar to be visible immediately (non-async version of show)
-   * Used in emergency situations when we must ensure visibility
-   */
-  private forceVisibility(): void {
-    if (!this._isInitialized) {
-      logMessage('[BaseSidebarManager] Cannot force visibility: not initialized');
-      return;
-    }
-
-    if (!this.shadowHost) {
-      logMessage('[BaseSidebarManager] Cannot force visibility: no shadow host');
-      return;
-    }
-
-    this._isVisible = true;
-    this.shadowHost.style.display = 'block';
-    this.shadowHost.style.opacity = '1';
-    this.shadowHost.classList.add('initialized');
-
-    // Remove any transition classes to ensure immediate visibility
-    this.shadowHost.classList.remove('showing');
-
-    // Force browser reflow
-    void this.shadowHost.offsetHeight;
-
-    // Render content
-    this.render();
-
-    logMessage('[BaseSidebarManager] Forced sidebar visibility');
-  }
-
-  /**
-   * Update push mode styles for resize operations
-   * @param width The new width of the sidebar
-   */
-  public updatePushModeStyles(width: number): void {
-    if (this._isPushContentMode) {
-      this._pushModeWidth = width;
-      this._isApplyingPushModeStyles = true;
-      try {
-        updatePushModeDomWidth(width);
-      } finally {
-        this._isApplyingPushModeStyles = false;
-      }
-      logMessage(`[BaseSidebarManager] Updated push mode styles to width: ${width}px`);
-    }
-  }
-
-  /**
-   * Remove all push mode styles (used for cleanup)
-   */
-  public removePushModeStyles(): void {
-    this.stopPushModeObserver();
-    this._isApplyingPushModeStyles = true;
-    try {
-      clearPushModeDomStyles();
-    } finally {
-      this._isApplyingPushModeStyles = false;
-    }
-  }
-
-  /**
-   * Observe host page mutations that clear or overwrite push mode classes/styles
-   * (e.g., React hydration or theme toggles on html/body) and self-heal them.
-   */
-  private startPushModeObserver(): void {
-    if (this._pushModeObserver || typeof MutationObserver === 'undefined') {
-      return;
-    }
-
-    this._pushModeObserver = new MutationObserver(() => {
-      if (this._isApplyingPushModeStyles || !this._isPushContentMode) {
-        return;
-      }
-
-      if (!isPushModeDomIntact(this._pushModeWidth, this._isPushModeCollapsed)) {
-        this._isApplyingPushModeStyles = true;
-        try {
-          ensurePushModeStylesheet();
-          applyPushModeDomStyles(this._pushModeWidth, this._isPushModeCollapsed);
-          logMessage('[BaseSidebarManager] Re-applied push mode styles after host DOM update');
-        } finally {
-          this._isApplyingPushModeStyles = false;
-        }
-      }
-    });
-
-    this._pushModeObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class', 'style'],
-    });
-    if (document.body) {
-      this._pushModeObserver.observe(document.body, {
-        attributes: true,
-        attributeFilter: ['style'],
-      });
-    }
-  }
-
-  private stopPushModeObserver(): void {
-    if (this._pushModeObserver) {
-      this._pushModeObserver.disconnect();
-      this._pushModeObserver = null;
-    }
-  }
-
-  /**
-   * Ensures that push mode styles are added to the document
-   */
-  private ensurePushModeStyles(): void {
-    ensurePushModeStylesheet();
-  }
-
-  /**
-   * Get current push content mode state
-   */
-  public getPushContentMode(): boolean {
-    return this._isPushContentMode;
-  }
-
-  /**
    * Get whether the sidebar is currently visible
    */
   public getIsVisible(): boolean {
@@ -314,14 +134,18 @@ export abstract class BaseSidebarManager {
           });
         }
 
-        // Create and setup the shadow host
+        // Create and setup the shadow host as a zero-sized anchor so fixed children inside
+        // the shadow DOM use the viewport cleanly and never block clicks across a 100vh strip.
         this.shadowHost = document.createElement('div');
         this.shadowHost.id = 'mcp-sidebar-shadow-host';
         this.shadowHost.style.position = 'fixed';
         this.shadowHost.style.top = '0';
         this.shadowHost.style.right = '0';
+        this.shadowHost.style.width = '0px';
+        this.shadowHost.style.height = '0px';
+        this.shadowHost.style.overflow = 'visible';
+        this.shadowHost.style.transform = 'none';
         this.shadowHost.style.zIndex = '9999';
-        this.shadowHost.style.height = '100vh';
         this.shadowHost.style.pointerEvents = 'none'; // Allow clicks 'through' the host
         this.shadowHost.style.display = 'none'; // Initialize as hidden
         // Add specific attributes for Shadow DOM targeting
@@ -337,9 +161,10 @@ export abstract class BaseSidebarManager {
         // Create container for React
         this.container = document.createElement('div');
         this.container.id = 'sidebar-container';
-        this.container.style.pointerEvents = 'auto';
-        this.container.style.height = '100%';
-        this.container.style.width = '100%';
+        this.container.style.pointerEvents = 'none';
+        this.container.style.height = '0px';
+        this.container.style.width = '0px';
+        this.container.style.overflow = 'visible';
         this.shadowRoot.appendChild(this.container);
 
         // Inject CSS into Shadow DOM - make this completely non-blocking
@@ -412,12 +237,13 @@ export abstract class BaseSidebarManager {
       return;
     }
 
-    // Now safe to set visible and render with enhanced animations
+    // Now safe to set visible and render without applying transform on the shadow host
+    // (any non-none transform would turn the host into a containing block for fixed children).
     if (this.shadowHost) {
       // Start with immediate visibility but with opacity 0 for smooth transition
       this.shadowHost.style.display = 'block';
       this.shadowHost.style.opacity = '0';
-      this.shadowHost.style.transform = 'translateX(30px) scale(0.95)';
+      this.shadowHost.style.transform = 'none';
 
       // Add showing class for CSS animations
       this.shadowHost.classList.add('showing');
@@ -428,10 +254,9 @@ export abstract class BaseSidebarManager {
       // Trigger the smooth appearance animation
       requestAnimationFrame(() => {
         if (this.shadowHost) {
-          this.shadowHost.style.transition =
-            'opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)';
+          this.shadowHost.style.transition = 'opacity 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
           this.shadowHost.style.opacity = '1';
-          this.shadowHost.style.transform = 'translateX(0) scale(1)';
+          this.shadowHost.style.transform = 'none';
 
           // Add initialized class after animation starts
           setTimeout(() => {
@@ -463,28 +288,24 @@ export abstract class BaseSidebarManager {
       this.shadowHost.classList.remove('initialized', 'showing');
 
       // Start the hiding animation
-      this.shadowHost.style.transition =
-        'opacity 0.3s cubic-bezier(0.55, 0.085, 0.68, 0.53), transform 0.3s cubic-bezier(0.55, 0.085, 0.68, 0.53)';
+      this.shadowHost.style.transition = 'opacity 0.25s cubic-bezier(0.55, 0.085, 0.68, 0.53)';
       this.shadowHost.style.opacity = '0';
-      this.shadowHost.style.transform = 'translateX(20px) scale(0.98)';
+      this.shadowHost.style.transform = 'none';
 
       // After animation completes, hide completely
       setTimeout(() => {
         if (this.shadowHost) {
           this.shadowHost.style.display = 'none';
           this.shadowHost.classList.remove('hiding');
-          // Reset transform for next show
-          this.shadowHost.style.transform = '';
+          // Keep transform disabled so fixed children anchor to the viewport
+          this.shadowHost.style.transform = 'none';
           logMessage('[BaseSidebarManager] Sidebar hidden with smooth animation');
         }
-      }, 300);
+      }, 260);
     }
 
     const previouslyVisible = this._isVisible;
     this._isVisible = false;
-
-    // Ensure push mode is explicitly turned off when hiding
-    this.setPushContentMode(false);
 
     if (previouslyVisible) {
       logMessage('[BaseSidebarManager] Sidebar hidden (was previously visible).');
@@ -542,9 +363,6 @@ export abstract class BaseSidebarManager {
    */
   public destroy(): void {
     window.removeEventListener('mcpToolsUpdated', this.handleToolsUpdated);
-
-    // Ensure all push mode styles are removed
-    this.removePushModeStyles();
 
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);

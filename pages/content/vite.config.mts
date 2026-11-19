@@ -2,7 +2,7 @@ import { build as bundleEntry } from 'esbuild';
 import { resolve } from 'node:path';
 import { makeEntryPointPlugin } from '@extension/hmr';
 import { withPageConfig } from '@extension/vite-config';
-import { IS_DEV } from '@extension/env';
+import env, { IS_DEV } from '@extension/env';
 import tailwindcss from 'tailwindcss';
 import autoprefixer from 'autoprefixer';
 
@@ -30,6 +30,10 @@ export default withPageConfig({
           format: 'iife',
           minify: !IS_DEV,
           platform: 'browser',
+          define: {
+            'process.env.NODE_ENV': JSON.stringify(IS_DEV ? 'development' : 'production'),
+            'process.env': JSON.stringify(env),
+          },
         });
         this.emitFile({ type: 'asset', fileName: 'index.iife.js', source: result.outputFiles[0].text });
       },

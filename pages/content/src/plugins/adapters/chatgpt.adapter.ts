@@ -211,47 +211,162 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
     }
 
     try {
-      // Store the original content
-      const originalContent = targetElement.textContent || '';
-
-      // Focus the input element
       targetElement.focus();
 
-      // For ProseMirror editor, we need to handle the content differently
+      // Handle textarea/input elements if ChatGPT renders standard inputs
+      if (targetElement instanceof HTMLTextAreaElement || targetElement instanceof HTMLInputElement) {
+        const currentText = targetElement.value || '';
+        const separator = currentText.trim() ? '\n\n' : '';
+        const newContent = currentText + separator + text;
+
+        const prototype =
+          targetElement instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+        const nativeValueSetter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
+        const tracker = (
+          targetElement as HTMLElement & {
+            _valueTracker?: { setValue: (value: string) => void };
+          }
+        )._valueTracker;
+
+        tracker?.setValue(targetElement.value);
+        if (nativeValueSetter) {
+          nativeValueSetter.call(targetElement, newContent);
+        } else {
+          targetElement.value = newContent;
+        }
+
+        targetElement.selectionStart = targetElement.selectionEnd = newContent.length;
+        targetElement.dispatchEvent(
+          new InputEvent('input', {
+            bubbles: true,
+            composed: true,
+            inputType: 'insertText',
+            data: separator + text,
+          }),
+        );
+        targetElement.dispatchEvent(new Event('change', { bubbles: true }));
+        this.emitExecutionCompleted(
+          'insertText',
+          { text },
+          {
+            success: true,
+            originalLength: currentText.length,
+            newLength: text.length,
+            totalLength: newContent.length,
+          },
+        );
+        return true;
+      }
+
+      // For ProseMirror editor (contenteditable)
+      // Store the original content
+      const originalContent = targetElement.textContent || '';
+      const hasExisting = originalContent.trim().length > 0;
+      const separator = hasExisting ? '\n\n' : '';
+      const textToInsert = separator + text;
+      const newContent = hasExisting ? originalContent + separator + text : text;
+
       // Remove placeholder if present
       const placeholder = targetElement.querySelector('[data-placeholder]');
       if (placeholder) {
         placeholder.remove();
       }
 
-      // Create a new paragraph element with the text
-      const newContent = originalContent ? originalContent + '\n' + text : text;
+      let inserted = false;
 
-      if (typeof InputEvent === 'function') {
-        targetElement.dispatchEvent(
-          new InputEvent('beforeinput', {
-            bubbles: true,
-            composed: true,
-            cancelable: true,
-            inputType: 'insertText',
-            data: newContent,
-          }),
-        );
+      // Method 1: Simulate paste event with DataTransfer (native ProseMirror clipboard parser)
+      try {
+        if (typeof document.createRange === 'function' && typeof window.getSelection === 'function') {
+          const selection = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(targetElement);
+          range.collapse(false);
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+        }
+
+        const dataTransfer = new DataTransfer();
+        dataTransfer.setData('text/plain', textToInsert);
+        const pasteEvent = new ClipboardEvent('paste', {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          clipboardData: dataTransfer,
+        });
+        targetElement.dispatchEvent(pasteEvent);
+
+        const checkSnippet = text.trim().slice(0, Math.min(20, text.trim().length));
+        if (checkSnippet && (targetElement.textContent || '').includes(checkSnippet)) {
+          inserted = true;
+          this.context.logger.debug('Text inserted into ChatGPT via ClipboardEvent paste');
+        }
+      } catch (pasteErr) {
+        this.context.logger.warn('Paste event simulation failed:', pasteErr);
       }
 
-      // Clear existing content and insert new content
-      targetElement.innerHTML = '';
-      const paragraph = document.createElement('p');
-      paragraph.textContent = newContent;
-      targetElement.appendChild(paragraph);
+      // Method 2: Fall back to line-by-line execCommand with insertLineBreak
+      if (!inserted) {
+        try {
+          if (typeof document.createRange === 'function' && typeof window.getSelection === 'function') {
+            const selection = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(targetElement);
+            range.collapse(false);
+            selection?.removeAllRanges();
+            selection?.addRange(range);
+          }
+
+          const lines = textToInsert.split(/\r?\n/);
+          for (let i = 0; i < lines.length; i++) {
+            if (i > 0) {
+              document.execCommand('insertLineBreak', false);
+            }
+            if (lines[i].length > 0) {
+              document.execCommand('insertText', false, lines[i]);
+            }
+          }
+
+          const checkSnippet = text.trim().slice(0, Math.min(20, text.trim().length));
+          if (checkSnippet && (targetElement.textContent || '').includes(checkSnippet)) {
+            inserted = true;
+            this.context.logger.debug('Text inserted into ChatGPT via line-by-line execCommand');
+          }
+        } catch (execErr) {
+          this.context.logger.warn('execCommand method failed:', execErr);
+        }
+      }
+
+      // Method 3: Structured ProseMirror DOM fallback (paragraphs with pre-wrap and trailing breaks)
+      if (!inserted) {
+        try {
+          targetElement.innerHTML = '';
+          const lines = newContent.split(/\r?\n/);
+          for (const line of lines) {
+            const p = document.createElement('p');
+            p.style.whiteSpace = 'pre-wrap';
+            if (line.length === 0) {
+              const br = document.createElement('br');
+              br.className = 'ProseMirror-trailingBreak';
+              p.appendChild(br);
+            } else {
+              p.textContent = line;
+            }
+            targetElement.appendChild(p);
+          }
+          inserted = true;
+          this.context.logger.debug('Text inserted into ChatGPT via structured paragraph DOM fallback');
+        } catch (domErr) {
+          this.context.logger.warn('DOM fallback method failed:', domErr);
+        }
+      }
 
       // Position cursor at the end of the inserted text
       if (typeof document.createRange === 'function' && typeof window.getSelection === 'function') {
         const range = document.createRange();
         const selection = window.getSelection();
-        if (selection && paragraph.firstChild) {
-          range.setStartAfter(paragraph.lastChild || paragraph);
-          range.collapse(true);
+        if (selection) {
+          range.selectNodeContents(targetElement);
+          range.collapse(false);
           selection.removeAllRanges();
           selection.addRange(range);
         }
@@ -264,7 +379,7 @@ export class ChatGPTAdapter extends BaseAdapterPlugin {
               bubbles: true,
               composed: true,
               inputType: 'insertText',
-              data: newContent,
+              data: textToInsert,
             })
           : new Event('input', { bubbles: true });
       targetElement.dispatchEvent(inputEvent);

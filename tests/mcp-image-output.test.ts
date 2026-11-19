@@ -14,15 +14,6 @@ import {
 } from '../pages/content/src/render_prescript/src/renderer/resultActions.ts';
 
 import {
-  PUSH_MODE_STYLE_ID,
-  applyPushModeDomStyles,
-  clearPushModeDomStyles,
-  ensurePushModeStylesheet,
-  getPushModeStylesheetText,
-  isPushModeDomIntact,
-  updatePushModeDomWidth,
-} from '../pages/content/src/components/sidebar/base/pushMode.ts';
-import {
   MAX_MCP_IMAGE_BYTES,
   MAX_MCP_IMAGE_COUNT,
   normalizeToolResultContent,
@@ -320,92 +311,3 @@ try {
   globalThis.getComputedStyle = previousComputedStyle;
 }
 console.log('ChatGPT active-composer regression tests: passed');
-
-// Push content mode regression tests for full-viewport layouts like ChatGPT (.w-screen)
-const createMockStyle = () => {
-  const props = new Map<string, string>();
-  return {
-    setProperty: (name: string, value: string) => {
-      props.set(name, value);
-    },
-    removeProperty: (name: string) => {
-      props.delete(name);
-    },
-    getPropertyValue: (name: string) => props.get(name) ?? '',
-  };
-};
-
-const createMockClassList = (initial: string[] = []) => {
-  const classes = new Set<string>(initial);
-  return {
-    add: (...tokens: string[]) => tokens.forEach(token => classes.add(token)),
-    remove: (...tokens: string[]) => tokens.forEach(token => classes.delete(token)),
-    contains: (token: string) => classes.has(token),
-  };
-};
-
-const headChildren: Array<{ id?: string; textContent: string | null }> = [];
-const mockHtml = {
-  style: createMockStyle(),
-  classList: createMockClassList(['push-mode-transform']),
-};
-mockHtml.style.setProperty('transform', 'translateX(-320px)');
-const mockBody = {
-  style: createMockStyle(),
-};
-const mockDoc = {
-  documentElement: mockHtml,
-  body: mockBody,
-  head: {
-    appendChild: (el: { id?: string; textContent: string | null }) => {
-      headChildren.push(el);
-      return el;
-    },
-  },
-  getElementById: (id: string) => headChildren.find(el => el.id === id) ?? null,
-  createElement: () => ({ id: '', textContent: '' }),
-} as unknown as Document;
-
-const pushCss = getPushModeStylesheetText();
-assert.equal(pushCss.includes('!important,'), false);
-assert.match(
-  pushCss,
-  /html\.push-mode-enabled[\s\S]*width:\s*calc\(100%\s*-\s*var\(--sidebar-width-mcp,\s*320px\)\)\s*!important/,
-);
-assert.match(pushCss, /html\.push-mode-enabled\s+\.w-screen/);
-assert.match(pushCss, /html\.push-mode-enabled\s+body\s*>\s*div:not\(#mcp-sidebar-shadow-host\)/);
-assert.match(pushCss, /max-width:\s*100%\s*!important/);
-
-const styleEl = ensurePushModeStylesheet(mockDoc);
-assert.equal(styleEl?.id, PUSH_MODE_STYLE_ID);
-assert.equal(headChildren.length, 1);
-ensurePushModeStylesheet(mockDoc);
-assert.equal(headChildren.length, 1);
-
-applyPushModeDomStyles(360, false, mockDoc);
-assert.equal(mockHtml.classList.contains('push-mode-transform'), false);
-assert.equal(mockHtml.style.getPropertyValue('transform'), '');
-assert.equal(mockHtml.style.getPropertyValue('--sidebar-width-mcp'), '360px');
-assert.equal(mockHtml.style.getPropertyValue('margin-right'), '360px');
-assert.equal(mockHtml.style.getPropertyValue('width'), 'calc(100% - 360px)');
-assert.equal(mockHtml.style.getPropertyValue('max-width'), 'calc(100% - 360px)');
-assert.equal(mockBody.style.getPropertyValue('width'), '100%');
-assert.equal(mockBody.style.getPropertyValue('max-width'), '100%');
-assert.equal(isPushModeDomIntact(360, false, mockDoc), true);
-
-// Host page clears class or body max-width -> detected as not intact and restored cleanly
-mockHtml.classList.remove('push-mode-enabled');
-assert.equal(isPushModeDomIntact(360, false, mockDoc), false);
-applyPushModeDomStyles(360, false, mockDoc);
-assert.equal(isPushModeDomIntact(360, false, mockDoc), true);
-
-updatePushModeDomWidth(420, mockDoc);
-assert.equal(isPushModeDomIntact(420, false, mockDoc), true);
-assert.equal(mockHtml.style.getPropertyValue('max-width'), 'calc(100% - 420px)');
-
-clearPushModeDomStyles(mockDoc);
-assert.equal(isPushModeDomIntact(420, false, mockDoc), false);
-assert.equal(mockHtml.style.getPropertyValue('--sidebar-width-mcp'), '');
-assert.equal(mockHtml.style.getPropertyValue('margin-right'), '');
-assert.equal(mockBody.style.getPropertyValue('max-width'), '');
-console.log('Push content mode regression tests: passed');

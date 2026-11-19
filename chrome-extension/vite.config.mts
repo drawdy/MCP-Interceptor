@@ -13,7 +13,8 @@ const srcDir = resolve(rootDir, 'src');
 const outDir = resolve(rootDir, '..', 'dist');
 export default defineConfig({
   define: {
-    'process.env': env,
+    'process.env.NODE_ENV': JSON.stringify(IS_DEV ? 'development' : 'production'),
+    'process.env': JSON.stringify(env),
   },
   envPrefix: ['VITE_', 'CEB_'],
   resolve: {

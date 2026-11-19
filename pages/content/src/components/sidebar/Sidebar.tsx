@@ -10,7 +10,7 @@ import Settings from './Settings/Settings';
 import { useMcpCommunication } from '@src/hooks/useMcpCommunication';
 import { logMessage } from '@src/utils/helpers';
 import { eventBus } from '@src/events/event-bus';
-import { Typography, Toggle, ToggleWithoutLabel, ResizeHandle, Icon, Button } from './ui';
+import { Typography, Toggle, ResizeHandle, Icon, Button } from './ui';
 import { cn } from '@src/lib/utils';
 import { Card, CardContent } from '@src/components/ui/card';
 import type { UserPreferences } from '@src/types/stores';
@@ -32,9 +32,88 @@ const checkActiveSidebarManager = (): boolean => {
 type Theme = 'light' | 'dark' | 'system';
 const THEME_CYCLE: Theme[] = ['light', 'dark', 'system']; // Define the cycle order
 
-// Define a constant for minimized width (should match BaseSidebarManager and CSS logic)
-const SIDEBAR_MINIMIZED_WIDTH = 56;
-const SIDEBAR_DEFAULT_WIDTH = 320;
+// Define constants for floating card dimensions and draggable positioning
+const CARD_DEFAULT_WIDTH = 380;
+const CARD_MIN_WIDTH = 320;
+const CARD_MAX_WIDTH = 580;
+const CARD_DEFAULT_HEIGHT = 600;
+const CARD_MIN_HEIGHT = 380;
+const CARD_MARGIN = 16;
+const FAB_SIZE = 44;
+const FAB_MARGIN = 12;
+const FAB_STORAGE_KEY = 'mcp-sidebar-fab-position';
+const PANEL_STORAGE_KEY = 'mcp-sidebar-panel-position';
+const DRAG_THRESHOLD = 5;
+
+interface FabPosition {
+  x: number;
+  y: number;
+}
+
+interface PanelPosition {
+  right: number;
+  top: number;
+  height?: number;
+}
+
+const clampFabPosition = (x: number, y: number): FabPosition => {
+  if (typeof window === 'undefined') return { x, y };
+  const maxX = Math.max(FAB_MARGIN, window.innerWidth - FAB_SIZE - FAB_MARGIN);
+  const maxY = Math.max(FAB_MARGIN, window.innerHeight - FAB_SIZE - FAB_MARGIN);
+  return {
+    x: Math.min(Math.max(FAB_MARGIN, x), maxX),
+    y: Math.min(Math.max(FAB_MARGIN, y), maxY),
+  };
+};
+
+const getDefaultFabPosition = (): FabPosition => {
+  if (typeof window === 'undefined') return { x: 16, y: 76 };
+  return clampFabPosition(window.innerWidth - FAB_SIZE - 16, 76);
+};
+
+const clampPanelPosition = (right: number, top: number, cardWidth: number, cardHeight: number): PanelPosition => {
+  if (typeof window === 'undefined') return { right, top, height: cardHeight };
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1024;
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 768;
+  const maxRight = Math.max(CARD_MARGIN, viewportWidth - cardWidth - CARD_MARGIN);
+  const maxTop = Math.max(CARD_MARGIN, viewportHeight - cardHeight - CARD_MARGIN);
+  const clampedHeight = Math.min(
+    Math.max(CARD_MIN_HEIGHT, cardHeight),
+    Math.max(CARD_MIN_HEIGHT, viewportHeight - CARD_MARGIN * 2),
+  );
+  return {
+    right: Math.min(Math.max(CARD_MARGIN, right), maxRight),
+    top: Math.min(Math.max(CARD_MARGIN, top), maxTop),
+    height: clampedHeight,
+  };
+};
+
+const getDefaultPanelPosition = (width: number, height: number): PanelPosition => {
+  if (typeof window === 'undefined') return { right: 20, top: 70, height };
+  return clampPanelPosition(20, 70, width, height);
+};
+
+const loadStoredPosition = <T,>(key: string, validate: (raw: Record<string, unknown>) => T | null): T | null => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      return validate(parsed as Record<string, unknown>);
+    }
+  } catch {
+    // Ignore storage access or malformed JSON errors
+  }
+  return null;
+};
+
+const saveStoredPosition = (key: string, value: unknown): void => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore storage write errors
+  }
+};
 
 interface SidebarProps {
   initialPreferences?: UserPreferences | null;
@@ -173,7 +252,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
     const monitorInterval = setInterval(() => {
       const available = checkActiveSidebarManager();
       if (!available) {
-        logMessage('[Sidebar] WARNING: activeSidebarManager reference lost - this may cause push mode issues');
+        logMessage('[Sidebar] WARNING: activeSidebarManager reference lost');
       }
     }, 2000); // Check every 2 seconds
 
@@ -257,16 +336,16 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
 
   // Use store values with fallbacks to initial preferences
   const isMinimized = storeSidebarMinimized ?? initialPreferences?.isMinimized ?? false;
-  const sidebarWidth = storeSidebarWidth || initialPreferences?.sidebarWidth || SIDEBAR_DEFAULT_WIDTH;
-  const isPushMode = preferences.isPushMode ?? initialPreferences?.isPushMode ?? false;
+  const cardWidth = Math.max(
+    CARD_MIN_WIDTH,
+    Math.min(CARD_MAX_WIDTH, storeSidebarWidth || initialPreferences?.sidebarWidth || CARD_DEFAULT_WIDTH),
+  );
   const autoSubmit = preferences.autoSubmit ?? initialPreferences?.autoSubmit ?? false;
 
   // Debug logging for state tracking
   useEffect(() => {
-    logMessage(
-      `[Sidebar] State update - visible: ${sidebarVisible}, minimized: ${isMinimized}, pushMode: ${isPushMode}, width: ${sidebarWidth}`,
-    );
-  }, [sidebarVisible, isMinimized, isPushMode, sidebarWidth]);
+    logMessage(`[Sidebar] State update - visible: ${sidebarVisible}, minimized: ${isMinimized}, width: ${cardWidth}`);
+  }, [sidebarVisible, isMinimized, cardWidth]);
 
   // Local UI state that doesn't need to be in the store
   const [activeTab, setActiveTab] = useState<'availableTools' | 'instructions' | 'settings'>('availableTools');
@@ -274,11 +353,67 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isInputMinimized, setIsInputMinimized] = useState(false);
 
+  const [fabPosition, setFabPosition] = useState<FabPosition>(() => {
+    const stored = loadStoredPosition<FabPosition>(FAB_STORAGE_KEY, raw =>
+      typeof raw.x === 'number' && Number.isFinite(raw.x) && typeof raw.y === 'number' && Number.isFinite(raw.y)
+        ? clampFabPosition(raw.x, raw.y)
+        : null,
+    );
+    return stored ?? getDefaultFabPosition();
+  });
+  const [isDraggingFab, setIsDraggingFab] = useState(false);
+
+  const [panelPosition, setPanelPosition] = useState<PanelPosition>(() => {
+    const defaultPos = getDefaultPanelPosition(cardWidth, CARD_DEFAULT_HEIGHT);
+    const stored = loadStoredPosition<PanelPosition>(PANEL_STORAGE_KEY, raw => {
+      const right = typeof raw.right === 'number' && Number.isFinite(raw.right) ? raw.right : null;
+      const top = typeof raw.top === 'number' && Number.isFinite(raw.top) ? raw.top : null;
+      const height = typeof raw.height === 'number' && Number.isFinite(raw.height) ? raw.height : CARD_DEFAULT_HEIGHT;
+      if (right === null || top === null) return null;
+      const initialRight = right === 0 && top === 0 ? 20 : right;
+      const initialTop = right === 0 && top === 0 ? 70 : top;
+      return clampPanelPosition(initialRight, initialTop, cardWidth, height);
+    });
+    return stored ?? defaultPos;
+  });
+  const [isDraggingPanel, setIsDraggingPanel] = useState(false);
+
+  const cardHeight = panelPosition.height ?? CARD_DEFAULT_HEIGHT;
+
   const sidebarRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
-  const previousWidthRef = useRef(SIDEBAR_DEFAULT_WIDTH);
+  const previousWidthRef = useRef(CARD_DEFAULT_WIDTH);
   const transitionTimerRef = useRef<number | null>(null);
+  const fabDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+    dragged: boolean;
+  } | null>(null);
+  const suppressNextFabClickRef = useRef(false);
+  const panelDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originRight: number;
+    originTop: number;
+    dragged: boolean;
+  } | null>(null);
+
+  // Keep draggable positions within the visible viewport on window resize or sidebar dimensions changes
+  useEffect(() => {
+    const handleViewportResize = () => {
+      setFabPosition(prev => clampFabPosition(prev.x, prev.y));
+      setPanelPosition(prev => clampPanelPosition(prev.right, prev.top, cardWidth, prev.height ?? CARD_DEFAULT_HEIGHT));
+    };
+
+    handleViewportResize();
+    window.addEventListener('resize', handleViewportResize);
+    return () => window.removeEventListener('resize', handleViewportResize);
+  }, [cardWidth]);
 
   // Helper function to wait for SidebarManager to become available with retry mechanism
   const waitForSidebarManager = useCallback(async (maxRetries = 10, baseDelay = 50): Promise<any> => {
@@ -405,80 +540,6 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
   //   // Track URL changes to clear detected tools on navigation
   //   let lastUrl = window.location.href;
 
-  // Apply push mode when settings change - with robust retry mechanism
-  useEffect(() => {
-    logMessage(
-      `[Sidebar] Push mode effect triggered - visible: ${sidebarVisible}, pushMode: ${isPushMode}, minimized: ${isMinimized}, width: ${sidebarWidth}`,
-    );
-
-    // Use async function to handle the retry mechanism
-    const applyPushModeSettings = async () => {
-      try {
-        // Wait for SidebarManager to become available with retry
-        const sidebarManager = await waitForSidebarManager();
-
-        if (sidebarManager) {
-          logMessage(`[Sidebar] activeSidebarManager available: true`);
-
-          try {
-            // Apply push mode settings when visible
-            if (sidebarVisible) {
-              logMessage(
-                `[Sidebar] Applying push mode (${isPushMode}, minimized: ${isMinimized}) and width (${sidebarWidth})`,
-              );
-              sidebarManager.setPushContentMode(
-                isPushMode,
-                isMinimized ? SIDEBAR_MINIMIZED_WIDTH : sidebarWidth,
-                isMinimized,
-              );
-            } else {
-              // Ensure push mode is disabled when sidebar is hidden
-              logMessage('[Sidebar] Disabling push mode - sidebar not visible');
-              sidebarManager.setPushContentMode(false);
-            }
-          } catch (error) {
-            logMessage(
-              `[Sidebar] Error applying push mode settings: ${error instanceof Error ? error.message : String(error)}`,
-            );
-          }
-        } else {
-          logMessage('[Sidebar] activeSidebarManager not available after retries - cannot apply push mode');
-        }
-      } catch (error) {
-        logMessage(
-          `[Sidebar] Error in push mode application process: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-    };
-
-    // Execute the async function
-    applyPushModeSettings();
-  }, [isPushMode, sidebarWidth, isMinimized, sidebarVisible, waitForSidebarManager]);
-
-  // Cleanup: Ensure push mode is disabled when component unmounts - with retry mechanism
-  useEffect(() => {
-    return () => {
-      // Use async cleanup with retry mechanism
-      const cleanupPushMode = async () => {
-        try {
-          const sidebarManager = await waitForSidebarManager(5, 50); // Shorter retry for cleanup
-          if (sidebarManager) {
-            logMessage('[Sidebar] Component unmounting - disabling push mode');
-            sidebarManager.setPushContentMode(false);
-          } else {
-            logMessage('[Sidebar] Component unmounting - could not access SidebarManager for cleanup');
-          }
-        } catch (error) {
-          logMessage(
-            `[Sidebar] Error during push mode cleanup: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
-      };
-
-      cleanupPushMode();
-    };
-  }, [waitForSidebarManager]);
-
   // Simple transition management
   const startTransition = () => {
     // Clear any existing timer
@@ -532,27 +593,23 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
         }
       }
 
-      // Enforce minimum width constraint
-      const constrainedWidth = Math.max(SIDEBAR_DEFAULT_WIDTH, width);
-
-      // Update push mode styles if enabled
-      if (isPushMode) {
-        try {
-          const sidebarManager = (window as any).activeSidebarManager;
-          if (sidebarManager && typeof sidebarManager.updatePushModeStyles === 'function') {
-            sidebarManager.updatePushModeStyles(constrainedWidth);
-          }
-        } catch (error) {
-          logMessage(
-            `[Sidebar] Error updating push mode styles: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
-      }
+      // Enforce width constraints
+      const constrainedWidth = Math.max(CARD_MIN_WIDTH, Math.min(CARD_MAX_WIDTH, width));
 
       // Debounce the state update for better performance
       if (window.requestAnimationFrame) {
         window.requestAnimationFrame(() => {
           resizeSidebar(constrainedWidth);
+          setPanelPosition(prev => {
+            const clamped = clampPanelPosition(
+              prev.right,
+              prev.top,
+              constrainedWidth,
+              prev.height ?? CARD_DEFAULT_HEIGHT,
+            );
+            saveStoredPosition(PANEL_STORAGE_KEY, clamped);
+            return clamped;
+          });
 
           // End resize after a short delay
           if (transitionTimerRef.current !== null) {
@@ -574,12 +631,268 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
         resizeSidebar(constrainedWidth);
       }
     },
-    [isPushMode],
+    [resizeSidebar],
   );
 
-  const handlePushModeToggle = (checked: boolean) => {
-    updatePreferences({ isPushMode: checked });
-    logMessage(`[Sidebar] Push mode ${checked ? 'enabled' : 'disabled'}`);
+  const handleFabPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    fabDragRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      originX: fabPosition.x,
+      originY: fabPosition.y,
+      dragged: false,
+    };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore environments where synthetic events lack active pointer capture
+    }
+  };
+
+  const handleFabPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = fabDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    if (!drag.dragged && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
+      drag.dragged = true;
+      setIsDraggingFab(true);
+    }
+
+    if (drag.dragged) {
+      setFabPosition(clampFabPosition(drag.originX + dx, drag.originY + dy));
+    }
+  };
+
+  const handleFabPointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = fabDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+
+    try {
+      if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Ignore release errors
+    }
+
+    if (drag.dragged) {
+      const finalPos = clampFabPosition(
+        drag.originX + (e.clientX - drag.startX),
+        drag.originY + (e.clientY - drag.startY),
+      );
+      setFabPosition(finalPos);
+      saveStoredPosition(FAB_STORAGE_KEY, finalPos);
+      suppressNextFabClickRef.current = true;
+      window.setTimeout(() => {
+        suppressNextFabClickRef.current = false;
+      }, 100);
+    }
+
+    fabDragRef.current = null;
+    setIsDraggingFab(false);
+  };
+
+  const handleFabClick = () => {
+    if (suppressNextFabClickRef.current) {
+      suppressNextFabClickRef.current = false;
+      return;
+    }
+    handleToggleMinimize();
+  };
+
+  const handlePanelPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('button, a, input, select, textarea, [role="button"]')) {
+      return;
+    }
+
+    e.preventDefault();
+    panelDragRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      originRight: panelPosition.right,
+      originTop: panelPosition.top,
+      dragged: false,
+    };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore synthetic events without active pointer capture
+    }
+  };
+
+  const handlePanelPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = panelDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    if (!drag.dragged && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
+      drag.dragged = true;
+      setIsDraggingPanel(true);
+    }
+
+    if (drag.dragged) {
+      setPanelPosition(clampPanelPosition(drag.originRight - dx, drag.originTop + dy, cardWidth, cardHeight));
+    }
+  };
+
+  const handlePanelPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = panelDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+
+    try {
+      if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Ignore release errors
+    }
+
+    if (drag.dragged) {
+      const finalPos = clampPanelPosition(
+        drag.originRight - (e.clientX - drag.startX),
+        drag.originTop + (e.clientY - drag.startY),
+        cardWidth,
+        cardHeight,
+      );
+      setPanelPosition(finalPos);
+      saveStoredPosition(PANEL_STORAGE_KEY, finalPos);
+    }
+
+    panelDragRef.current = null;
+    setIsDraggingPanel(false);
+  };
+
+  const bottomDragRef = useRef<{
+    pointerId: number;
+    startY: number;
+    startHeight: number;
+    dragged: boolean;
+  } | null>(null);
+
+  const cornerDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startWidth: number;
+    startHeight: number;
+    dragged: boolean;
+  } | null>(null);
+
+  const handleBottomPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    bottomDragRef.current = {
+      pointerId: e.pointerId,
+      startY: e.clientY,
+      startHeight: cardHeight,
+      dragged: false,
+    };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore
+    }
+  };
+
+  const handleBottomPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = bottomDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const dy = e.clientY - drag.startY;
+    if (!drag.dragged && Math.abs(dy) > DRAG_THRESHOLD) {
+      drag.dragged = true;
+    }
+    const newHeight = Math.max(CARD_MIN_HEIGHT, drag.startHeight + dy);
+    setPanelPosition(prev => clampPanelPosition(prev.right, prev.top, cardWidth, newHeight));
+  };
+
+  const handleBottomPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = bottomDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    try {
+      if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Ignore
+    }
+    if (drag.dragged) {
+      const finalHeight = Math.max(CARD_MIN_HEIGHT, drag.startHeight + (e.clientY - drag.startY));
+      setPanelPosition(prev => {
+        const clamped = clampPanelPosition(prev.right, prev.top, cardWidth, finalHeight);
+        saveStoredPosition(PANEL_STORAGE_KEY, clamped);
+        return clamped;
+      });
+    }
+    bottomDragRef.current = null;
+  };
+
+  const handleCornerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    cornerDragRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      startWidth: cardWidth,
+      startHeight: cardHeight,
+      dragged: false,
+    };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore
+    }
+  };
+
+  const handleCornerPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = cornerDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const dx = drag.startX - e.clientX; // drag left increases width
+    const dy = e.clientY - drag.startY; // drag down increases height
+    if (!drag.dragged && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
+      drag.dragged = true;
+    }
+    const newWidth = Math.max(CARD_MIN_WIDTH, Math.min(CARD_MAX_WIDTH, drag.startWidth + dx));
+    const newHeight = Math.max(CARD_MIN_HEIGHT, drag.startHeight + dy);
+    resizeSidebar(newWidth);
+    setPanelPosition(prev => clampPanelPosition(prev.right, prev.top, newWidth, newHeight));
+  };
+
+  const handleCornerPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = cornerDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    try {
+      if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Ignore
+    }
+    if (drag.dragged) {
+      const finalWidth = Math.max(
+        CARD_MIN_WIDTH,
+        Math.min(CARD_MAX_WIDTH, drag.startWidth + (drag.startX - e.clientX)),
+      );
+      const finalHeight = Math.max(CARD_MIN_HEIGHT, drag.startHeight + (e.clientY - drag.startY));
+      resizeSidebar(finalWidth);
+      setPanelPosition(prev => {
+        const clamped = clampPanelPosition(prev.right, prev.top, finalWidth, finalHeight);
+        saveStoredPosition(PANEL_STORAGE_KEY, clamped);
+        return clamped;
+      });
+    }
+    cornerDragRef.current = null;
   };
 
   const handleAutoSubmitToggle = (checked: boolean) => {
@@ -644,349 +957,394 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
   };
 
   return (
-    <div
-      ref={sidebarRef}
-      className={cn(
-        'fixed top-0 right-0 h-screen bg-white dark:bg-slate-900 shadow-lg z-50 flex flex-col border-l border-slate-200 dark:border-slate-700 sidebar',
-        isPushMode ? 'push-mode' : '',
-        isResizingRef.current ? 'resizing' : '',
-        isMinimized ? 'collapsed' : '',
-        isTransitioning ? 'sidebar-transitioning' : '',
-      )}
-      style={{ width: isMinimized ? `${SIDEBAR_MINIMIZED_WIDTH}px` : `${sidebarWidth}px` }}>
-      {/* Resize Handle - only visible when not minimized */}
-      {!isMinimized && (
-        <ResizeHandle
-          onResize={handleResize}
-          minWidth={SIDEBAR_DEFAULT_WIDTH}
-          maxWidth={500}
-          className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-indigo-400 dark:hover:bg-indigo-600 z-[60] transition-colors duration-300"
-        />
-      )}
-
-      {/* Header - Adjust content based on isMinimized */}
-      <div
-        className={cn(
-          'bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex-shrink-0 shadow-sm sidebar-header',
-          isMinimized ? 'p-3 flex items-center justify-center' : 'px-4 py-3 flex flex-col w-full',
-        )}>
-        {!isMinimized ? (
-          <>
-            {/* Row 1: Logo + Extension Name on the left, Minimize button on the right */}
-            <div className="flex items-center justify-between w-full">
-              <div className="flex items-center space-x-2.5 min-w-0">
-                <a
-                  href="https://github.com/drawdy/MCP-Interceptor"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="Visit MCP-Interceptor Repository"
-                  className="block flex-shrink-0">
-                  <img src={mcpIconUrl} alt="MCP Logo" className="w-7 h-7 rounded-md" />
-                </a>
-                <div className="flex items-center space-x-1 min-w-0">
-                  <a
-                    href="https://github.com/drawdy/MCP-Interceptor"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-slate-800 dark:text-slate-100 hover:text-slate-600 dark:hover:text-slate-300 transition-colors duration-150 no-underline"
-                    aria-label="Visit MCP-Interceptor Repository">
-                    <Typography variant="h4" className="font-bold text-base whitespace-nowrap">
-                      MCP-Interceptor
-                    </Typography>
-                  </a>
-                  <a
-                    href="https://github.com/drawdy/MCP-Interceptor"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors duration-150 flex-shrink-0"
-                    aria-label="Visit MCP-Interceptor Repository">
-                    <Icon name="arrow-up-right" size="xs" className="inline-block" />
-                  </a>
-                </div>
-              </div>
-              {/* Minimize Button */}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleToggleMinimize}
-                aria-label={t('Minimize sidebar', '收起侧边栏')}
-                title={t('Minimize sidebar', '收起侧边栏')}
-                className="h-7 w-7 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all duration-200 hover:scale-105 flex-shrink-0 -mr-1 ml-auto">
-                <Icon name="chevron-right" className="h-4 w-4 text-slate-700 dark:text-slate-300" />
-              </Button>
-            </div>
-
-            {/* Row 2: Language Switch & Theme Switch */}
-            <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between w-full text-xs">
-              {/* Language Switch */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('Language', '语言')}</span>
-                <div className="inline-flex items-center p-0.5 bg-slate-100 dark:bg-slate-700/60 rounded-md border border-slate-200/60 dark:border-slate-600/40">
-                  <button
-                    type="button"
-                    onClick={() => !isZh && toggleLanguage()}
-                    className={cn(
-                      'px-2 py-0.5 text-xs rounded transition-all font-medium',
-                      isZh
-                        ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs font-semibold'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200',
-                    )}>
-                    中文
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => isZh && toggleLanguage()}
-                    className={cn(
-                      'px-2 py-0.5 text-xs rounded transition-all font-medium',
-                      !isZh
-                        ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs font-semibold'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200',
-                    )}>
-                    EN
-                  </button>
-                </div>
-              </div>
-
-              {/* Theme Switch */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('Theme', '皮肤')}</span>
-                <div className="inline-flex items-center p-0.5 bg-slate-100 dark:bg-slate-700/60 rounded-md border border-slate-200/60 dark:border-slate-600/40">
-                  <button
-                    type="button"
-                    onClick={() => setTheme('light')}
-                    aria-label={t('Light theme', '浅色模式')}
-                    title={t('Light theme', '浅色模式')}
-                    className={cn(
-                      'p-1 text-xs rounded transition-all flex items-center justify-center',
-                      theme === 'light'
-                        ? 'bg-white dark:bg-slate-800 text-amber-500 dark:text-amber-400 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200',
-                    )}>
-                    <Icon name="sun" size="xs" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTheme('dark')}
-                    aria-label={t('Dark theme', '深色模式')}
-                    title={t('Dark theme', '深色模式')}
-                    className={cn(
-                      'p-1 text-xs rounded transition-all flex items-center justify-center',
-                      theme === 'dark'
-                        ? 'bg-white dark:bg-slate-800 text-indigo-400 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200',
-                    )}>
-                    <Icon name="moon" size="xs" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTheme('system')}
-                    aria-label={t('Follow system', '跟随系统')}
-                    title={t('Follow system', '跟随系统')}
-                    className={cn(
-                      'p-1 text-xs rounded transition-all flex items-center justify-center',
-                      theme === 'system'
-                        ? 'bg-white dark:bg-slate-800 text-blue-500 dark:text-blue-400 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200',
-                    )}>
-                    <Icon name="laptop" size="xs" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </>
-        ) : (
-          // Expand Button when minimized
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleToggleMinimize}
-            aria-label={t('Expand sidebar', '展开侧边栏')}
-            title={t('Expand sidebar', '展开侧边栏')}
-            className="mx-auto hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all duration-200 hover:scale-110">
-            <Icon name="chevron-left" className="h-4 w-4 text-slate-700 dark:text-slate-300" />
-          </Button>
-        )}
-      </div>
-
-      {/* Main Content Area - Using sliding panel approach */}
-      <div className="sidebar-inner-content flex-1 relative overflow-hidden bg-white dark:bg-slate-900">
-        {/* Virtual slide - content always at full width */}
-        <div
-          ref={contentRef}
+    <>
+      {isMinimized && (
+        <button
+          type="button"
+          onPointerDown={handleFabPointerDown}
+          onPointerMove={handleFabPointerMove}
+          onPointerUp={handleFabPointerUp}
+          onPointerCancel={handleFabPointerUp}
+          onClick={handleFabClick}
+          aria-label={t('Expand sidebar', '展开侧边栏')}
+          title={t('Click to expand MCP-Interceptor (drag to move)', '点击展开 MCP 侧边栏（按住可自由拖动）')}
           className={cn(
-            'absolute top-0 bottom-0 right-0 transition-transform duration-200 ease-in-out',
-            isMinimized ? 'translate-x-full' : 'translate-x-0',
-            isTransitioning ? 'will-change-transform' : '',
+            'mcp-floating-fab fixed z-[9999] flex items-center justify-center rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg hover:shadow-xl focus:outline-none',
+            isDraggingFab ? 'dragging cursor-grabbing scale-105' : 'cursor-grab',
           )}
-          style={{ width: `${sidebarWidth}px` }}>
-          <div className="flex flex-col h-full">
-            {/* Critical Error Display - Only show for severe failures, never block UI */}
-            {initializationError && (
-              <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 p-3 flex-shrink-0">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-start space-x-2">
-                    <Icon name="alert-triangle" size="sm" className="text-red-600 dark:text-red-400 mt-0.5" />
-                    <div className="flex-1">
-                      <Typography variant="subtitle" className="text-red-800 dark:text-red-200 font-medium">
-                        {extensionContextInvalid ? t('Extension Reloaded', '扩展已重新加载') : t('Warning', '警告')}
-                      </Typography>
-                      <Typography variant="caption" className="text-red-700 dark:text-red-300">
-                        {extensionContextInvalid
-                          ? t(
-                              'The extension was reloaded. Please refresh this page to restore full functionality.',
-                              '扩展已重新加载，请刷新当前页面以恢复完整功能。',
-                            )
-                          : t(
-                              `Some features may be limited: ${initializationError}`,
-                              `部分功能可能受限：${initializationError}`,
-                            )}
-                      </Typography>
-                      {extensionContextInvalid && (
-                        <div className="mt-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => window.location.reload()}
-                            className="border-red-300 dark:border-red-600 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-800 mr-2">
-                            {t('Refresh Page', '刷新页面')}
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {!extensionContextInvalid && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setInitializationError(null)}
-                      className="border-red-300 dark:border-red-600 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-800">
-                      {t('Dismiss', '忽略')}
-                    </Button>
-                  )}
-                </div>
-              </div>
+          style={{
+            left: `${fabPosition.x}px`,
+            top: `${fabPosition.y}px`,
+            width: `${FAB_SIZE}px`,
+            height: `${FAB_SIZE}px`,
+            pointerEvents: 'auto',
+          }}>
+          {mcpIconUrl ? (
+            <img
+              src={mcpIconUrl}
+              alt="MCP"
+              className="w-6 h-6 rounded-md pointer-events-none select-none"
+              draggable={false}
+            />
+          ) : (
+            <Icon name="tools" size="sm" className="text-indigo-600 dark:text-indigo-400 pointer-events-none" />
+          )}
+          <span
+            aria-hidden="true"
+            className={cn(
+              'absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white dark:border-slate-800 pointer-events-none',
+              serverStatus === 'connected' ? 'bg-emerald-500' : 'bg-slate-400',
             )}
+          />
+        </button>
+      )}
 
-            {/* Status and Settings section */}
-            <div className="py-4 px-4 space-y-4 overflow-y-auto flex-shrink-0">
-              <ServerStatus status={serverStatus} />
+      <div
+        ref={sidebarRef}
+        className={cn(
+          'fixed bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-2xl z-50 flex flex-col border border-slate-200 dark:border-slate-700/80 rounded-2xl sidebar overflow-hidden',
+          isResizingRef.current || isDraggingPanel ? 'resizing select-none' : '',
+          isMinimized ? 'collapsed' : '',
+          isTransitioning ? 'sidebar-transitioning' : '',
+        )}
+        style={
+          isMinimized
+            ? { display: 'none', width: `${cardWidth}px` }
+            : {
+                display: 'flex',
+                width: `${cardWidth}px`,
+                height: `${cardHeight}px`,
+                maxHeight: 'calc(100vh - 24px)',
+                maxWidth: 'calc(100vw - 24px)',
+                pointerEvents: 'auto',
+                top: `${panelPosition.top}px`,
+                right: `${panelPosition.right}px`,
+              }
+        }>
+        {/* Resize Handle - left edge for width */}
+        {!isMinimized && (
+          <ResizeHandle
+            onResize={handleResize}
+            minWidth={CARD_MIN_WIDTH}
+            maxWidth={CARD_MAX_WIDTH}
+            defaultWidth={cardWidth}
+            className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-indigo-400 dark:hover:bg-indigo-600 z-[60] transition-colors duration-200"
+          />
+        )}
 
-              {/* Settings */}
-              <Card className="sidebar-card border-slate-200 dark:border-slate-700 dark:bg-slate-800 flex-shrink-0 overflow-hidden rounded-lg shadow-sm transition-shadow duration-300">
-                <CardContent className="p-3 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Typography variant="subtitle" className="text-slate-700 dark:text-slate-300 font-medium">
-                      {t('Push Content Mode', '推挤页面内容模式')}
-                    </Typography>
-                    <ToggleWithoutLabel
-                      label={t('Push Content Mode', '推挤页面内容模式')}
-                      checked={isPushMode}
-                      onChange={handlePushModeToggle}
-                    />
+        {/* Resize Handle - bottom edge for height */}
+        {!isMinimized && (
+          <div
+            onPointerDown={handleBottomPointerDown}
+            onPointerMove={handleBottomPointerMove}
+            onPointerUp={handleBottomPointerUp}
+            onPointerCancel={handleBottomPointerUp}
+            className="absolute bottom-0 left-3 right-3 h-1.5 cursor-ns-resize hover:bg-indigo-400 dark:hover:bg-indigo-600 z-[60] transition-colors duration-200"
+          />
+        )}
+
+        {/* Resize Handle - bottom-left corner for width & height */}
+        {!isMinimized && (
+          <div
+            onPointerDown={handleCornerPointerDown}
+            onPointerMove={handleCornerPointerMove}
+            onPointerUp={handleCornerPointerUp}
+            onPointerCancel={handleCornerPointerUp}
+            className="absolute bottom-0 left-0 w-4 h-4 cursor-nesw-resize hover:bg-indigo-400/40 z-[61] rounded-bl-2xl transition-colors flex items-end justify-start p-1 text-slate-400 dark:text-slate-500 select-none pointer-events-auto"
+            title={t('Drag to resize', '拖动调整大小')}>
+            <svg width="6" height="6" viewBox="0 0 6 6" fill="currentColor" className="opacity-60">
+              <path d="M6 6H0L6 0V6Z" />
+            </svg>
+          </div>
+        )}
+
+        {/* Header - draggable card header */}
+        <div
+          onPointerDown={handlePanelPointerDown}
+          onPointerMove={handlePanelPointerMove}
+          onPointerUp={handlePanelPointerUp}
+          onPointerCancel={handlePanelPointerUp}
+          className={cn(
+            'bg-slate-50/90 dark:bg-slate-800/90 border-b border-slate-200/80 dark:border-slate-700/80 flex-shrink-0 shadow-sm sidebar-header px-4 pt-2 pb-3 flex flex-col w-full rounded-t-2xl',
+            isDraggingPanel ? 'cursor-grabbing select-none' : 'cursor-grab',
+          )}>
+          {!isMinimized && (
+            <>
+              {/* Drag indicator handle */}
+              <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-600 self-center mb-2 opacity-70 pointer-events-none" />
+
+              {/* Row 1: Logo + Extension Name on the left, Minimize button on the right */}
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center space-x-2.5 min-w-0">
+                  <a
+                    href="https://github.com/drawdy/MCP-Interceptor"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Visit MCP-Interceptor Repository"
+                    className="block flex-shrink-0">
+                    <img src={mcpIconUrl} alt="MCP Logo" className="w-7 h-7 rounded-md" />
+                  </a>
+                  <div className="flex items-center space-x-1 min-w-0">
+                    <a
+                      href="https://github.com/drawdy/MCP-Interceptor"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-slate-800 dark:text-slate-100 hover:text-slate-600 dark:hover:text-slate-300 transition-colors duration-150 no-underline"
+                      aria-label="Visit MCP-Interceptor Repository">
+                      <Typography variant="h4" className="font-bold text-base whitespace-nowrap">
+                        MCP-Interceptor
+                      </Typography>
+                    </a>
+                    <a
+                      href="https://github.com/drawdy/MCP-Interceptor"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors duration-150 flex-shrink-0"
+                      aria-label="Visit MCP-Interceptor Repository">
+                      <Icon name="arrow-up-right" size="xs" className="inline-block" />
+                    </a>
                   </div>
-                  {/* DEBUG BUTTON - ONLY FOR DEVELOPMENT - REMOVE IN PRODUCTION */}
-                  {process.env.NODE_ENV === 'development' && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full mt-2 border-slate-200 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
-                      onClick={() => {
-                        const shadowHost = (window as any).activeSidebarManager?.getShadowHost();
-                        if (shadowHost && shadowHost.shadowRoot) {
-                          logMessage('Shadow DOM debug requested');
-                          // Debug functionality removed - use browser dev tools instead
-                        } else {
-                          logMessage('Cannot debug: Shadow DOM not found');
-                        }
-                      }}>
-                      Debug Styles
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
+                </div>
+                {/* Minimize Button */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleToggleMinimize}
+                  aria-label={t('Minimize sidebar', '收起侧边栏')}
+                  title={t('Minimize sidebar', '收起侧边栏')}
+                  className="h-7 w-7 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all duration-200 hover:scale-105 flex-shrink-0 -mr-1 ml-auto">
+                  <Icon name="chevron-right" className="h-4 w-4 text-slate-700 dark:text-slate-300" />
+                </Button>
+              </div>
 
-              {/* Tabs for Tools/Instructions */}
-              <div className="border-b border-slate-200 dark:border-slate-700 mb-2">
-                <div className="flex">
-                  <button
-                    className={cn(
-                      'py-2 px-4 font-medium text-sm transition-all duration-200',
-                      activeTab === 'availableTools'
-                        ? 'border-b-2 border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
-                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-t-lg',
-                    )}
-                    onClick={() => setActiveTab('availableTools')}>
-                    {t('Available Tools', '可用工具')}
-                  </button>
-                  <button
-                    className={cn(
-                      'py-2 px-4 font-medium text-sm transition-all duration-200',
-                      activeTab === 'instructions'
-                        ? 'border-b-2 border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
-                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-t-lg',
-                    )}
-                    onClick={() => setActiveTab('instructions')}>
-                    {t('Instructions', '指令提示词')}
-                  </button>
-                  <button
-                    className={cn(
-                      'py-2 px-4 font-medium text-sm transition-all duration-200',
-                      activeTab === 'settings'
-                        ? 'border-b-2 border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
-                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-t-lg',
-                    )}
-                    onClick={() => setActiveTab('settings')}>
-                    {t('Settings', '设置')}
-                  </button>
+              {/* Row 2: Language Switch & Theme Switch */}
+              <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between w-full text-xs">
+                {/* Language Switch */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    {t('Language', '语言')}
+                  </span>
+                  <div className="inline-flex items-center p-0.5 bg-slate-100 dark:bg-slate-700/60 rounded-md border border-slate-200/60 dark:border-slate-600/40">
+                    <button
+                      type="button"
+                      onClick={() => !isZh && toggleLanguage()}
+                      className={cn(
+                        'px-2 py-0.5 text-xs rounded transition-all font-medium',
+                        isZh
+                          ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs font-semibold'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200',
+                      )}>
+                      中文
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => isZh && toggleLanguage()}
+                      className={cn(
+                        'px-2 py-0.5 text-xs rounded transition-all font-medium',
+                        !isZh
+                          ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs font-semibold'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200',
+                      )}>
+                      EN
+                    </button>
+                  </div>
+                </div>
+
+                {/* Theme Switch */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('Theme', '皮肤')}</span>
+                  <div className="inline-flex items-center p-0.5 bg-slate-100 dark:bg-slate-700/60 rounded-md border border-slate-200/60 dark:border-slate-600/40">
+                    <button
+                      type="button"
+                      onClick={() => setTheme('light')}
+                      aria-label={t('Light theme', '浅色模式')}
+                      title={t('Light theme', '浅色模式')}
+                      className={cn(
+                        'p-1 text-xs rounded transition-all flex items-center justify-center',
+                        theme === 'light'
+                          ? 'bg-white dark:bg-slate-800 text-amber-500 dark:text-amber-400 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200',
+                      )}>
+                      <Icon name="sun" size="xs" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTheme('dark')}
+                      aria-label={t('Dark theme', '深色模式')}
+                      title={t('Dark theme', '深色模式')}
+                      className={cn(
+                        'p-1 text-xs rounded transition-all flex items-center justify-center',
+                        theme === 'dark'
+                          ? 'bg-white dark:bg-slate-800 text-indigo-400 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200',
+                      )}>
+                      <Icon name="moon" size="xs" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTheme('system')}
+                      aria-label={t('Follow system', '跟随系统')}
+                      title={t('Follow system', '跟随系统')}
+                      className={cn(
+                        'p-1 text-xs rounded transition-all flex items-center justify-center',
+                        theme === 'system'
+                          ? 'bg-white dark:bg-slate-800 text-blue-500 dark:text-blue-400 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200',
+                      )}>
+                      <Icon name="laptop" size="xs" />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
+            </>
+          )}
+        </div>
 
-            {/* Tab Content Area - scrollable area with flex-grow to fill available space */}
-            <div className="flex-1 min-h-0 px-4 pb-4 overflow-hidden">
-              {/* AvailableTools */}
-              <div
-                className={cn(
-                  'h-full overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent',
-                  { hidden: activeTab !== 'availableTools' },
-                )}>
-                <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-300">
-                  <CardContent className="p-0">
-                    <AvailableTools
-                      tools={availableTools}
-                      onExecute={sendMessage}
-                      onRefresh={handleRefreshTools}
-                      isRefreshing={isRefreshing}
-                    />
-                  </CardContent>
-                </Card>
+        {/* Main Content Area - Using sliding panel approach */}
+        <div className="sidebar-inner-content flex-1 relative overflow-hidden bg-white dark:bg-slate-900">
+          {/* Virtual slide - content always at full width */}
+          <div
+            ref={contentRef}
+            className={cn(
+              'absolute top-0 bottom-0 right-0 transition-transform duration-200 ease-in-out',
+              isMinimized ? 'translate-x-full' : 'translate-x-0',
+              isTransitioning ? 'will-change-transform' : '',
+            )}
+            style={{ width: `${cardWidth}px` }}>
+            <div className="flex flex-col h-full">
+              {/* Critical Error Display - Only show for severe failures, never block UI */}
+              {initializationError && (
+                <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 p-3 flex-shrink-0">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-start space-x-2">
+                      <Icon name="alert-triangle" size="sm" className="text-red-600 dark:text-red-400 mt-0.5" />
+                      <div className="flex-1">
+                        <Typography variant="subtitle" className="text-red-800 dark:text-red-200 font-medium">
+                          {extensionContextInvalid ? t('Extension Reloaded', '扩展已重新加载') : t('Warning', '警告')}
+                        </Typography>
+                        <Typography variant="caption" className="text-red-700 dark:text-red-300">
+                          {extensionContextInvalid
+                            ? t(
+                                'The extension was reloaded. Please refresh this page to restore full functionality.',
+                                '扩展已重新加载，请刷新当前页面以恢复完整功能。',
+                              )
+                            : t(
+                                `Some features may be limited: ${initializationError}`,
+                                `部分功能可能受限：${initializationError}`,
+                              )}
+                        </Typography>
+                        {extensionContextInvalid && (
+                          <div className="mt-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => window.location.reload()}
+                              className="border-red-300 dark:border-red-600 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-800 mr-2">
+                              {t('Refresh Page', '刷新页面')}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {!extensionContextInvalid && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setInitializationError(null)}
+                        className="border-red-300 dark:border-red-600 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-800">
+                        {t('Dismiss', '忽略')}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Status section */}
+              <div className="py-4 px-4 space-y-4 overflow-y-auto flex-shrink-0">
+                <ServerStatus status={serverStatus} />
+
+                {/* Tabs for Tools/Instructions */}
+                <div className="border-b border-slate-200 dark:border-slate-700 mb-2">
+                  <div className="flex">
+                    <button
+                      className={cn(
+                        'py-2 px-4 font-medium text-sm transition-all duration-200',
+                        activeTab === 'availableTools'
+                          ? 'border-b-2 border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                          : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-t-lg',
+                      )}
+                      onClick={() => setActiveTab('availableTools')}>
+                      {t('Available Tools', '可用工具')}
+                    </button>
+                    <button
+                      className={cn(
+                        'py-2 px-4 font-medium text-sm transition-all duration-200',
+                        activeTab === 'instructions'
+                          ? 'border-b-2 border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                          : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-t-lg',
+                      )}
+                      onClick={() => setActiveTab('instructions')}>
+                      {t('Instructions', '指令提示词')}
+                    </button>
+                    <button
+                      className={cn(
+                        'py-2 px-4 font-medium text-sm transition-all duration-200',
+                        activeTab === 'settings'
+                          ? 'border-b-2 border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                          : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-t-lg',
+                      )}
+                      onClick={() => setActiveTab('settings')}>
+                      {t('Settings', '设置')}
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              {/* Instructions */}
-              <div
-                className={cn(
-                  'h-full overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent',
-                  { hidden: activeTab !== 'instructions' },
-                )}>
-                <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-300">
-                  <CardContent className="p-0">
-                    <InstructionManager adapter={adapter} tools={formattedTools} />
-                  </CardContent>
-                </Card>
+              {/* Tab Content Area - scrollable area with flex-grow to fill available space */}
+              <div className="flex-1 min-h-0 px-4 pb-4 overflow-hidden">
+                {/* AvailableTools */}
+                <div
+                  className={cn(
+                    'h-full overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent',
+                    { hidden: activeTab !== 'availableTools' },
+                  )}>
+                  <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-300">
+                    <CardContent className="p-0">
+                      <AvailableTools
+                        tools={availableTools}
+                        onExecute={sendMessage}
+                        onRefresh={handleRefreshTools}
+                        isRefreshing={isRefreshing}
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Instructions */}
+                <div
+                  className={cn(
+                    'h-full overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent',
+                    { hidden: activeTab !== 'instructions' },
+                  )}>
+                  <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-300">
+                    <CardContent className="p-0">
+                      <InstructionManager adapter={adapter} tools={formattedTools} />
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Settings */}
+                <div
+                  className={cn(
+                    'h-full overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent',
+                    { hidden: activeTab !== 'settings' },
+                  )}>
+                  <Settings />
+                </div>
               </div>
 
-              {/* Settings */}
-              <div
-                className={cn(
-                  'h-full overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent',
-                  { hidden: activeTab !== 'settings' },
-                )}>
-                <Settings />
-              </div>
-            </div>
-
-            {/* Input Area (Always at the bottom) */}
-            {/* <div className="border-t border-slate-200 dark:border-slate-700 flex-shrink-0 bg-white dark:bg-slate-800 shadow-inner">
+              {/* Input Area (Always at the bottom) */}
+              {/* <div className="border-t border-slate-200 dark:border-slate-700 flex-shrink-0 bg-white dark:bg-slate-800 shadow-inner">
               {!isInputMinimized ? (
                 <div className="relative">
                   <Button variant="ghost" size="sm" onClick={toggleInputMinimize} className="absolute top-2 right-2">
@@ -1008,10 +1366,11 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
                 </Button>
               )}
             </div> */}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
