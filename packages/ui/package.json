@@ -27,7 +27,7 @@
     "@extension/storage": "workspace:*",
     "@extension/shared": "workspace:*",
     "clsx": "^2.1.1",
-    "tailwind-merge": "^3.7.0"
+    "tailwind-merge": "^3.7.1"
   },
   "devDependencies": {
     "@extension/tsconfig": "workspace:*",
